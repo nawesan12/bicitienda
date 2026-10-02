@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { features } from "@/lib/features";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StoreShell } from "@/components/store/store-shell";
@@ -11,6 +12,7 @@ import { wa } from "@/lib/whatsapp";
 export const revalidate = 86400;
 
 export async function generateStaticParams() {
+  if (!features.blog) return [];
   return (await getArticles()).map((a) => ({ slug: a.slug }));
 }
 
@@ -44,7 +46,7 @@ export default async function ArticlePage({
     getArticles(),
     getStore(),
   ]);
-  if (!article) notFound();
+  if (!features.blog || !article) notFound();
   const more = all.filter((a) => a.id !== article.id).slice(0, 2);
 
   return (

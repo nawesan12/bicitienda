@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { features } from "@/lib/features";
+import { notFound } from "next/navigation";
 import { BoltDot } from "@/components/store/bolt";
 import { RepairForm } from "@/components/store/repair-form";
 import { StoreShell } from "@/components/store/store-shell";
@@ -15,6 +17,8 @@ export const metadata: Metadata = {
 };
 
 export default async function RepairsPage() {
+  // Módulo apagado para esta tienda (lib/features.ts).
+  if (!features.repairs) notFound();
   const runtime = await getStore();
   const { rep } = runtime.content;
 

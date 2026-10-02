@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CompareToggle } from "@/components/store/compare-button";
+import { features } from "@/lib/features";
 import { WaLink } from "@/components/store/wa-link";
 import { lexicon } from "@/lib/data/content";
 import { img } from "@/lib/images";
@@ -38,7 +39,7 @@ export function ProductCard({
         big ? "hover:-translate-y-[6px]" : "hover:-translate-y-[5px]"
       }`}
     >
-      {!big && <CompareToggle slug={p.slug} />}
+      {!big && features.compare && <CompareToggle slug={p.slug} />}
       <Link
         href={href}
         className="relative box-border block aspect-[4/3] flex-none bg-cream-4"

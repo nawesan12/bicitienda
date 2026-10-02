@@ -1,6 +1,7 @@
 import { AdvisorProvider } from "@/components/store/advisor-modals";
 import { CartDrawer } from "@/components/store/cart-drawer";
 import { CompareTray } from "@/components/store/compare-button";
+import { features } from "@/lib/features";
 import { NewsletterBand } from "@/components/store/newsletter-band";
 import { SiteFooter } from "@/components/store/site-footer";
 import { SiteHeader } from "@/components/store/site-header";
@@ -65,11 +66,13 @@ export async function StoreShell({ children }: { children: React.ReactNode }) {
         done={texts.news_done}
       />
       <SiteFooter runtime={runtime} categories={categories} texts={texts} />
-      <CompareTray
-        items={cards.map((c) => ({ slug: c.slug, name: c.name, image: c.image }))}
-        listPaths={listPaths}
-        catalogBase={`${paths.catalog()}/`}
-      />
+      {features.compare && (
+        <CompareTray
+          items={cards.map((c) => ({ slug: c.slug, name: c.name, image: c.image }))}
+          listPaths={listPaths}
+          catalogBase={`${paths.catalog()}/`}
+        />
+      )}
       <WhatsappFab whatsapp={runtime.whatsapp} label={texts.float_btn} />
       {runtime.ventaOnline && (
         <CartDrawer products={cartProducts} rates={rates} />

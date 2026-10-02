@@ -6,6 +6,8 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
+      // Panel, endpoints, cuenta, checkout y links de gestión: nada que indexar.
+      disallow: ["/admin", "/api", "/cuenta", "/checkout", "/turnos/", "/seguimiento"],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
   };

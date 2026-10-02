@@ -3,6 +3,7 @@ import { CartButton } from "@/components/store/cart-drawer";
 import { WaLink } from "@/components/store/wa-link";
 import { lexicon } from "@/lib/data/content";
 import { img, resolveImage } from "@/lib/images";
+import { features } from "@/lib/features";
 import { paths } from "@/lib/paths";
 import type { RuntimeStore } from "@/lib/server/queries";
 import type { Category, SiteTexts } from "@/lib/types";
@@ -55,21 +56,27 @@ export function SiteFooter({
 
           <div className="flex flex-col items-start gap-[10px] font-sans text-[13.5px]">
             <div className={colTitle}>{runtime.brandName.toUpperCase()}</div>
-            <Link href="/novedades" className={link}>
-              {lexicon.footer.blog}
-            </Link>
+            {features.blog && (
+              <Link href="/novedades" className={link}>
+                {lexicon.footer.blog}
+              </Link>
+            )}
             <Link href="/nosotros" className={link}>
               {lexicon.nav.about}
             </Link>
-            <Link href="/reparaciones" className={link}>
-              {lexicon.footer.repairs}
-            </Link>
-            <Link
-              href={paths.community()}
-              className="text-brand hover:text-brand-hover"
-            >
-              {lexicon.nav.communityLong}
-            </Link>
+            {features.repairs && (
+              <Link href="/reparaciones" className={link}>
+                {lexicon.footer.repairs}
+              </Link>
+            )}
+            {features.community && (
+              <Link
+                href={paths.community()}
+                className="text-brand hover:text-brand-hover"
+              >
+                {lexicon.nav.communityLong}
+              </Link>
+            )}
             {runtime.catalogPdfUrl && (
               <a
                 href={runtime.catalogPdfUrl}

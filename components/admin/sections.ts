@@ -1,5 +1,6 @@
 import { store } from "@/lib/config";
 import { lexicon } from "@/lib/data/content";
+import { features } from "@/lib/features";
 
 /**
  * Secciones del panel, en el orden de la navegación: las 9 del prototipo
@@ -24,9 +25,21 @@ const ALL: (AdminSection & { enabled?: boolean })[] = [
   { href: "/admin/pedidos", label: "Pedidos", kicker: "VENTAS ONLINE", badge: "orders" },
   { href: "/admin/productos", label: "Productos", kicker: "CATÁLOGO", badge: "products" },
   { href: "/admin/stock", label: "Stock", kicker: "INVENTARIO" },
-  { href: "/admin/novedades", label: "Novedades", kicker: "CONTENIDO EDITORIAL", badge: "articles" },
-  { href: "/admin/comunidad", label: "Comunidad", kicker: lexicon.admin.communityKicker, badge: "agenda" },
-  { href: "/admin/test", label: "Test", kicker: lexicon.nav.test.toUpperCase() },
+  {
+    href: "/admin/novedades",
+    label: "Novedades",
+    kicker: "CONTENIDO EDITORIAL",
+    badge: "articles",
+    enabled: features.blog,
+  },
+  {
+    href: "/admin/comunidad",
+    label: "Comunidad",
+    kicker: lexicon.admin.communityKicker,
+    badge: "agenda",
+    enabled: features.community || features.agenda,
+  },
+  { href: "/admin/test", label: "Test", kicker: lexicon.nav.test.toUpperCase(), enabled: features.advisor },
   { href: "/admin/nosotros", label: "Nosotros", kicker: "PÁGINA INSTITUCIONAL" },
   { href: "/admin/contenido", label: "Contenido", kicker: "TEXTOS DE LA WEB" },
   { href: "/admin/ajustes", label: "Ajustes", kicker: "CONFIGURACIÓN" },

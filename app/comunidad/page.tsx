@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { features } from "@/lib/features";
+import { notFound } from "next/navigation";
 import { StoreShell } from "@/components/store/store-shell";
 import { WaLink } from "@/components/store/wa-link";
 import { galleryLabels, lexicon } from "@/lib/data/content";
@@ -20,6 +22,8 @@ const CARD =
   "rounded-[18px] border border-white/[.12] bg-white/[.03] hover:border-[rgba(94,184,56,.6)]";
 
 export default async function CommunityPage() {
+  // Módulo apagado para esta tienda (lib/features.ts).
+  if (!features.community) notFound();
   const [rides, runtime, texts] = await Promise.all([
     getAgenda(),
     getStore(),

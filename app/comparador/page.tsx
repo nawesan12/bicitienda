@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { features } from "@/lib/features";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CompareView, type CompareProduct } from "@/components/store/compare-table";
 import { StoreShell } from "@/components/store/store-shell";
@@ -28,6 +30,8 @@ export const metadata: Metadata = {
 };
 
 export default async function ComparadorPage() {
+  // Módulo apagado para esta tienda (lib/features.ts).
+  if (!features.compare) notFound();
   const [visible, brands, categories, runtime] = await Promise.all([
     getVisibleProducts(),
     getBrands(),

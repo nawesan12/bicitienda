@@ -10,6 +10,7 @@ import { WaLink } from "@/components/store/wa-link";
 import { useCatalogFilters } from "@/lib/catalog-store";
 import { lexicon } from "@/lib/data/content";
 import { img, resolveImage } from "@/lib/images";
+import { features } from "@/lib/features";
 import { paths } from "@/lib/paths";
 import { wa } from "@/lib/whatsapp";
 
@@ -76,22 +77,31 @@ export function SiteHeader({
     return () => mq.removeEventListener("change", onChange);
   }, [menuOpen]);
 
+  // Solo los módulos prendidos (lib/features.ts).
   const desktop: NavItem[] = [
     { label: lexicon.nav.catalog, href: paths.catalog() },
-    { label: lexicon.nav.repairs, href: "/reparaciones" },
-    { label: lexicon.nav.blog, href: "/novedades" },
-    { label: lexicon.nav.test, modal: "test" },
+    ...(features.repairs ? [{ label: lexicon.nav.repairs, href: "/reparaciones" }] : []),
+    ...(features.blog ? [{ label: lexicon.nav.blog, href: "/novedades" }] : []),
+    ...(features.advisor ? [{ label: lexicon.nav.test, modal: "test" as const }] : []),
     { label: lexicon.nav.about, href: "/nosotros" },
-    { label: lexicon.nav.community, href: paths.community(), accent: true },
+    ...(features.community
+      ? [{ label: lexicon.nav.community, href: paths.community(), accent: true }]
+      : []),
   ];
   const mobile: NavItem[] = [
     { label: lexicon.nav.catalog, href: paths.catalog() },
-    { label: lexicon.nav.repairs, href: "/reparaciones" },
-    { label: lexicon.nav.blog, href: "/novedades" },
-    { label: lexicon.nav.test, modal: "test" },
-    { label: lexicon.nav.cuotas, modal: "cuotas" },
+    ...(features.repairs ? [{ label: lexicon.nav.repairs, href: "/reparaciones" }] : []),
+    ...(features.blog ? [{ label: lexicon.nav.blog, href: "/novedades" }] : []),
+    ...(features.advisor
+      ? [
+          { label: lexicon.nav.test, modal: "test" as const },
+          { label: lexicon.nav.cuotas, modal: "cuotas" as const },
+        ]
+      : []),
     { label: lexicon.nav.about, href: "/nosotros" },
-    { label: lexicon.nav.communityLong, href: paths.community(), accent: true },
+    ...(features.community
+      ? [{ label: lexicon.nav.communityLong, href: paths.community(), accent: true }]
+      : []),
   ];
 
   const desktopLink = (accent?: boolean) =>
@@ -136,7 +146,7 @@ export function SiteHeader({
         <span className="flex-1 min-[1140px]:hidden" />
 
         <div className="flex flex-none items-center gap-3">
-          <NavCompareButton />
+          {features.compare && <NavCompareButton />}
           {ventaOnline && <CartButton />}
           <button
             type="button"

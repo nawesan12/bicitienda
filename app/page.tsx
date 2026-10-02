@@ -10,6 +10,7 @@ import { StoreShell } from "@/components/store/store-shell";
 import { WaLink } from "@/components/store/wa-link";
 import { heroGhost, igSlots, lexicon } from "@/lib/data/content";
 import { img } from "@/lib/images";
+import { features } from "@/lib/features";
 import { paths } from "@/lib/paths";
 import { ratesOf } from "@/lib/pricing";
 import { toCardProduct } from "@/lib/product-view";
@@ -250,6 +251,7 @@ export default async function HomePage() {
       </section>
 
       {/* ── Herramientas ─────────────────────────────────────── */}
+      {features.advisor && (
       <section className={`bg-night text-cream ${SECTION}`}>
         <div className="mx-auto max-w-wide">
           <div className="flex flex-wrap items-baseline justify-between gap-5">
@@ -290,8 +292,10 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ── Reparaciones ─────────────────────────────────────── */}
+      {features.repairs && (
       <section className={`bg-white ${SECTION}`}>
         <div className="mx-auto grid max-w-wide grid-cols-[repeat(auto-fit,minmax(min(380px,100%),1fr))] items-center gap-[clamp(28px,4vw,56px)]">
           <div>
@@ -324,8 +328,10 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ── Novedades ────────────────────────────────────────── */}
+      {features.blog && (
       <section className={`bg-cream ${SECTION}`}>
         <div className="mx-auto max-w-wide">
           <div className="flex items-baseline gap-4">
@@ -366,8 +372,10 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ── Comunidad (verde) ────────────────────────────────── */}
+      {features.community && (
       <section className="relative overflow-hidden bg-brand px-[clamp(16px,4vw,40px)] py-[70px]">
         <Bolt
           width={300}
@@ -421,6 +429,7 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ── El local ─────────────────────────────────────────── */}
       <section className={`bg-white ${SECTION}`}>

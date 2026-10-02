@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { AddToCart } from "@/components/store/add-to-cart";
 import { CatalogView } from "@/components/store/catalog-view";
 import { CompareToggleLong } from "@/components/store/compare-button";
+import { features } from "@/lib/features";
 import { JsonLd, localBusinessLd, productLd } from "@/components/store/json-ld";
 import { StockAlertForm } from "@/components/store/stock-alert-form";
 import { StoreShell } from "@/components/store/store-shell";
@@ -260,7 +261,7 @@ async function ProductView({ product }: { product: Product }) {
                   />
                 )}
               </div>
-              <CompareToggleLong slug={product.slug} />
+              {features.compare && <CompareToggleLong slug={product.slug} />}
               {card.outOfStock && store.features.emails !== false && (
                 <StockAlertForm slug={product.slug} />
               )}

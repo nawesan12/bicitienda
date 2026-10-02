@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { features } from "@/lib/features";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { StoreShell } from "@/components/store/store-shell";
 import { lexicon } from "@/lib/data/content";
@@ -14,6 +16,8 @@ export const metadata: Metadata = {
 };
 
 export default async function NovedadesPage() {
+  // Módulo apagado para esta tienda (lib/features.ts).
+  if (!features.blog) notFound();
   const [published, texts] = await Promise.all([getArticles(), getTexts()]);
 
   return (
