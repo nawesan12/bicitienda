@@ -13,7 +13,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "admin:pin": "tsx scripts/admin-pin.ts",
-    "seed:images": "tsx scripts/seed-images.ts"
+    "seed:images": "tsx scripts/seed-images.ts",
+    "demo:images": "tsx scripts/demo-images.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",
