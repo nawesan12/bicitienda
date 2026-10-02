@@ -34,7 +34,7 @@ export const store: StoreConfig = {
   instagram: "faro.tienda",
   tiktok: null,
   transferAlias: "FARO.TIENDA", // ← alias/CBU real
-  transferDiscount: 5, // % de descuento por transferencia
+  transferDiscount: 10, // % de descuento por transferencia
   r3: 0, // % de recargo en 3 cuotas (0 = sin recargo)
   r6: 0, // % de recargo en 6 cuotas
   address: "Av. Ejemplo 1234 · Mar del Plata",
@@ -48,14 +48,14 @@ export const store: StoreConfig = {
   catalogPdfUrl: null,
   depositRate: 0.1,
   depositMinTotal: 300_000,
-  reservationHours: 72,
+  // Reserva de una transferencia sin acreditar (el efectivo tiene la suya
+  // en settings.cashReservationHours: null = no vence).
+  reservationHours: 24,
   localShippingCost: 8000,
   showPrices: true,
   criticalStock: 1,
   lowStock: 3,
-  // Dos sucursales de ejemplo: la primera es la principal (recibe el stock
-  // del seed). Una tienda de un solo local deja únicamente la primera y
-  // apaga `features.admin.locations`.
+  // Un solo local: todo el stock y los retiros salen de acá.
   locations: [
     {
       id: "central",
@@ -68,31 +68,41 @@ export const store: StoreConfig = {
       order: 0,
       active: true,
     },
-    {
-      id: "puerto",
-      name: "12 de Octubre 3456",
-      shortName: "Puerto",
-      address: "12 de Octubre 3456 · Mar del Plata",
-      hours: "Mar a sáb 10–19 hs",
-      mapsUrl:
-        "https://www.google.com/maps/search/?api=1&query=Mar+del+Plata",
-      order: 1,
-      active: true,
-    },
   ],
   features: {
-    comparador: true,
-    blog: true,
-    agenda: true,
-    asesor: true,
+    // Módulos de contenido del core que BiciTienda no usa.
+    comparador: false,
+    blog: false,
+    agenda: false,
+    asesor: false,
+    repairs: false,
+    community: false,
     pos: false,
     editorVisual: false,
-    // Pasarela online del checkout: Payway (formulario hosteado) o Mercado
-    // Pago (Checkout Pro). Sin credenciales, las dos usan el sandbox local.
-    payments: { payway: true, mp: false },
-    // Secciones opcionales del panel: sucursales (hay dos de ejemplo) y el
-    // listado de clientes derivado de los pedidos.
-    admin: { locations: true, customers: false },
+    emails: true,
+    // Sin seña: se paga el total (MP) o se reserva (transferencia/efectivo).
+    deposit: false,
+    // Módulos de BiciTienda.
+    variants: true,
+    accounts: true,
+    appointments: true,
+    quotes: true,
+    cashPayment: true,
+    pickupOnly: true,
+    csvImport: true,
+    // Mercado Pago Checkout Pro (sin credenciales: sandbox local). Payway
+    // queda en el core, apagado.
+    payments: { payway: false, mp: true },
+    admin: { locations: false, customers: true },
+  },
+  orderPrefix: "BT-",
+  firstOrderNumber: 10482,
+  emailColors: {
+    ink: "#121110",
+    paper: "#f4efe4",
+    accent: "#ffd21f",
+    onAccent: "#121110",
+    offer: "#d7261e",
   },
 };
 
@@ -107,7 +117,7 @@ export const routes: StoreRoutes = {
   community: "/comunidad",
 };
 
-export const deliveryMethods: DeliveryMethod[] = [
+const allDeliveryMethods: DeliveryMethod[] = [
   {
     id: "retiro",
     name: "Retiro en el local",
@@ -132,6 +142,11 @@ export const deliveryMethods: DeliveryMethod[] = [
   },
 ];
 
+/** Entregas del checkout: con `features.pickupOnly`, solo el retiro. */
+export const deliveryMethods: DeliveryMethod[] = allDeliveryMethods.filter(
+  (d) => !store.features.pickupOnly || d.isPickup,
+);
+
 /**
  * Medios de pago del checkout. Las pasarelas online se filtran por
  * `features.payments`: Payway y Mercado Pago son intercambiables para el
@@ -150,16 +165,18 @@ const allPaymentMethods: PaymentMethod[] = [
   {
     id: "mercadopago",
     name: "Mercado Pago",
-    detail: "Tarjeta en 1, 3 o 6 cuotas",
+    detail: "Tarjeta de crédito, débito o dinero en cuenta. Hasta 6 cuotas sin interés.",
     transferDiscount: false,
-    allowsInstallments: true,
+    // Las cuotas se eligen en Checkout Pro (tope: settings.maxInstallments)
+    // y se leen del pago al conciliar.
+    allowsInstallments: false,
     pickupOnly: false,
     allowsDeposit: true,
   },
   {
     id: "transferencia",
     name: "Transferencia bancaria",
-    detail: `${store.transferDiscount}% de descuento · alias ${store.transferAlias}`,
+    detail: `${store.transferDiscount}% off · reservamos el stock ${store.reservationHours} hs`,
     transferDiscount: true,
     allowsInstallments: false,
     pickupOnly: false,
@@ -168,7 +185,7 @@ const allPaymentMethods: PaymentMethod[] = [
   {
     id: "efectivo",
     name: "Efectivo en el local",
-    detail: `solo retiro · reserva por ${store.reservationHours} hs`,
+    detail: "Reservás online y pagás cuando la retirás.",
     transferDiscount: false,
     allowsInstallments: false,
     pickupOnly: true,
@@ -179,7 +196,8 @@ const allPaymentMethods: PaymentMethod[] = [
 export const paymentMethods: PaymentMethod[] = allPaymentMethods.filter(
   (p) =>
     (p.id !== "payway" || store.features.payments.payway) &&
-    (p.id !== "mercadopago" || store.features.payments.mp),
+    (p.id !== "mercadopago" || store.features.payments.mp) &&
+    (p.id !== "efectivo" || store.features.cashPayment !== false),
 );
 
 /** Medios que cobran por una pasarela online (no se confirman a mano). */

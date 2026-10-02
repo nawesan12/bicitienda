@@ -4,6 +4,7 @@ import { isOnlinePayment } from "@/lib/config";
 import { chargeAmount, isGatewayLive } from "@/lib/server/online-payment";
 import { getOrderById } from "@/lib/server/order-queries";
 import { applyPaymentResult } from "@/lib/server/payments";
+import { isPaymentSandboxAllowed } from "@/lib/server/payment-availability";
 
 /**
  * SANDBOX LOCAL de la pasarela (Payway, o MP si la tienda lo usa): solo
@@ -18,6 +19,8 @@ export async function simulatePayment(
   orderId: string,
   approved: boolean,
 ): Promise<{ ok: boolean }> {
+  // Nunca en producción: sin credenciales el pago online no se ofrece.
+  if (!isPaymentSandboxAllowed()) return { ok: false };
   if (
     typeof orderId !== "string" ||
     !/^[0-9a-f-]{36}$/i.test(orderId) ||

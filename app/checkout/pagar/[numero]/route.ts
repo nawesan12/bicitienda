@@ -25,7 +25,7 @@ export async function GET(
   if (!(await withinRateLimit("retry-payment", 6))) {
     return NextResponse.redirect(back, 303);
   }
-  if (!/^\d{1,12}$/.test(numero) || !email) {
+  if (!/^[A-Za-z0-9-]{1,20}$/.test(numero) || !email) {
     return new Response("Not found", { status: 404 });
   }
   const full = await getOrderForCustomer(numero, email);

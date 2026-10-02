@@ -80,7 +80,7 @@ export default async function AccountPage({
               {orders.map(({ order, items, customer }) => (
                 <Link
                   key={order.id}
-                  href={`/seguimiento/${order.number}?e=${encodeURIComponent(customer.email)}`}
+                  href={`/seguimiento/${order.number}?e=${encodeURIComponent(customer.email ?? customer.phone)}`}
                   className="group flex flex-col gap-4 rounded-[24px] border border-ink/10 bg-white p-[clamp(18px,3vw,24px)] transition-[transform,box-shadow] hover:-translate-y-[2px] hover:shadow-[0_16px_40px_rgba(21,23,15,.1)]"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">

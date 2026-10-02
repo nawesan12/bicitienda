@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { StoreShell } from "@/components/store/store-shell";
-import {
-  deliveryMethods,
-  isOnlinePayment,
-  paymentMethods,
-} from "@/lib/config";
+import { isOnlinePayment, store } from "@/lib/config";
+import { deliveryOptions, paymentOptions } from "@/lib/server/checkout-options";
 import { toCartProduct } from "@/lib/cart-view";
 import { lexicon } from "@/lib/data/content";
 import { paths } from "@/lib/paths";
@@ -59,21 +56,21 @@ export default async function CheckoutPage() {
           address: l.address,
           hours: l.hours,
         }))}
-        deliveryOptions={deliveryMethods.map((d) => ({
+        deliveryOptions={deliveryOptions(runtime).map((d) => ({
           id: d.id,
           name: d.name,
           detail: d.detail,
-          cost: d.id === "envio-mdq" ? runtime.localShippingCost : d.cost,
+          cost: d.cost,
           isPickup: d.isPickup,
         }))}
-        paymentOptions={paymentMethods.map((p) => ({
+        paymentOptions={paymentOptions(runtime).map((p) => ({
           id: p.id,
           name: p.name,
           detail: p.detail,
           pickupOnly: p.pickupOnly,
           online: isOnlinePayment(p.id),
           allowsInstallments: p.allowsInstallments,
-          allowsDeposit: p.allowsDeposit,
+          allowsDeposit: p.allowsDeposit && store.features.deposit !== false,
           transferDiscount: p.transferDiscount,
         }))}
       />

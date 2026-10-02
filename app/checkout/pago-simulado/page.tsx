@@ -5,6 +5,7 @@ import { lexicon } from "@/lib/data/content";
 import { formatARS } from "@/lib/format";
 import { chargeAmount, isGatewayLive } from "@/lib/server/online-payment";
 import { getOrderById } from "@/lib/server/order-queries";
+import { isPaymentSandboxAllowed } from "@/lib/server/payment-availability";
 import { getStore } from "@/lib/server/queries";
 import { SimulatedPayButtons } from "./simulated-buttons";
 
@@ -39,6 +40,7 @@ export default async function SimulatedPaymentPage({
 }: {
   searchParams: Promise<{ order?: string }>;
 }) {
+  if (!isPaymentSandboxAllowed()) notFound();
   const { order: orderId } = await searchParams;
   if (!orderId || !/^[0-9a-f-]{36}$/i.test(orderId)) notFound();
   const [full, runtime] = await Promise.all([getOrderById(orderId), getStore()]);
@@ -118,7 +120,7 @@ export default async function SimulatedPaymentPage({
             orderId={order.id}
             gateway={gateway}
             amountLabel={formatARS(charge)}
-            confirmUrl={`/checkout/confirmacion/${order.number}?e=${encodeURIComponent(customer.email)}`}
+            confirmUrl={`/checkout/confirmacion/${order.number}?e=${encodeURIComponent(customer.email ?? customer.phone)}`}
           />
         </section>
 

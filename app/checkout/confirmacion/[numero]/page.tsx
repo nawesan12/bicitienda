@@ -101,7 +101,7 @@ export default async function ConfirmationPage({
   const señado = order.status === "SEÑADO" && order.balanceDue > 0;
   const ok = paid || señado;
   const isPickup = order.deliveryMethod === "retiro";
-  const trackingHref = `/seguimiento/${order.number}?e=${encodeURIComponent(customer.email)}`;
+  const trackingHref = `/seguimiento/${order.number}?e=${encodeURIComponent(customer.email ?? customer.phone)}`;
   const isTransfer = order.paymentMethod === "transferencia";
   const isCash = order.paymentMethod === "efectivo";
   const online = isOnlinePayment(order.paymentMethod);
@@ -165,7 +165,7 @@ export default async function ConfirmationPage({
 
             {pendingOnline && (
               <a
-                href={`/checkout/pagar/${order.number}?e=${encodeURIComponent(customer.email)}`}
+                href={`/checkout/pagar/${order.number}?e=${encodeURIComponent(customer.email ?? customer.phone)}`}
                 className="mt-6 inline-block rounded-full bg-brand px-7 py-[15px] font-sans text-[15px] font-bold text-night hover:bg-brand-hover"
               >
                 {t.retry}

@@ -229,7 +229,7 @@ export function OrderActions({
                 label: "Sí, cancelar",
                 destructive: true,
               });
-              if (ok) run(() => cancelOrder(orderId), "Pedido cancelado");
+              if (ok) run(async () => { await cancelOrder(orderId); }, "Pedido cancelado");
             }}
           >
             Cancelar pedido

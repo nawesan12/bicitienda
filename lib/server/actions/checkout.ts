@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 import { createOrder, type CheckoutResult } from "@/lib/server/orders";
+import { isValidArPhone } from "@/lib/phone";
+import { getCurrentAccount } from "@/lib/server/customer-auth";
 import { withinRateLimit } from "@/lib/server/rate-limit";
 
 /**
@@ -16,21 +18,23 @@ const checkoutSchema = z.object({
     .array(
       z.object({
         productSlug: z.string().trim().min(1).max(80),
+        /** Talle × color. Opcional si el producto tiene una sola variante. */
+        variantId: z.string().trim().min(1).max(80).optional(),
         quantity: z.number().int().min(1).max(10),
       }),
     )
     .min(1, "El carrito está vacío.")
     .max(20),
   name: z.string().trim().min(2, "Completá tu nombre.").max(120),
-  email: z.string().trim().toLowerCase().email("Revisá el email.").max(200),
+  /** Opcional: sin email no salen mails (todo sigue por WhatsApp). */
+  email: z
+    .union([z.literal(""), z.string().trim().toLowerCase().email("Revisá el email.").max(200)])
+    .optional(),
   phone: z
     .string()
     .trim()
     .max(30)
-    .refine((v) => {
-      const digits = v.replace(/\D/g, "");
-      return digits.length >= 8 && digits.length <= 15;
-    }, "Revisá el teléfono."),
+    .refine(isValidArPhone, "Revisá el WhatsApp: 10 dígitos con la característica (ej. 223 555-0182)."),
   deliveryMethod: z.enum(["retiro", "envio-mdq", "envio-coordinar"]),
   deliveryAddress: z.string().trim().max(300).optional(),
   deliveryNotes: z.string().trim().max(500).optional(),
@@ -57,7 +61,13 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
   }
 
   try {
-    return await createOrder(parsed.data);
+    // Logueado: el pedido queda en su cuenta ("Mis pedidos").
+    const account = await getCurrentAccount();
+    return await createOrder({
+      ...parsed.data,
+      email: parsed.data.email || account?.email || null,
+      accountId: account?.id ?? null,
+    });
   } catch (err) {
     console.error("[checkout] error creando pedido:", err);
     return { ok: false, error: "No pudimos crear el pedido. Probá de nuevo." };

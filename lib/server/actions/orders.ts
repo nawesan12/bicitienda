@@ -1,18 +1,34 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/server/actions/guard";
 import { getDb, schema } from "@/lib/server/db";
 import { sendOrderEmail } from "@/lib/server/mail";
+import { invalidateAdmin } from "@/lib/server/revalidate";
 import {
+  advanceOrder as advanceOrderInternal,
   appendEvent,
   cancelOrder as cancelOrderInternal,
   makeEvent,
+  type AdvanceResult,
 } from "@/lib/server/orders";
 import type { OrderStatus } from "@/lib/types";
 
 const idSchema = z.string().trim().min(1).max(80);
+const statusSchema = z.enum([
+  "PENDIENTE_PAGO",
+  "SEÑADO",
+  "PAGADO",
+  "EN_PREPARACION",
+  "LISTO_RETIRO",
+  "ENVIADO",
+  "ENTREGA_COORDINADA",
+  "RETIRADO",
+  "ENTREGADO",
+  "CANCELADO",
+  "VENCIDO",
+]);
 const balanceSchema = z.object({
   method: z.enum(["transferencia", "efectivo"]),
   amount: z.number().int().min(1).max(1_000_000_000),
@@ -32,40 +48,38 @@ async function getOrder(orderId: string) {
   return order;
 }
 
-/** Confirma a mano un pago por transferencia o efectivo. */
+/**
+ * El botón amarillo del pedido (prototipo 3a): aplica la próxima
+ * transición de la máquina de lib/order-flow.ts — Validar transferencia,
+ * Pasar a armado, Marcar lista para retirar, Marcar como retirada o
+ * Registrar pago y retiro. `expectedFrom` es el estado que el admin está
+ * viendo: si cambió, no avanza.
+ */
+export async function advanceOrder(
+  orderId: unknown,
+  expectedFrom?: unknown,
+): Promise<AdvanceResult> {
+  await requireAdmin();
+  const id = idSchema.safeParse(orderId);
+  const from = expectedFrom === undefined ? null : statusSchema.safeParse(expectedFrom);
+  if (!id.success || (from && !from.success))
+    return { ok: false, error: "Pedido inválido." };
+  const result = await advanceOrderInternal(id.data, from?.success ? from.data : undefined);
+  if (result.ok) invalidateAdmin();
+  return result;
+}
+
+/**
+ * Confirma a mano el pago de una reserva (transferencia validada o
+ * efectivo). Para transferencia equivale al botón "Validar transferencia";
+ * el efectivo se registra junto con el retiro (advanceOrder).
+ */
 export async function confirmManualPayment(orderId: string) {
   await requireAdmin();
   if (!idSchema.safeParse(orderId).success) return;
-  const db = await getDb();
   const order = await getOrder(orderId);
   if (!order || order.status !== "PENDIENTE_PAGO") return;
-
-  await db.insert(schema.payments).values({
-    orderId: order.id,
-    kind: "total",
-    method: order.paymentMethod,
-    amount: order.total,
-    status: "approved",
-  });
-  await db
-    .update(schema.orders)
-    .set({
-      status: "PAGADO",
-      paidAmount: order.total,
-      balanceDue: 0,
-      expiresAt: null,
-    })
-    .where(eq(schema.orders.id, order.id));
-  await appendEvent(
-    order.id,
-    makeEvent(
-      "PAGO",
-      order.paymentMethod === "transferencia"
-        ? "Transferencia acreditada"
-        : "Pago en efectivo registrado",
-    ),
-  );
-  await sendOrderEmail(order.id, "confirmacion");
+  await advanceOrderInternal(order.id, "PENDIENTE_PAGO");
 }
 
 /**
@@ -123,7 +137,7 @@ export async function registerBalancePayment(
 /** Transiciones simples del ciclo de entrega. */
 export async function setOrderStatus(orderId: string, status: OrderStatus) {
   await requireAdmin();
-  if (!idSchema.safeParse(orderId).success) return;
+  if (!idSchema.safeParse(orderId).success || !statusSchema.safeParse(status).success) return;
   const db = await getDb();
   const order = await getOrder(orderId);
   if (!order) return;
@@ -138,10 +152,12 @@ export async function setOrderStatus(orderId: string, status: OrderStatus) {
   };
   if (!allowed[status]?.includes(order.status)) return;
 
-  await db
+  const claimed = await db
     .update(schema.orders)
     .set({ status })
-    .where(eq(schema.orders.id, orderId));
+    .where(and(eq(schema.orders.id, orderId), eq(schema.orders.status, order.status)))
+    .returning();
+  if (!claimed.length) return;
 
   if (status === "EN_PREPARACION") {
     await appendEvent(orderId, makeEvent("PAGO", "Pedido en preparación"));
@@ -159,9 +175,12 @@ export async function setOrderStatus(orderId: string, status: OrderStatus) {
   }
 }
 
-/** Cancela y restaura stock si la reserva seguía viva. */
-export async function cancelOrder(orderId: string) {
+/** Cancela (pill propia) y devuelve el stock, salvo que ya esté retirado. */
+export async function cancelOrder(orderId: unknown): Promise<{ ok: boolean }> {
   await requireAdmin();
-  if (!idSchema.safeParse(orderId).success) return;
-  await cancelOrderInternal(orderId);
+  const id = idSchema.safeParse(orderId);
+  if (!id.success) return { ok: false };
+  const ok = await cancelOrderInternal(id.data);
+  if (ok) invalidateAdmin();
+  return { ok };
 }

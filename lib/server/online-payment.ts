@@ -1,8 +1,14 @@
 import { eq } from "drizzle-orm";
 import { store } from "@/lib/config";
 import { getDb, schema } from "@/lib/server/db";
-import { createPreference, isMpConfigured } from "@/lib/server/mp";
+import {
+  createPreference,
+  isMpConfigured,
+  mpStatus,
+  searchPaymentsByReference,
+} from "@/lib/server/mp";
 import { applyPaymentResult } from "@/lib/server/payments";
+import { isPaymentSandboxAllowed } from "@/lib/server/payment-availability";
 import {
   createPaywayCheckout,
   isPaywayConfigured,
@@ -33,15 +39,21 @@ export function isGatewayLive(method: PaymentMethodId): boolean {
   return false;
 }
 
+function sandboxUrl(order: OrderRow): string {
+  if (!isPaymentSandboxAllowed())
+    throw new Error("Pasarela sin credenciales en producción: el sandbox está cerrado.");
+  return `/checkout/pago-simulado?order=${order.id}`;
+}
+
 /** URL a la que redirigir al cliente para pagar. */
 export async function startOnlinePayment(
   order: OrderRow,
-  email: string,
+  email: string | null,
   lines: CartLine[] = [],
 ): Promise<string> {
   const method = order.paymentMethod;
   if (method === "payway" && store.features.payments.payway) {
-    if (!isPaywayConfigured()) return `/checkout/pago-simulado?order=${order.id}`;
+    if (!isPaywayConfigured()) return sandboxUrl(order);
     const deposit = order.paymentMode === "sena" && order.status === "PENDIENTE_PAGO";
     const { url, reference } = await createPaywayCheckout({
       orderNumber: order.number,
@@ -51,7 +63,7 @@ export async function startOnlinePayment(
       description: deposit
         ? `Seña pedido ${order.number} · ${store.brandName}`
         : `Pedido ${order.number} · ${store.brandName}`,
-      email,
+      email: email ?? "",
     });
     const db = await getDb();
     await db
@@ -61,8 +73,12 @@ export async function startOnlinePayment(
     return url;
   }
   if (method === "mercadopago" && store.features.payments.mp) {
-    if (!isMpConfigured()) return `/checkout/pago-simulado?order=${order.id}`;
-    return createPreference(order, lines, email);
+    if (!isMpConfigured()) return sandboxUrl(order);
+    const { getSettings } = await import("@/lib/server/queries");
+    const settings = await getSettings();
+    return createPreference(order, lines, email, {
+      maxInstallments: settings.maxInstallments,
+    });
   }
   throw new Error(`Medio de pago sin pasarela online: ${method}`);
 }
@@ -73,6 +89,31 @@ export async function startOnlinePayment(
  * llegó antes de que el pago se aprobara). La usa la confirmación.
  */
 export async function syncPendingPayment(order: OrderRow): Promise<boolean> {
+  if (
+    order.status === "PENDIENTE_PAGO" &&
+    order.paymentMethod === "mercadopago" &&
+    isMpConfigured()
+  ) {
+    try {
+      let changed = false;
+      for (const p of await searchPaymentsByReference(order.number)) {
+        if (p.external_reference !== order.number) continue;
+        const applied = await applyPaymentResult({
+          provider: "mp",
+          providerPaymentId: String(p.id),
+          status: mpStatus(p.status),
+          amount: Math.round(p.transaction_amount),
+          orderNumber: order.number,
+          installments: p.installments,
+        });
+        changed ||= applied.ok && !applied.already && !applied.ignored;
+      }
+      return changed;
+    } catch (err) {
+      console.error("[mp] error conciliando el pedido", order.number, err);
+      return false;
+    }
+  }
   if (
     order.status !== "PENDIENTE_PAGO" ||
     order.paymentMethod !== "payway" ||

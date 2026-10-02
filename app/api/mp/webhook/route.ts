@@ -3,6 +3,7 @@ import { store } from "@/lib/config";
 import {
   fetchPayment,
   isMpConfigured,
+  mpStatus,
   verifyWebhookSignature,
 } from "@/lib/server/mp";
 import { applyPaymentResult } from "@/lib/server/payments";
@@ -60,14 +61,10 @@ export async function POST(request: Request) {
   await applyPaymentResult({
     provider: "mp",
     providerPaymentId: String(payment.id),
-    status:
-      payment.status === "approved"
-        ? "approved"
-        : payment.status === "rejected" || payment.status === "cancelled"
-          ? "rejected"
-          : "pending",
+    status: mpStatus(payment.status),
     amount: Math.round(payment.transaction_amount),
     orderNumber: payment.external_reference,
+    installments: payment.installments,
   });
 
   return NextResponse.json({ ok: true });

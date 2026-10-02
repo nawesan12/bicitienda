@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import { updateTag } from "next/cache";
-import { deliveryMethods, isOnlinePayment, paymentMethods } from "@/lib/config";
+import { deliveryMethods, isOnlinePayment, paymentMethods, store } from "@/lib/config";
 import { formatARS, zonedParts } from "@/lib/format";
+import { canCancel, nextTransition } from "@/lib/order-flow";
+import { normalizeArPhone } from "@/lib/phone";
 import {
   computeTotals,
   depositAmount,
@@ -10,14 +12,17 @@ import {
   ratesOf,
   type Installments,
 } from "@/lib/pricing";
-import { getDb, schema } from "@/lib/server/db";
+import { COUNTERS, nextCounter } from "@/lib/server/counters";
+import { upsertCustomer } from "@/lib/server/customers";
+import { getDb, schema, type Db } from "@/lib/server/db";
 import { insertLead } from "@/lib/server/leads";
+import { isOnlinePaymentAvailable } from "@/lib/server/payment-availability";
 import { sendOrderEmail } from "@/lib/server/mail";
 import { getStore, getVisibleProducts } from "@/lib/server/queries";
 import { invalidatePublic } from "@/lib/server/revalidate";
 import {
   applyStockMovement,
-  getStockMatrix,
+  getVariantStockMatrix,
   revertOrderMovements,
   StockError,
 } from "@/lib/server/stock";
@@ -31,23 +36,28 @@ import type {
   PaymentMode,
   StoreLocation,
 } from "@/lib/types";
+import { resolveVariant, variantLabel } from "@/lib/variants";
 
 /**
  * Ciclo de vida de los pedidos. El stock se descuenta AL CREAR (reserva
- * real, por sucursal, asentada en el libro de movimientos) y se restaura
- * al cancelar o vencer revirtiendo EXACTAMENTE esos movimientos; los
- * totales se recalculan siempre acá con las tasas de la DB — jamás se
+ * real, por variante y sucursal, asentada en el libro de movimientos) y se
+ * restaura al cancelar o vencer revirtiendo EXACTAMENTE esos movimientos;
+ * los totales se recalculan siempre acá con las tasas de la DB — jamás se
  * confía en el cliente.
  *
  * Sin transacciones interactivas (el driver HTTP de Neon no las tiene):
  * cada movimiento de stock es un UPDATE condicional atómico y ante un
- * fallo a mitad de camino se compensa lo ya reservado.
+ * fallo a mitad de camino se compensa lo ya reservado. Las transiciones
+ * de estado son UPDATE … WHERE status = <el de origen>: dos clics
+ * simultáneos no avanzan dos veces.
  */
 
 export interface CheckoutInput {
   items: CartItem[];
   name: string;
-  email: string;
+  /** Opcional: sin email no salen mails (todo sigue por WhatsApp). */
+  email?: string | null;
+  /** WhatsApp: obligatorio, se normaliza (lib/phone.ts). */
   phone: string;
   deliveryMethod: DeliveryMethodId;
   deliveryAddress?: string;
@@ -55,10 +65,12 @@ export interface CheckoutInput {
   paymentMethod: PaymentMethodId;
   /** Sucursal elegida para retirar (obligatoria si hay más de una activa). */
   pickupLocationId?: string;
-  /** "sena" reserva pagando solo la seña online (pedidos de alto valor). */
+  /** "sena" reserva pagando solo la seña online (si la tienda la usa). */
   paymentMode?: PaymentMode;
-  /** Cuotas con tarjeta (1, 3 o 6 con el recargo r3/r6). La seña va en 1. */
+  /** Cuotas con recargo (Payway). En MP las elige el cliente en Checkout Pro. */
   installments?: Installments;
+  /** Cuenta del cliente logueado (la pone la action desde la sesión). */
+  accountId?: string | null;
 }
 
 export type CheckoutResult =
@@ -79,16 +91,11 @@ export function makeEvent(
   return { key, label, at: shortStamp(), state: "done" };
 }
 
-/** Número secuencial atómico: UPDATE … RETURNING sobre la fila contador. */
-async function nextOrderNumber(): Promise<string> {
-  const db = await getDb();
-  const [row] = await db
-    .update(schema.counters)
-    .set({ value: sql`${schema.counters.value} + 1` })
-    .where(eq(schema.counters.id, "order_number"))
-    .returning();
-  if (!row) throw new Error("Falta el contador order_number: corré db:seed.");
-  return String(row.value);
+/** Número visible: prefijo de la tienda + contador ("BT-10482"). */
+export async function nextOrderNumber(db?: Db): Promise<string> {
+  const conn = db ?? (await getDb());
+  const value = await nextCounter(conn, COUNTERS.order, store.firstOrderNumber ?? 1041);
+  return `${store.orderPrefix ?? ""}${value}`;
 }
 
 function pickupCodeFor(number: string, name: string): string {
@@ -98,28 +105,33 @@ function pickupCodeFor(number: string, name: string): string {
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("")
     .slice(0, 2);
-  return `RET-${number}-${initials || "CL"}`;
+  const digits = number.replace(/\D/g, "") || number;
+  return `RET-${digits}-${initials || "CL"}`;
+}
+
+/** Contacto con el que se valida el acceso público a un pedido. */
+export function contactParam(email: string | null, phone: string): string {
+  return email || phone;
 }
 
 /**
  * Reserva de un envío repartida entre sucursales, greedy: cada línea sale
- * primero de la sucursal con más stock. La "sucursal que despacha"
- * (fulfillment) es la que aporta más unidades; empate → la principal.
- * Repartir en vez de exigir una sola sucursal evita el falso "sin stock":
- * lo que la web muestra como disponible es el agregado.
+ * primero de la sucursal con más stock de su variante. La "sucursal que
+ * despacha" es la que aporta más unidades; empate → la principal.
  */
 async function reserveForShipping(
+  db: Db,
   orderId: string,
   lines: CartLine[],
   locations: StoreLocation[],
 ): Promise<{ fulfillmentLocationId: string }> {
-  const db = await getDb();
-  const matrix = await getStockMatrix(db, lines.map((l) => l.productSlug));
+  const matrix = await getVariantStockMatrix(db, lines.map((l) => l.productSlug));
   const allocated = new Map<string, number>();
 
   for (const line of lines) {
+    const variant = line.variant!;
     let remaining = line.quantity;
-    const perLoc = matrix.get(line.productSlug) ?? new Map<string, number>();
+    const perLoc = matrix.get(variant.id) ?? new Map<string, number>();
     const ranked = [...locations].sort(
       (a, b) =>
         (perLoc.get(b.id) ?? 0) - (perLoc.get(a.id) ?? 0) ||
@@ -131,6 +143,7 @@ async function reserveForShipping(
       if (take <= 0) continue;
       try {
         await applyStockMovement(db, {
+          variantId: variant.id,
           productSlug: line.productSlug,
           locationId: loc.id,
           delta: -take,
@@ -145,9 +158,7 @@ async function reserveForShipping(
       }
     }
     if (remaining > 0)
-      throw new StockError(
-        `No queda stock suficiente de ${line.product.name}.`,
-      );
+      throw new StockError(`No queda stock suficiente de ${lineName(line)}.`);
   }
 
   const principal = locations[0];
@@ -163,6 +174,63 @@ async function reserveForShipping(
   return { fulfillmentLocationId: best };
 }
 
+function lineName(line: CartLine): string {
+  const label = line.variant ? variantLabel(line.variant) : "";
+  return label ? `${line.product.name} (${label})` : line.product.name;
+}
+
+/** Reserva en la sucursal de retiro: todo el pedido sale de ahí. */
+export async function reserveAtLocation(
+  db: Db,
+  orderId: string,
+  lines: { variantId: string; productSlug: string; quantity: number; name: string }[],
+  location: StoreLocation,
+): Promise<void> {
+  for (const line of lines) {
+    try {
+      await applyStockMovement(db, {
+        variantId: line.variantId,
+        productSlug: line.productSlug,
+        locationId: location.id,
+        delta: -line.quantity,
+        reason: "venta",
+        orderId,
+      });
+    } catch (err) {
+      if (err instanceof StockError)
+        throw new StockError(
+          `${line.name} no tiene stock suficiente${location.shortName ? ` en ${location.shortName}` : ""}.`,
+        );
+      throw err;
+    }
+  }
+}
+
+/**
+ * Vencimiento de la reserva según el medio de pago (null = no vence): la
+ * transferencia, sus horas; el efectivo, las suyas (o nunca); un pago
+ * online pendiente, sus minutos (pedidos abandonados en la pasarela no
+ * retienen stock para siempre).
+ */
+export function reservationExpiry(
+  method: PaymentMethodId,
+  runtime: {
+    reservationHours: number;
+    cashReservationHours: number | null;
+    onlineReservationMinutes: number;
+  },
+): Date | null {
+  if (isOnlinePayment(method))
+    return new Date(Date.now() + runtime.onlineReservationMinutes * 60_000);
+  if (method === "transferencia")
+    return new Date(Date.now() + runtime.reservationHours * 3600_000);
+  if (method === "efectivo")
+    return runtime.cashReservationHours == null
+      ? null
+      : new Date(Date.now() + runtime.cashReservationHours * 3600_000);
+  return null;
+}
+
 export async function createOrder(
   input: CheckoutInput,
 ): Promise<CheckoutResult> {
@@ -176,10 +244,13 @@ export async function createOrder(
 
   // Validaciones de forma.
   const name = input.name.trim();
-  const email = input.email.trim().toLowerCase();
-  const phone = input.phone.trim();
-  if (!name || !/.+@.+\..+/.test(email) || phone.replace(/\D/g, "").length < 8)
-    return { ok: false, error: "Completá nombre, email y teléfono." };
+  const email = input.email?.trim().toLowerCase() || null;
+  const phone = normalizeArPhone(input.phone);
+  if (!name) return { ok: false, error: "Completá tu nombre." };
+  if (!phone)
+    return { ok: false, error: "Revisá el WhatsApp: 10 dígitos con la característica (ej. 223 555-0182)." };
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return { ok: false, error: "Revisá el email." };
   if (!input.items.length) return { ok: false, error: "El carrito está vacío." };
   // Venta online apagada: la web es 100% WhatsApp y no acepta pedidos.
   if (!runtime.ventaOnline)
@@ -189,6 +260,10 @@ export async function createOrder(
   const payment = paymentMethods.find((p) => p.id === input.paymentMethod);
   if (!delivery || !payment)
     return { ok: false, error: "Elegí entrega y medio de pago." };
+  if (isOnlinePayment(input.paymentMethod) && !isOnlinePaymentAvailable(input.paymentMethod))
+    return { ok: false, error: "El pago online no está disponible ahora: elegí transferencia o efectivo." };
+  if (input.paymentMethod === "efectivo" && !runtime.cashEnabled)
+    return { ok: false, error: "El pago en efectivo no está disponible." };
   if (payment.pickupOnly && !delivery.isPickup)
     return { ok: false, error: "El pago en efectivo es solo con retiro." };
   if (!delivery.isPickup && input.deliveryMethod === "envio-mdq" && !input.deliveryAddress?.trim())
@@ -205,49 +280,53 @@ export async function createOrder(
       return { ok: false, error: "Elegí la sucursal donde vas a retirar." };
   }
 
-  // Resuelve cada línea contra el catálogo real (precio congelado).
+  // Resuelve cada línea contra el catálogo real (precio congelado) y su
+  // variante (talle × color).
   const lines: CartLine[] = [];
   for (const item of input.items) {
     const product = products.find((p) => p.slug === item.productSlug);
     const qty = Math.max(1, Math.floor(item.quantity));
     if (!product || !isBuyable(rates, product) || product.price == null)
       return { ok: false, error: "Un producto del carrito ya no está disponible." };
+    const variant = resolveVariant(product.variants, item.variantId);
+    if (!variant)
+      return {
+        ok: false,
+        error: item.variantId
+          ? `El talle elegido de ${product.name} ya no está disponible.`
+          : `Elegí el talle de ${product.name}.`,
+      };
     lines.push({
       productSlug: product.slug,
+      variantId: variant.id,
       quantity: qty,
       product,
+      variant,
       unitPrice: product.price,
       lineTotal: product.price * qty,
-      available: product.stock,
+      available: variant.stock,
     });
   }
 
-  // Reserva por sucursal, asentada en el libro contra el id del pedido
-  // (generado acá: los movimientos preceden a la fila del pedido).
+  // Reserva por variante y sucursal, asentada en el libro contra el id del
+  // pedido (generado acá: los movimientos preceden a la fila del pedido).
   const orderId = randomUUID();
   let fulfillmentLocationId: string | null = null;
   try {
     if (pickupLocation) {
-      // Retiro: todo el pedido sale de la sucursal donde se retira.
-      for (const line of lines) {
-        try {
-          await applyStockMovement(db, {
-            productSlug: line.productSlug,
-            locationId: pickupLocation.id,
-            delta: -line.quantity,
-            reason: "venta",
-            orderId,
-          });
-        } catch (err) {
-          if (err instanceof StockError)
-            throw new StockError(
-              `${line.product.name} no tiene stock suficiente en ${pickupLocation.shortName}.`,
-            );
-          throw err;
-        }
-      }
+      await reserveAtLocation(
+        db,
+        orderId,
+        lines.map((l) => ({
+          variantId: l.variant!.id,
+          productSlug: l.productSlug,
+          quantity: l.quantity,
+          name: lineName(l),
+        })),
+        pickupLocation,
+      );
     } else {
-      const r = await reserveForShipping(orderId, lines, locations);
+      const r = await reserveForShipping(db, orderId, lines, locations);
       fulfillmentLocationId = r.fulfillmentLocationId;
     }
   } catch (err) {
@@ -259,9 +338,7 @@ export async function createOrder(
 
   try {
     const online = isOnlinePayment(input.paymentMethod);
-    // Seña: solo online y en pedidos que superan el umbral de Ajustes. El
-    // monto se recalcula acá — el flag del cliente solo expresa intención.
-    // Se decide sobre el total en un pago (sin recargo de cuotas).
+    // Seña: solo si la tienda la usa, online y sobre el umbral de Ajustes.
     const base = computeTotals(
       rates,
       lines,
@@ -271,10 +348,10 @@ export async function createOrder(
       1,
     );
     const wantsDeposit =
+      store.features.deposit !== false &&
       input.paymentMode === "sena" &&
       online &&
       base.total >= runtime.depositMinTotal;
-    // Cuotas: solo con el pago total por tarjeta; el total lleva el recargo.
     const installments: Installments =
       payment.allowsInstallments && !wantsDeposit
         ? (input.installments ?? 1)
@@ -288,36 +365,15 @@ export async function createOrder(
       installments,
     );
 
-    // Cliente: reusa por email (el último registro con ese email).
-    const existing = await db
-      .select()
-      .from(schema.customers)
-      .where(eq(schema.customers.email, email));
-    let customerId = existing.at(-1)?.id;
-    if (customerId) {
-      await db
-        .update(schema.customers)
-        .set({ name, phone, address: input.deliveryAddress?.trim() || null })
-        .where(eq(schema.customers.id, customerId));
-    } else {
-      const [c] = await db
-        .insert(schema.customers)
-        .values({
-          name,
-          email,
-          phone,
-          address: input.deliveryAddress?.trim() || null,
-          city: input.deliveryMethod === "envio-mdq" ? runtime.city.split(",")[0] : null,
-        })
-        .returning();
-      customerId = c.id;
-    }
+    const customer = await upsertCustomer(db, {
+      name,
+      phone,
+      email,
+      address: input.deliveryAddress,
+      city: input.deliveryMethod === "envio-mdq" ? runtime.city.split(",")[0] : null,
+    });
 
-    const number = await nextOrderNumber();
-    const manual = !online;
-    const expiresAt = manual
-      ? new Date(Date.now() + runtime.reservationHours * 3600_000)
-      : null;
+    const number = await nextOrderNumber(db);
     const deposit = wantsDeposit ? depositAmount(rates, totals.total) : 0;
 
     const [order] = await db
@@ -326,7 +382,8 @@ export async function createOrder(
         id: orderId,
         number,
         status: "PENDIENTE_PAGO",
-        customerId,
+        customerId: customer.id,
+        accountId: input.accountId ?? null,
         deliveryMethod: input.deliveryMethod,
         deliveryAddress: input.deliveryAddress?.trim() || null,
         deliveryNotes: input.deliveryNotes?.trim() || null,
@@ -343,8 +400,8 @@ export async function createOrder(
         pickupCode: pickupLocation ? pickupCodeFor(number, name) : null,
         pickupLocationId: pickupLocation?.id ?? null,
         fulfillmentLocationId,
-        expiresAt,
-        timeline: [makeEvent("CONFIRMADO", "Pedido confirmado")],
+        expiresAt: reservationExpiry(input.paymentMethod, runtime),
+        timeline: [makeEvent("CONFIRMADO", "Pedido recibido")],
       })
       .returning();
 
@@ -352,6 +409,8 @@ export async function createOrder(
       lines.map((l) => ({
         orderId: order.id,
         productSlug: l.productSlug,
+        variantId: l.variant!.id,
+        variantLabel: variantLabel(l.variant!) || null,
         name: l.product.name,
         image: l.product.images[0] ?? "",
         quantity: l.quantity,
@@ -368,18 +427,15 @@ export async function createOrder(
       detail: `${name} · ${formatARS(totals.total)}${installments > 1 ? ` en ${installments} cuotas` : ""}`,
     }).catch((err) => console.error("[checkout] lead del pedido:", err));
 
-    if (manual) {
-      // Transferencia y efectivo: el pedido nace como reserva con
-      // vencimiento y el email sale ya, con las instrucciones de pago.
+    const confirmUrl = `/checkout/confirmacion/${number}?e=${encodeURIComponent(contactParam(email, phone))}`;
+    if (!online) {
+      // Transferencia y efectivo: el pedido nace como reserva y el email
+      // sale ya, con las instrucciones de pago.
       await sendOrderEmail(order.id, "confirmacion");
-      return {
-        ok: true,
-        number,
-        redirect: `/checkout/confirmacion/${number}?e=${encodeURIComponent(email)}`,
-      };
+      return { ok: true, number, redirect: confirmUrl };
     }
 
-    // Pasarela online (Payway o MP): checkout real si hay credenciales;
+    // Pasarela online (MP o Payway): checkout real si hay credenciales;
     // si no, el sandbox local que ejecuta la misma lógica del webhook.
     const { startOnlinePayment } = await import("@/lib/server/online-payment");
     try {
@@ -403,80 +459,236 @@ export async function createOrder(
   }
 }
 
-/* ── Transiciones ─────────────────────────────────────────── */
+/* ── Pedido desde un presupuesto ──────────────────────────── */
 
-const RESTORE_STOCK_FROM: OrderStatus[] = ["PENDIENTE_PAGO", "SEÑADO"];
+export interface ManualOrderLine {
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  /** Línea del catálogo: reserva stock de esa variante. */
+  productSlug?: string | null;
+  variantId?: string | null;
+  variantLabel?: string | null;
+  image?: string;
+}
+
+/**
+ * Pedido armado por el local (el "Crear pedido" de un presupuesto): líneas
+ * libres o del catálogo, precios ya pactados (sin descuento ni recargo),
+ * siempre retiro y sin vencimiento. Las líneas del catálogo reservan stock
+ * de su variante como cualquier venta.
+ */
+export async function createManualOrder(input: {
+  customerId: string;
+  accountId?: string | null;
+  paymentMethod: "transferencia" | "efectivo";
+  lines: ManualOrderLine[];
+  quoteId?: string | null;
+  note?: string;
+}): Promise<{ ok: true; orderId: string; number: string } | { ok: false; error: string }> {
+  const db = await getDb();
+  const runtime = await getStore();
+  const location = runtime.locations[0];
+  if (!input.lines.length) return { ok: false, error: "La cotización no tiene ítems." };
+
+  const orderId = randomUUID();
+  const catalogLines = input.lines.filter((l) => l.variantId && l.productSlug);
+  try {
+    await reserveAtLocation(
+      db,
+      orderId,
+      catalogLines.map((l) => ({
+        variantId: l.variantId!,
+        productSlug: l.productSlug!,
+        quantity: l.quantity,
+        name: l.name,
+      })),
+      location,
+    );
+  } catch (err) {
+    await revertOrderMovements(db, orderId, "cancelacion");
+    if (err instanceof StockError) return { ok: false, error: err.message };
+    throw err;
+  }
+
+  try {
+    const [customer] = await db
+      .select()
+      .from(schema.customers)
+      .where(eq(schema.customers.id, input.customerId));
+    if (!customer) throw new Error("Cliente inexistente");
+    const total = input.lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+    const number = await nextOrderNumber(db);
+    await db.insert(schema.orders).values({
+      id: orderId,
+      number,
+      status: "PENDIENTE_PAGO",
+      customerId: customer.id,
+      accountId: input.accountId ?? customer.accountId ?? null,
+      deliveryMethod: "retiro",
+      deliveryNotes: input.note?.trim() || null,
+      paymentMethod: input.paymentMethod,
+      paymentMode: "total",
+      subtotal: total,
+      discount: 0,
+      shippingCost: 0,
+      total,
+      paidAmount: 0,
+      balanceDue: total,
+      installments: 1,
+      pickupCode: pickupCodeFor(number, customer.name),
+      pickupLocationId: location.id,
+      expiresAt: null,
+      quoteId: input.quoteId ?? null,
+      timeline: [makeEvent("CONFIRMADO", "Pedido creado desde un presupuesto")],
+    });
+    await db.insert(schema.orderItems).values(
+      input.lines.map((l) => ({
+        orderId,
+        productSlug: l.productSlug ?? null,
+        variantId: l.variantId ?? null,
+        variantLabel: l.variantLabel ?? null,
+        name: l.name,
+        image: l.image ?? "",
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+      })),
+    );
+    if (catalogLines.length) invalidatePublic("catalog", { from: "any" });
+    await sendOrderEmail(orderId, "confirmacion");
+    return { ok: true, orderId, number };
+  } catch (err) {
+    await revertOrderMovements(db, orderId, "cancelacion");
+    throw err;
+  }
+}
+
+/* ── Transiciones ─────────────────────────────────────────── */
 
 export async function appendEvent(
   orderId: string,
   event: OrderEvent,
 ): Promise<void> {
   const db = await getDb();
-  const [order] = await db
-    .select({ timeline: schema.orders.timeline })
-    .from(schema.orders)
-    .where(eq(schema.orders.id, orderId));
-  if (!order) return;
-  await db
-    .update(schema.orders)
-    .set({ timeline: [...order.timeline, event] })
-    .where(eq(schema.orders.id, orderId));
-}
-
-/**
- * Cancela un pedido (admin). Restaura el stock exactamente donde se
- * descontó si la reserva seguía sin pago acreditado.
- */
-export async function cancelOrder(orderId: string): Promise<void> {
-  const db = await getDb();
-  const [order] = await db
-    .select()
-    .from(schema.orders)
-    .where(eq(schema.orders.id, orderId));
-  if (!order || order.status === "CANCELADO" || order.status === "VENCIDO")
-    return;
-  if (RESTORE_STOCK_FROM.includes(order.status)) {
-    await revertOrderMovements(db, orderId, "cancelacion");
-    invalidatePublic("catalog", { from: "any" });
-  }
+  // Append atómico sobre el jsonb (sin leer-modificar-escribir).
   await db
     .update(schema.orders)
     .set({
-      status: "CANCELADO",
-      timeline: [...order.timeline, makeEvent("CONFIRMADO", "Pedido cancelado")],
+      timeline: sql`${schema.orders.timeline} || ${JSON.stringify([event])}::jsonb`,
     })
     .where(eq(schema.orders.id, orderId));
 }
 
+export type AdvanceResult =
+  | { ok: true; status: OrderStatus }
+  | { ok: false; error: string };
+
+/**
+ * El botón amarillo del admin: aplica la próxima transición de la máquina
+ * (lib/order-flow.ts). Atómica: el UPDATE exige el estado de origen, así
+ * que un doble clic o dos pestañas no avanzan dos veces ni cobran dos
+ * veces. `expectedFrom` (opcional) evita avanzar sobre un estado que el
+ * admin no estaba viendo.
+ */
+export async function advanceOrder(
+  orderId: string,
+  expectedFrom?: OrderStatus,
+): Promise<AdvanceResult> {
+  const db = await getDb();
+  const [order] = await db
+    .select()
+    .from(schema.orders)
+    .where(eq(schema.orders.id, orderId));
+  if (!order) return { ok: false, error: "Pedido inexistente." };
+  if (expectedFrom && order.status !== expectedFrom)
+    return { ok: false, error: "El pedido cambió de estado. Recargá la página." };
+  const t = nextTransition(order);
+  if (!t) return { ok: false, error: "Este pedido no tiene un próximo paso manual." };
+
+  const paidNow = t.registersPayment ? order.total - order.paidAmount : 0;
+  const claimed = await db
+    .update(schema.orders)
+    .set({
+      status: t.to,
+      ...(t.registersPayment
+        ? { paidAmount: order.total, balanceDue: 0, expiresAt: null }
+        : {}),
+    })
+    .where(and(eq(schema.orders.id, orderId), eq(schema.orders.status, t.from)))
+    .returning();
+  if (!claimed.length)
+    return { ok: false, error: "El pedido cambió de estado. Recargá la página." };
+
+  if (t.registersPayment && paidNow > 0) {
+    await db.insert(schema.payments).values({
+      orderId,
+      kind: "total",
+      method: order.paymentMethod,
+      amount: paidNow,
+      status: "approved",
+    });
+  }
+
+  if (t.to === "PAGADO") {
+    await appendEvent(orderId, makeEvent("PAGO", "Transferencia acreditada"));
+    await sendOrderEmail(orderId, "confirmacion");
+  } else if (t.to === "EN_PREPARACION") {
+    await appendEvent(orderId, makeEvent("PAGO", "Armado y ajuste"));
+  } else if (t.to === "LISTO_RETIRO") {
+    await appendEvent(orderId, makeEvent("LISTO", "Listo para retirar"));
+    await sendOrderEmail(orderId, "listo");
+  } else if (t.to === "RETIRADO") {
+    if (t.registersPayment)
+      await appendEvent(orderId, makeEvent("PAGO", "Pago en efectivo registrado"));
+    await appendEvent(orderId, makeEvent("ENTREGADO", "Retirado"));
+  }
+  return { ok: true, status: t.to };
+}
+
+/**
+ * Cancela un pedido (admin, o la pasarela que no respondió). Devuelve el
+ * stock exactamente donde se descontó, desde cualquier estado abierto
+ * (no retirado). La devolución de dinero, si hubo pago, es manual.
+ */
+export async function cancelOrder(orderId: string): Promise<boolean> {
+  const db = await getDb();
+  const [order] = await db
+    .select()
+    .from(schema.orders)
+    .where(eq(schema.orders.id, orderId));
+  if (!order || !canCancel(order)) return false;
+  const claimed = await db
+    .update(schema.orders)
+    .set({ status: "CANCELADO", expiresAt: null })
+    .where(and(eq(schema.orders.id, orderId), eq(schema.orders.status, order.status)))
+    .returning();
+  if (!claimed.length) return false;
+  await revertOrderMovements(db, orderId, "cancelacion");
+  await appendEvent(orderId, makeEvent("CONFIRMADO", "Pedido cancelado"));
+  invalidatePublic("catalog", { from: "any" });
+  return true;
+}
+
 /**
  * Barrido perezoso de reservas vencidas: PENDIENTE_PAGO con expiresAt en el
- * pasado pasa a VENCIDO y devuelve su stock a las sucursales de origen. Se
- * invoca al leer pedidos en el admin y en el seguimiento público. (Un cron
- * lo reemplaza al deployar.)
+ * pasado pasa a VENCIDO y devuelve su stock. Se invoca al leer pedidos en
+ * el admin y en el seguimiento público. (Un cron lo reemplaza al deployar.)
  */
 export async function expireStaleOrders(): Promise<number> {
   const db = await getDb();
   const stale = await db
-    .select()
-    .from(schema.orders)
+    .update(schema.orders)
+    .set({ status: "VENCIDO" })
     .where(
       and(
         inArray(schema.orders.status, ["PENDIENTE_PAGO"]),
         lt(schema.orders.expiresAt, new Date()),
       ),
-    );
+    )
+    .returning();
   for (const order of stale) {
     await revertOrderMovements(db, order.id, "vencimiento");
-    await db
-      .update(schema.orders)
-      .set({
-        status: "VENCIDO",
-        timeline: [
-          ...order.timeline,
-          makeEvent("CONFIRMADO", "Reserva vencida sin pago"),
-        ],
-      })
-      .where(eq(schema.orders.id, order.id));
+    await appendEvent(order.id, makeEvent("CONFIRMADO", "Reserva vencida sin pago"));
   }
   if (stale.length) invalidatePublic("catalog", { from: "any" });
   return stale.length;

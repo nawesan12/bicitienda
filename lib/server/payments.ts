@@ -1,7 +1,9 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/server/db";
 import { sendOrderEmail } from "@/lib/server/mail";
-import { appendEvent, makeEvent } from "@/lib/server/orders";
+import { appendEvent, makeEvent, reserveAtLocation } from "@/lib/server/orders";
+import { getActiveLocations } from "@/lib/server/queries";
+import { revertOrderMovements, StockError } from "@/lib/server/stock";
 import type { PaymentProvider } from "@/lib/types";
 
 /**
@@ -25,6 +27,11 @@ export interface PaymentResult {
   amount: number;
   /** Número visible del pedido (la referencia que viaja a la pasarela). */
   orderNumber: string;
+  /**
+   * Cuotas reales con las que pagó (MP las elige el cliente en Checkout
+   * Pro). Si viene, se guarda en el pedido.
+   */
+  installments?: number;
 }
 
 const PROVIDER_LABEL: Record<PaymentProvider, string> = {
@@ -86,18 +93,31 @@ export async function applyPaymentResult(
     return { ok: true };
   }
 
+  if (order.status === "VENCIDO") {
+    // Pago tardío sobre una reserva vencida (el stock ya había vuelto): se
+    // intenta reservar de nuevo; si no hay stock, queda asentado para que
+    // el local coordine la devolución o el reemplazo.
+    await reviveExpiredOrder(order, result);
+    return { ok: true };
+  }
+
   if (order.status === "PENDIENTE_PAGO") {
     const paid = order.paidAmount + result.amount;
     const balance = Math.max(0, order.total - paid);
-    await db
+    const claimed = await db
       .update(schema.orders)
       .set({
         status: isDeposit ? "SEÑADO" : "PAGADO",
         paidAmount: paid,
         balanceDue: balance,
         expiresAt: null,
+        ...(result.installments && result.installments > 0
+          ? { installments: Math.trunc(result.installments) }
+          : {}),
       })
-      .where(eq(schema.orders.id, order.id));
+      .where(and(eq(schema.orders.id, order.id), eq(schema.orders.status, "PENDIENTE_PAGO")))
+      .returning();
+    if (!claimed.length) return { ok: true };
     const via = PROVIDER_LABEL[result.provider];
     await appendEvent(
       order.id,
@@ -110,4 +130,62 @@ export async function applyPaymentResult(
   }
 
   return { ok: true };
+}
+
+type OrderRow = typeof schema.orders.$inferSelect;
+
+async function reviveExpiredOrder(order: OrderRow, result: PaymentResult): Promise<void> {
+  const db = await getDb();
+  const via = PROVIDER_LABEL[result.provider];
+  const items = await db
+    .select()
+    .from(schema.orderItems)
+    .where(eq(schema.orderItems.orderId, order.id));
+  const locations = await getActiveLocations();
+  const location =
+    locations.find((l) => l.id === (order.pickupLocationId ?? order.fulfillmentLocationId)) ?? locations[0];
+  try {
+    await reserveAtLocation(
+      db,
+      order.id,
+      items
+        .filter((i) => i.variantId && i.productSlug)
+        .map((i) => ({
+          variantId: i.variantId!,
+          productSlug: i.productSlug!,
+          quantity: i.quantity,
+          name: i.name,
+        })),
+      location,
+    );
+  } catch (err) {
+    if (!(err instanceof StockError)) throw err;
+    // Lo que se llegó a reservar vuelve (saldo neto del pedido = 0).
+    await revertOrderMovements(db, order.id, "vencimiento");
+    await appendEvent(
+      order.id,
+      makeEvent("PAGO", `Pago recibido con ${via} con la reserva vencida y sin stock: coordinar devolución`),
+    );
+    return;
+  }
+  const paid = order.paidAmount + result.amount;
+  const claimed = await db
+    .update(schema.orders)
+    .set({
+      status: "PAGADO",
+      paidAmount: paid,
+      balanceDue: Math.max(0, order.total - paid),
+      expiresAt: null,
+      ...(result.installments && result.installments > 0
+        ? { installments: Math.trunc(result.installments) }
+        : {}),
+    })
+    .where(and(eq(schema.orders.id, order.id), eq(schema.orders.status, "VENCIDO")))
+    .returning();
+  if (!claimed.length) {
+    await revertOrderMovements(db, order.id, "vencimiento");
+    return;
+  }
+  await appendEvent(order.id, makeEvent("PAGO", `Pago acreditado con ${via} (reserva reactivada)`));
+  await sendOrderEmail(order.id, "confirmacion");
 }

@@ -2,6 +2,7 @@ import type { CartLine } from "@/lib/types";
 import type { schema } from "@/lib/server/db";
 import { store } from "@/lib/config";
 import { runtimeSiteUrl } from "@/lib/site";
+import { variantLabel } from "@/lib/variants";
 
 /**
  * Mercado Pago Checkout Pro por REST, sin SDK (una dependencia menos y la
@@ -23,10 +24,11 @@ export function isMpConfigured(): boolean {
 export async function createPreference(
   order: OrderRow,
   lines: CartLine[],
-  email: string,
+  email: string | null,
+  opts: { maxInstallments?: number; contact?: string } = {},
 ): Promise<string> {
   const base = runtimeSiteUrl();
-  const backUrl = `${base}/checkout/confirmacion/${order.number}?e=${encodeURIComponent(email)}`;
+  const backUrl = `${base}/checkout/confirmacion/${order.number}?e=${encodeURIComponent(opts.contact ?? email ?? "")}`;
 
   // Con seña se cobra SOLO el monto de la seña: un ítem único por ese valor
   // (el detalle del pedido completo vive en la web, no en Checkout Pro).
@@ -42,8 +44,10 @@ export async function createPreference(
           },
         ]
       : lines.map((l) => ({
-          id: l.productSlug,
-          title: l.product.name,
+          id: l.variant?.sku ?? l.productSlug,
+          title:
+            l.product.name +
+            (l.variant && variantLabel(l.variant) ? ` · ${variantLabel(l.variant)}` : ""),
           quantity: l.quantity,
           unit_price: l.unitPrice,
           currency_id: "ARS",
@@ -60,7 +64,21 @@ export async function createPreference(
     body: JSON.stringify({
       external_reference: order.number,
       items,
-      payer: { email },
+      ...(email ? { payer: { email } } : {}),
+      // Tope de cuotas sin interés (Ajustes → Pagos). El cliente elige en
+      // Checkout Pro; las reales se leen del pago al conciliar.
+      ...(opts.maxInstallments
+        ? { payment_methods: { installments: opts.maxInstallments } }
+        : {}),
+      // La preferencia vence junto con la reserva del stock: pasado ese
+      // momento Checkout Pro ya no acepta el pago.
+      ...(order.expiresAt
+        ? {
+            expires: true,
+            expiration_date_from: new Date().toISOString(),
+            expiration_date_to: order.expiresAt.toISOString(),
+          }
+        : {}),
       back_urls: { success: backUrl, pending: backUrl, failure: backUrl },
       auto_return: "approved",
       notification_url: `${base}/api/mp/webhook`,
@@ -85,13 +103,39 @@ export async function createPreference(
   return pref.init_point;
 }
 
-/** Consulta un pago a la API de MP (lo hace el webhook, nunca el cliente). */
-export async function fetchPayment(paymentId: string): Promise<{
+export interface MpPayment {
   id: string;
   status: string;
   external_reference: string | null;
   transaction_amount: number;
-} | null> {
+  /** Cuotas con las que pagó el cliente. */
+  installments?: number;
+}
+
+/** Normaliza el estado de MP al del core. */
+export function mpStatus(status: string): "approved" | "rejected" | "pending" {
+  if (status === "approved") return "approved";
+  if (status === "rejected" || status === "cancelled" || status === "refunded" || status === "charged_back")
+    return "rejected";
+  return "pending";
+}
+
+/**
+ * Pagos de un pedido buscados por su referencia externa (conciliación
+ * perezosa al volver de Checkout Pro, por si el webhook no llegó).
+ */
+export async function searchPaymentsByReference(reference: string): Promise<MpPayment[]> {
+  const res = await fetch(
+    `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(reference)}&sort=date_created&criteria=desc`,
+    { headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` } },
+  );
+  if (!res.ok) return [];
+  const json = (await res.json()) as { results?: MpPayment[] };
+  return json.results ?? [];
+}
+
+/** Consulta un pago a la API de MP (lo hace el webhook, nunca el cliente). */
+export async function fetchPayment(paymentId: string): Promise<MpPayment | null> {
   const res = await fetch(
     `https://api.mercadopago.com/v1/payments/${paymentId}`,
     {
