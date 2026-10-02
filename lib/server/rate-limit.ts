@@ -25,9 +25,16 @@ export async function withinRateLimit(
   bucket: string,
   limit: number,
 ): Promise<boolean> {
-  const key = `${bucket}:${await clientIp()}`;
+  return withinLimit(`${bucket}:${await clientIp()}`, limit);
+}
+
+/**
+ * Límite por una clave arbitraria (no por IP): p. ej. intentos de login
+ * por email, para que rotar IPs no permita probar contraseñas sin techo.
+ */
+export function withinLimit(key: string, limit: number, windowMs = WINDOW_MS): boolean {
   const now = Date.now();
-  const prev = (hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
+  const prev = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
   if (prev.length >= limit) {
     hits.set(key, prev);
     return false;
@@ -37,7 +44,7 @@ export async function withinRateLimit(
   // Poda ocasional para que el mapa no crezca sin techo.
   if (hits.size > 5000) {
     for (const [k, times] of hits) {
-      if (times.every((t) => now - t >= WINDOW_MS)) hits.delete(k);
+      if (times.every((t) => now - t >= Math.max(windowMs, WINDOW_MS))) hits.delete(k);
     }
   }
   return true;
