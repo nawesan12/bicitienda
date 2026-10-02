@@ -20,13 +20,14 @@ import { runtimeSiteUrl } from "@/lib/site";
 
 export type OrderEmailKind = "confirmacion" | "listo" | "en-camino";
 
-async function deliver(opts: {
-  to: string;
+export async function deliver(opts: {
+  /** Sin destinatario (cliente sin email) no se manda nada. */
+  to: string | null;
   subject: string;
   html: string;
   tag: string;
 }): Promise<void> {
-  if (store.features.emails === false) return;
+  if (store.features.emails === false || !opts.to) return;
   const key = process.env.RESEND_API_KEY;
 
   if (!key && process.env.NODE_ENV === "production") {
@@ -128,6 +129,8 @@ export async function sendOrderEmail(
       runtime.locations.find((l) => l.id === order.pickupLocationId) ??
       runtime.locations[0];
     const delivery = deliveryMethods.find((d) => d.id === order.deliveryMethod);
+    // Sin email no hay a quién mandarle nada (todo sigue por WhatsApp).
+    if (!customer.email) return;
     const trackingUrl = `${runtimeSiteUrl()}/seguimiento/${order.number}?e=${encodeURIComponent(customer.email)}`;
     const footer = `${runtime.brandName} · ${local.address} · ${local.hours}`;
 
@@ -152,7 +155,7 @@ export async function sendOrderEmail(
           number: order.number,
           customerName: customer.name,
           items: items.map((i) => ({
-            name: i.name,
+            name: i.variantLabel ? `${i.name} · ${i.variantLabel}` : i.name,
             quantity: i.quantity,
             unitPrice: i.unitPrice,
           })),
@@ -230,5 +233,75 @@ export async function sendOrderEmail(
   } catch (err) {
     // Nunca romper el flujo de compra por un email.
     console.error("[mail] error enviando email:", err);
+  }
+}
+
+/** Recupero de contraseña: link de un solo uso a /cuenta/recuperar. */
+export async function sendPasswordResetEmail(opts: {
+  to: string;
+  name: string;
+  token: string;
+  validMinutes: number;
+}): Promise<void> {
+  try {
+    const runtime = await getStore();
+    const local = runtime.locations[0];
+    const { render } = await import("@react-email/render");
+    const { PasswordResetEmail } = await import("../../emails/password-reset");
+    const html = await render(
+      PasswordResetEmail({
+        brandName: runtime.brandName,
+        customerName: opts.name,
+        resetUrl: `${runtimeSiteUrl()}/cuenta/recuperar?token=${encodeURIComponent(opts.token)}`,
+        validMinutes: opts.validMinutes,
+        footer: `${runtime.brandName} · ${local.address} · ${local.hours}`,
+      }),
+    );
+    await deliver({
+      to: opts.to,
+      subject: `Recuperá tu contraseña — ${runtime.brandName}`,
+      html,
+      tag: `reset-${opts.to.replace(/[^a-z0-9]/gi, "_")}`,
+    });
+  } catch (err) {
+    console.error("[mail] error enviando recupero de contraseña:", err);
+  }
+}
+
+/** "Turno confirmado": se manda al confirmarse (al reservar o desde el admin). */
+export async function sendAppointmentConfirmedEmail(appointmentId: string): Promise<void> {
+  try {
+    const { getAppointmentView } = await import("@/lib/server/appointments");
+    const view = await getAppointmentView(appointmentId);
+    if (!view || !view.customer.email) return;
+    const runtime = await getStore();
+    const local = runtime.locations[0];
+    const { render } = await import("@react-email/render");
+    const { AppointmentConfirmedEmail } = await import("../../emails/appointment-confirmed");
+    const html = await render(
+      AppointmentConfirmedEmail({
+        brandName: runtime.brandName,
+        number: view.appointment.number,
+        customerName: view.customer.name,
+        serviceName: view.service.name,
+        dayLabel: view.dayLabel,
+        time: view.time,
+        product: view.productLabel,
+        priceNote: view.service.priceNote,
+        address: local.address,
+        hours: local.hours,
+        manageUrl: view.manageUrl,
+        whatsapp: runtime.whatsapp,
+        footer: `${runtime.brandName} · ${local.address} · ${local.hours}`,
+      }),
+    );
+    await deliver({
+      to: view.customer.email,
+      subject: `Turno confirmado: ${view.dayLabel} ${view.time} — ${runtime.brandName}`,
+      html,
+      tag: `turno-${view.appointment.number}`,
+    });
+  } catch (err) {
+    console.error("[mail] error enviando confirmación de turno:", err);
   }
 }

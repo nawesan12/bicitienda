@@ -8,6 +8,8 @@ import {
   Section,
   Text,
 } from "@react-email/components";
+import { store } from "@/lib/config";
+import { runtimeSiteUrl } from "@/lib/site";
 
 /**
  * Piezas compartidas de los emails transaccionales, con la paleta del
@@ -19,27 +21,50 @@ import {
  * Las URLs de imágenes tienen que ser absolutas — los clientes de correo
  * no resuelven rutas relativas.
  */
-export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+export const SITE_URL = runtimeSiteUrl();
 
-export const colors = {
-  night: "#0c0e0b",
-  ink: "#15170f",
-  brand: "#5eb838",
-  brandDeep: "#3f9c22",
-  brandDeeper: "#2f7a17",
-  body: "#4c4f45",
-  muted: "#9a9d92",
-  line: "#e8e6df",
-  cream: "#f4f3ee",
-  soft: "#fafaf6",
-  chip: "#f1f0e9",
-  pastel: "#dff0d4",
-};
+const brandColors = store.emailColors;
+
+/**
+ * Paleta de los mails: la de la marca (`store.emailColors`, capa por
+ * tienda) o la neutra del core. Con marca: header y bloques fuertes en
+ * `ink`, acento (filete, botón de WhatsApp, cifra destacada) en `accent`,
+ * kickers en `offer` y la caja pastel en el acento con texto `ink`.
+ */
+export const colors = brandColors
+  ? {
+      night: brandColors.ink,
+      ink: brandColors.ink,
+      brand: brandColors.accent,
+      brandDeep: brandColors.offer,
+      brandDeeper: brandColors.onAccent,
+      body: "#4c463d",
+      muted: "#8d867a",
+      line: "#e8e1d3",
+      cream: brandColors.paper,
+      soft: "#faf7f0",
+      chip: "#e8e1d3",
+      pastel: brandColors.accent,
+    }
+  : {
+      night: "#0c0e0b",
+      ink: "#15170f",
+      brand: "#5eb838",
+      brandDeep: "#3f9c22",
+      brandDeeper: "#2f7a17",
+      body: "#4c4f45",
+      muted: "#9a9d92",
+      line: "#e8e6df",
+      cream: "#f4f3ee",
+      soft: "#fafaf6",
+      chip: "#f1f0e9",
+      pastel: "#dff0d4",
+    };
 
 /** Con fallbacks: muchos clientes de correo no cargan webfonts. */
-export const fontStack =
-  "'Space Grotesk', 'Helvetica Neue', Helvetica, Arial, sans-serif";
+export const fontStack = brandColors
+  ? "'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+  : "'Space Grotesk', 'Helvetica Neue', Helvetica, Arial, sans-serif";
 export const displayStack =
   "'Archivo', 'Arial Black', 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
