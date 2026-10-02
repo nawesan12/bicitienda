@@ -11,13 +11,16 @@ import { bySeedOrder, withContentDefaults } from "@/lib/server/queries";
 import {
   getProductMovements,
   getStockMatrix,
+  getVariantStockMatrix,
 } from "@/lib/server/stock";
+import { getVariantsBySlug } from "@/lib/server/variants";
 import type {
   AgendaEvent,
   Article,
   Lead,
   OrderStatus,
   Product,
+  ProductVariant,
   StoreLocation,
 } from "@/lib/types";
 
@@ -27,7 +30,14 @@ import type {
  * y el dueño tiene que ver el estado real, no un caché.
  */
 
-export interface AdminProduct extends Product {
+/** Variante con su stock por sucursal (también las inactivas). */
+export interface AdminVariant extends ProductVariant {
+  stockByLocation: Record<string, number>;
+}
+
+export interface AdminProduct extends Omit<Product, "variants"> {
+  /** Todas las variantes, activas e inactivas, en orden. */
+  variants: AdminVariant[];
   /** true si difiere del seed original (badge EDITADO). Nunca en los custom. */
   edited: boolean;
   /** La portada no es la del catálogo original (o es una subida, en los custom). */
@@ -48,11 +58,13 @@ function sameJson(a: unknown, b: unknown): boolean {
 
 export async function getAdminProducts(): Promise<AdminProduct[]> {
   const db = await getDb();
-  const [rows, matrix, cats, brands] = await Promise.all([
+  const [rows, matrix, cats, brands, variants, variantMatrix] = await Promise.all([
     db.select().from(schema.products),
     getStockMatrix(db),
     db.select().from(schema.categories),
     db.select().from(schema.brands),
+    getVariantsBySlug(db),
+    getVariantStockMatrix(db),
   ]);
   const labelOf = new Map(cats.map((c) => [c.slug, c.label]));
   const brandOf = new Map(brands.map((b) => [b.id, b.name]));
@@ -91,6 +103,10 @@ export async function getAdminProducts(): Promise<AdminProduct[]> {
       customImage: r.custom ? r.images.length > 0 : (r.images[0] ?? null) !== (seedImages[0] ?? null),
       pendingAlerts: alertsBySlug.get(r.slug) ?? 0,
       stockByLocation: Object.fromEntries(perLoc),
+      variants: (variants.get(r.slug) ?? []).map((v) => ({
+        ...v,
+        stockByLocation: Object.fromEntries(variantMatrix.get(v.id) ?? new Map()),
+      })),
       brandName: brandOf.get(r.brandId) ?? "",
       categoryLabel: labelOf.get(r.category) ?? r.category,
     };
@@ -431,46 +447,90 @@ export async function getAdminOrder(number: string): Promise<FullOrder | null> {
 }
 
 export interface AdminCustomer {
+  id: string;
   name: string;
-  email: string;
+  email: string | null;
+  /** Normalizado (lib/phone.ts). */
   phone: string;
+  /** Tiene cuenta creada. */
+  hasAccount: boolean;
   ordersCount: number;
+  appointmentsCount: number;
+  quotesCount: number;
   totalSpent: number;
+  /** Último pedido, turno o presupuesto. */
+  lastContactAt: Date | null;
+  createdAt: Date;
 }
 
-/** Clientes derivados de los pedidos (agrupados por email). */
+/**
+ * Clientes (CRM, uno por WhatsApp) con sus números: pedidos, turnos,
+ * presupuestos, gastado y último contacto (prototipo 3e).
+ */
 export async function getAdminCustomers(): Promise<AdminCustomer[]> {
   const db = await getDb();
-  const rows = await db
-    .select({
-      order: schema.orders,
-      name: schema.customers.name,
-      email: schema.customers.email,
-      phone: schema.customers.phone,
-    })
-    .from(schema.orders)
-    .innerJoin(
-      schema.customers,
-      eq(schema.orders.customerId, schema.customers.id),
-    );
-
-  const byEmail = new Map<string, AdminCustomer>();
-  for (const { order, name, email, phone } of rows) {
-    const entry = byEmail.get(email) ?? {
-      name,
-      email,
-      phone,
-      ordersCount: 0,
-      totalSpent: 0,
-    };
-    entry.name = name;
-    entry.phone = phone;
-    entry.ordersCount += 1;
-    if (!["CANCELADO", "VENCIDO"].includes(order.status))
-      entry.totalSpent += order.paidAmount;
-    byEmail.set(email, entry);
+  const [customers, orders, appts, quotes] = await Promise.all([
+    db.select().from(schema.customers),
+    db
+      .select({
+        customerId: schema.orders.customerId,
+        status: schema.orders.status,
+        paidAmount: schema.orders.paidAmount,
+        createdAt: schema.orders.createdAt,
+      })
+      .from(schema.orders),
+    db
+      .select({ customerId: schema.appointments.customerId, at: schema.appointments.createdAt })
+      .from(schema.appointments),
+    db
+      .select({ customerId: schema.quoteRequests.customerId, at: schema.quoteRequests.createdAt })
+      .from(schema.quoteRequests),
+  ]);
+  const byId = new Map<string, AdminCustomer>(
+    customers.map((c) => [
+      c.id,
+      {
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        phone: c.phone,
+        hasAccount: !!c.accountId,
+        ordersCount: 0,
+        appointmentsCount: 0,
+        quotesCount: 0,
+        totalSpent: 0,
+        lastContactAt: null,
+        createdAt: c.createdAt,
+      },
+    ]),
+  );
+  const touch = (e: AdminCustomer, at: Date) => {
+    if (!e.lastContactAt || at > e.lastContactAt) e.lastContactAt = at;
+  };
+  for (const o of orders) {
+    const e = byId.get(o.customerId);
+    if (!e) continue;
+    e.ordersCount += 1;
+    if (!["CANCELADO", "VENCIDO"].includes(o.status)) e.totalSpent += o.paidAmount;
+    touch(e, o.createdAt);
   }
-  return [...byEmail.values()].sort((a, b) => b.totalSpent - a.totalSpent);
+  for (const a of appts) {
+    const e = byId.get(a.customerId);
+    if (!e) continue;
+    e.appointmentsCount += 1;
+    touch(e, a.at);
+  }
+  for (const q of quotes) {
+    const e = byId.get(q.customerId);
+    if (!e) continue;
+    e.quotesCount += 1;
+    touch(e, q.at);
+  }
+  return [...byId.values()].sort(
+    (a, b) =>
+      (b.lastContactAt?.getTime() ?? 0) - (a.lastContactAt?.getTime() ?? 0) ||
+      b.totalSpent - a.totalSpent,
+  );
 }
 
 /** Top 5 de modelos más consultados por WhatsApp (Resumen). */

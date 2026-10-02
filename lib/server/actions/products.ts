@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, ilike } from "drizzle-orm";
+import { and, eq, ilike, ne } from "drizzle-orm";
 import { z } from "zod";
 import { lexicon } from "@/lib/data/content";
 import { products as seedProducts } from "@/lib/data/catalog";
@@ -16,6 +16,15 @@ import {
   transferStock,
 } from "@/lib/server/stock";
 import { deleteUpload, readImageUpload, saveUpload } from "@/lib/server/uploads";
+import {
+  createVariant,
+  ensureDefaultVariant,
+  getVariantsBySlug,
+  removeVariant,
+  updateVariant,
+  VariantError,
+} from "@/lib/server/variants";
+import { resolveVariant } from "@/lib/variants";
 
 /**
  * Acciones del catálogo (/admin/productos y /admin/stock). El editor guarda
@@ -50,6 +59,14 @@ const productPatchSchema = z
     tag: z.string().trim().max(30).nullable(),
     chips: z.array(z.string().max(40)).max(8),
     specs: z.array(specSchema).max(60),
+    /** SKU del producto (único). "" = sin SKU. */
+    sku: z.string().trim().max(60),
+    rodado: z.string().trim().max(20).nullable(),
+    testRide: z.boolean(),
+    hideWhenOut: z.boolean(),
+    status: z.enum(["publicado", "borrador"]),
+    hidden: z.boolean(),
+    featured: z.boolean(),
   })
   .partial();
 
@@ -104,6 +121,23 @@ export async function patchProduct(id: unknown, patch: unknown): Promise<Result>
     set.category = cat.slug;
   }
   if (p.brandName !== undefined) set.brandId = await brandIdFor(db, p.brandName);
+  if (p.rodado !== undefined) set.rodado = p.rodado?.trim() || null;
+  if (p.testRide !== undefined) set.testRide = p.testRide;
+  if (p.hideWhenOut !== undefined) set.hideWhenOut = p.hideWhenOut;
+  if (p.status !== undefined) set.status = p.status;
+  if (p.hidden !== undefined) set.hidden = p.hidden;
+  if (p.featured !== undefined) set.featured = p.featured;
+  if (p.sku !== undefined) {
+    const sku = p.sku.toUpperCase() || null;
+    if (sku) {
+      const [clash] = await db
+        .select({ id: schema.products.id })
+        .from(schema.products)
+        .where(and(eq(schema.products.sku, sku), ne(schema.products.id, parsedId.data)));
+      if (clash) return { ok: false, error: `El SKU ${sku} ya está en uso.` };
+    }
+    set.sku = sku;
+  }
   if (!Object.keys(set).length) return { ok: true };
 
   await db
@@ -217,6 +251,7 @@ export async function createProduct(
     custom: true,
     createdAt: new Date().toISOString().slice(0, 10),
   });
+  await ensureDefaultVariant(db, slug);
   invalidatePublic("catalog");
   return { ok: true, id: slug };
 }
@@ -242,12 +277,27 @@ export async function duplicateProduct(
     id: slug,
     slug,
     name,
+    sku: null,
     featured: false,
     hidden: false,
     stockOverride: null,
     custom: true,
     createdAt: new Date().toISOString().slice(0, 10),
   });
+  // Mismas variantes (talle × color × altura), sin stock y con SKU nuevo.
+  const srcVariants = (await getVariantsBySlug(db, { productSlugs: [src.slug] })).get(src.slug) ?? [];
+  const sized = srcVariants.filter((v) => v.active && !(v.size === "Único" && !v.color));
+  if (sized.length) {
+    for (const v of sized)
+      await createVariant(db, slug, {
+        size: v.size,
+        color: v.color,
+        heightRange: v.heightRange,
+        order: v.order,
+      });
+  } else {
+    await ensureDefaultVariant(db, slug);
+  }
   invalidatePublic("catalog");
   return { ok: true, id: slug, name };
 }
@@ -270,7 +320,20 @@ export async function deleteProduct(id: unknown): Promise<Result> {
   if (!row.custom) {
     return { ok: false, error: "Los modelos del catálogo original se ocultan, no se eliminan." };
   }
+  const [sold] = await db
+    .select({ id: schema.orderItems.id })
+    .from(schema.orderItems)
+    .where(eq(schema.orderItems.productSlug, row.slug))
+    .limit(1);
+  if (sold) {
+    return {
+      ok: false,
+      error: "Tiene ventas registradas: ocultalo o pasalo a borrador en vez de eliminarlo.",
+    };
+  }
   await db.delete(schema.productStock).where(eq(schema.productStock.productSlug, row.slug));
+  await db.delete(schema.stockMovements).where(eq(schema.stockMovements.productSlug, row.slug));
+  await db.delete(schema.productVariants).where(eq(schema.productVariants.productSlug, row.slug));
   await db.delete(schema.stockAlerts).where(eq(schema.stockAlerts.productSlug, row.slug));
   await db
     .update(schema.categories)
@@ -400,16 +463,29 @@ const manualReasons = ["ajuste", "reposicion"] as const;
 
 const stockInputSchema = z.object({
   id: idSchema,
+  /** Variante (talle × color). Opcional si el producto tiene una sola activa. */
+  variantId: idSchema.optional(),
   locationId: idSchema,
   reason: z.enum(manualReasons),
 });
 
-async function slugOf(db: Db, id: string): Promise<string | null> {
+/** Slug del producto y la variante a mover (la pedida o la única activa). */
+async function targetOf(
+  db: Db,
+  id: string,
+  variantId?: string,
+): Promise<{ slug: string; variantId: string } | { error: string }> {
   const [row] = await db
     .select({ slug: schema.products.slug })
     .from(schema.products)
     .where(eq(schema.products.id, id));
-  return row?.slug ?? null;
+  if (!row) return { error: "Producto inexistente." };
+  const variants = (await getVariantsBySlug(db, { productSlugs: [row.slug] })).get(row.slug) ?? [];
+  const v = variantId
+    ? variants.find((x) => x.id === variantId)
+    : resolveVariant(variants);
+  if (!v) return { error: variantId ? "Variante inexistente." : "Elegí el talle/color." };
+  return { slug: row.slug, variantId: v.id };
 }
 
 type StockResult = { ok: true; qtyAfter: number } | { ok: false; error: string };
@@ -422,11 +498,12 @@ export async function adjustStock(input: unknown): Promise<StockResult> {
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "Ajuste inválido." };
   const db = await getDb();
-  const slug = await slugOf(db, parsed.data.id);
-  if (!slug) return { ok: false, error: "Producto inexistente." };
+  const target = await targetOf(db, parsed.data.id, parsed.data.variantId);
+  if ("error" in target) return { ok: false, error: target.error };
   try {
     const { qtyAfter } = await applyStockMovement(db, {
-      productSlug: slug,
+      variantId: target.variantId,
+      productSlug: target.slug,
       locationId: parsed.data.locationId,
       delta: parsed.data.delta,
       reason: parsed.data.reason,
@@ -448,11 +525,12 @@ export async function setStockAt(input: unknown): Promise<StockResult> {
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "Cantidad inválida." };
   const db = await getDb();
-  const slug = await slugOf(db, parsed.data.id);
-  if (!slug) return { ok: false, error: "Producto inexistente." };
+  const target = await targetOf(db, parsed.data.id, parsed.data.variantId);
+  if ("error" in target) return { ok: false, error: target.error };
   try {
     const { qtyAfter } = await setStockLevel(db, {
-      productSlug: slug,
+      variantId: target.variantId,
+      productSlug: target.slug,
       locationId: parsed.data.locationId,
       qty: parsed.data.qty,
       reason: parsed.data.reason,
@@ -472,6 +550,7 @@ export async function transferProductStock(input: unknown): Promise<Result> {
   const parsed = z
     .object({
       id: idSchema,
+      variantId: idSchema.optional(),
       from: idSchema,
       to: idSchema,
       qty: z.number().int().min(1).max(9999),
@@ -480,11 +559,11 @@ export async function transferProductStock(input: unknown): Promise<Result> {
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "Transferencia inválida." };
   const db = await getDb();
-  const slug = await slugOf(db, parsed.data.id);
-  if (!slug) return { ok: false, error: "Producto inexistente." };
+  const target = await targetOf(db, parsed.data.id, parsed.data.variantId);
+  if ("error" in target) return { ok: false, error: target.error };
   try {
     await transferStock(db, {
-      productSlug: slug,
+      variantId: target.variantId,
       from: parsed.data.from,
       to: parsed.data.to,
       qty: parsed.data.qty,
@@ -496,4 +575,73 @@ export async function transferProductStock(input: unknown): Promise<Result> {
     if (err instanceof StockError) return { ok: false, error: err.message };
     throw err;
   }
+}
+
+/* ── Variantes (talle × color) ────────────────────────────── */
+
+const variantSchema = z.object({
+  size: z.string().trim().min(1).max(20),
+  color: z.string().trim().max(40).optional(),
+  heightRange: z.string().trim().max(40).nullable().optional(),
+  sku: z.string().trim().max(60).nullable().optional(),
+  order: z.number().int().min(0).max(999).optional(),
+  active: z.boolean().optional(),
+});
+
+export type VariantPatch = Partial<z.infer<typeof variantSchema>>;
+
+type VariantResult = { ok: true; variantId?: string } | { ok: false; error: string };
+
+async function variantAction(fn: () => Promise<VariantResult>): Promise<VariantResult> {
+  try {
+    const r = await fn();
+    if (r.ok) invalidatePublic("catalog");
+    return r;
+  } catch (err) {
+    if (err instanceof VariantError) return { ok: false, error: err.message };
+    throw err;
+  }
+}
+
+/** Alta de una variante (talle × color × altura sugerida). */
+export async function addProductVariant(productId: unknown, input: unknown): Promise<VariantResult> {
+  await requireAdmin();
+  const id = idSchema.safeParse(productId);
+  const parsed = variantSchema.safeParse(input);
+  if (!id.success || !parsed.success) return { ok: false, error: "Revisá talle y color." };
+  const db = await getDb();
+  const [row] = await db
+    .select({ slug: schema.products.slug })
+    .from(schema.products)
+    .where(eq(schema.products.id, id.data));
+  if (!row) return { ok: false, error: "Producto inexistente." };
+  return variantAction(async () => {
+    const v = await createVariant(db, row.slug, parsed.data);
+    return { ok: true, variantId: v.id };
+  });
+}
+
+/** Edición de talle, color, altura, SKU, orden o activa. */
+export async function patchProductVariant(variantId: unknown, patch: unknown): Promise<VariantResult> {
+  await requireAdmin();
+  const id = idSchema.safeParse(variantId);
+  const parsed = variantSchema.partial().safeParse(patch);
+  if (!id.success || !parsed.success) return { ok: false, error: "Revisá los datos de la variante." };
+  const db = await getDb();
+  return variantAction(async () => {
+    await updateVariant(db, id.data, parsed.data);
+    return { ok: true, variantId: id.data };
+  });
+}
+
+/** Quita una variante sin stock (se desactiva si tiene historial). */
+export async function deleteProductVariant(variantId: unknown): Promise<VariantResult> {
+  await requireAdmin();
+  const id = idSchema.safeParse(variantId);
+  if (!id.success) return { ok: false, error: "Variante inválida." };
+  const db = await getDb();
+  return variantAction(async () => {
+    await removeVariant(db, id.data);
+    return { ok: true };
+  });
 }

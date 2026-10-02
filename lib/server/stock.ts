@@ -6,8 +6,12 @@ import type { StockMovementReason } from "@/lib/types";
 /**
  * La ÚNICA puerta de escritura del inventario. Todo cambio de stock —
  * venta, cancelación, vencimiento, ajuste del admin, transferencia entre
- * sucursales, reposición, seed — pasa por `applyStockMovement`, que hace
- * el UPDATE condicional atómico y asienta el movimiento en el libro.
+ * sucursales, reposición, importación, seed — pasa por
+ * `applyStockMovement`, que hace el UPDATE condicional atómico y asienta
+ * el movimiento en el libro.
+ *
+ * El stock vive por VARIANTE (talle × color) y sucursal. Un producto sin
+ * talles tiene una sola variante ("Único", id `<slug>--u`).
  *
  * Sin transacciones interactivas (el driver HTTP de Neon no las soporta):
  * la atomicidad de cada movimiento la da el UPDATE condicional con
@@ -18,7 +22,7 @@ import type { StockMovementReason } from "@/lib/types";
 export class StockError extends Error {
   constructor(
     message: string,
-    readonly code: "INSUFICIENTE" | "SUCURSAL" = "INSUFICIENTE",
+    readonly code: "INSUFICIENTE" | "SUCURSAL" | "VARIANTE" = "INSUFICIENTE",
   ) {
     super(message);
     this.name = "StockError";
@@ -26,14 +30,25 @@ export class StockError extends Error {
 }
 
 export interface StockMovementInput {
-  productSlug: string;
+  variantId: string;
+  /** Slug del producto de la variante. Si falta, se busca. */
+  productSlug?: string;
   locationId: string;
   /** Positivo repone, negativo descuenta. Nunca deja qty < 0. */
   delta: number;
   reason: StockMovementReason;
   orderId?: string | null;
-  /** Email del admin cuando la variación es manual. */
+  /** "admin" cuando la variación es manual. */
   actor?: string | null;
+}
+
+async function productSlugOf(db: Db, variantId: string): Promise<string> {
+  const [row] = await db
+    .select({ slug: schema.productVariants.productSlug })
+    .from(schema.productVariants)
+    .where(eq(schema.productVariants.id, variantId));
+  if (!row) throw new StockError(`Variante inexistente: ${variantId}.`, "VARIANTE");
+  return row.slug;
 }
 
 /**
@@ -46,12 +61,18 @@ export async function applyStockMovement(
   input: StockMovementInput,
 ): Promise<{ qtyAfter: number }> {
   const delta = Math.trunc(input.delta);
-  if (!delta) return { qtyAfter: await qtyAt(db, input.productSlug, input.locationId) };
+  if (!delta) return { qtyAfter: await qtyAt(db, input.variantId, input.locationId) };
+  const productSlug = input.productSlug ?? (await productSlugOf(db, input.variantId));
 
-  // La fila puede no existir todavía (producto nuevo o sucursal nueva).
+  // La fila puede no existir todavía (variante nueva o sucursal nueva).
   await db
     .insert(schema.productStock)
-    .values({ productSlug: input.productSlug, locationId: input.locationId, qty: 0 })
+    .values({
+      variantId: input.variantId,
+      productSlug,
+      locationId: input.locationId,
+      qty: 0,
+    })
     .onConflictDoNothing();
 
   const updated = await db
@@ -59,7 +80,7 @@ export async function applyStockMovement(
     .set({ qty: sql`${schema.productStock.qty} + ${delta}` })
     .where(
       and(
-        eq(schema.productStock.productSlug, input.productSlug),
+        eq(schema.productStock.variantId, input.variantId),
         eq(schema.productStock.locationId, input.locationId),
         gte(schema.productStock.qty, Math.max(0, -delta)),
       ),
@@ -68,12 +89,13 @@ export async function applyStockMovement(
 
   if (!updated.length)
     throw new StockError(
-      `Stock insuficiente de ${input.productSlug} en ${input.locationId}.`,
+      `Stock insuficiente de ${input.variantId} en ${input.locationId}.`,
     );
 
   const qtyAfter = updated[0].qty;
   await db.insert(schema.stockMovements).values({
-    productSlug: input.productSlug,
+    variantId: input.variantId,
+    productSlug,
     locationId: input.locationId,
     delta,
     qtyAfter,
@@ -84,9 +106,9 @@ export async function applyStockMovement(
   return { qtyAfter };
 }
 
-async function qtyAt(
+export async function qtyAt(
   db: Db,
-  productSlug: string,
+  variantId: string,
   locationId: string,
 ): Promise<number> {
   const [row] = await db
@@ -94,7 +116,7 @@ async function qtyAt(
     .from(schema.productStock)
     .where(
       and(
-        eq(schema.productStock.productSlug, productSlug),
+        eq(schema.productStock.variantId, variantId),
         eq(schema.productStock.locationId, locationId),
       ),
     );
@@ -102,14 +124,16 @@ async function qtyAt(
 }
 
 /**
- * Fija el stock de una sucursal en un valor absoluto (ajuste del admin).
- * Se traduce al delta contra el valor actual para que el libro registre
- * la variación real.
+ * Fija el stock de una variante en una sucursal en un valor absoluto
+ * (ajuste del admin, importación). Se traduce al delta contra el valor
+ * actual para que el libro registre la variación real; si no cambia, no
+ * se asienta nada (idempotente).
  */
 export async function setStockLevel(
   db: Db,
   input: {
-    productSlug: string;
+    variantId: string;
+    productSlug?: string;
     locationId: string;
     qty: number;
     reason?: StockMovementReason;
@@ -117,8 +141,9 @@ export async function setStockLevel(
   },
 ): Promise<{ qtyAfter: number }> {
   const target = Math.max(0, Math.trunc(input.qty));
-  const current = await qtyAt(db, input.productSlug, input.locationId);
+  const current = await qtyAt(db, input.variantId, input.locationId);
   return applyStockMovement(db, {
+    variantId: input.variantId,
     productSlug: input.productSlug,
     locationId: input.locationId,
     delta: target - current,
@@ -134,7 +159,7 @@ export async function setStockLevel(
 export async function transferStock(
   db: Db,
   input: {
-    productSlug: string;
+    variantId: string;
     from: string;
     to: string;
     qty: number;
@@ -145,9 +170,11 @@ export async function transferStock(
   if (qty <= 0) throw new StockError("La cantidad a transferir debe ser positiva.");
   if (input.from === input.to)
     throw new StockError("Elegí dos sucursales distintas.", "SUCURSAL");
+  const productSlug = await productSlugOf(db, input.variantId);
 
   await applyStockMovement(db, {
-    productSlug: input.productSlug,
+    variantId: input.variantId,
+    productSlug,
     locationId: input.from,
     delta: -qty,
     reason: "transferencia",
@@ -155,7 +182,8 @@ export async function transferStock(
   });
   try {
     await applyStockMovement(db, {
-      productSlug: input.productSlug,
+      variantId: input.variantId,
+      productSlug,
       locationId: input.to,
       delta: qty,
       reason: "transferencia",
@@ -164,7 +192,8 @@ export async function transferStock(
   } catch (err) {
     // Compensación: la salida vuelve a su sucursal.
     await applyStockMovement(db, {
-      productSlug: input.productSlug,
+      variantId: input.variantId,
+      productSlug,
       locationId: input.from,
       delta: qty,
       reason: "transferencia",
@@ -175,43 +204,45 @@ export async function transferStock(
 }
 
 /**
- * Revierte EXACTAMENTE lo que un pedido descontó: busca sus movimientos
- * 'venta' y aplica el inverso en cada sucursal. No recalcula nada — si la
- * venta salió 2 de Rivadavia y 1 de Güemes, vuelven 2 y 1 a cada una.
+ * Devuelve EXACTAMENTE lo que un pedido tiene descontado: suma por
+ * variante y sucursal todos sus movimientos (ventas negativas, vueltas
+ * positivas) y repone el saldo neto. Idempotente: una segunda llamada
+ * encuentra saldo 0 y no mueve nada. Funciona también si el pedido volvió
+ * a reservar después de vencer (pago tardío) y se cancela otra vez.
  */
 export async function revertOrderMovements(
   db: Db,
   orderId: string,
   reason: Extract<StockMovementReason, "cancelacion" | "vencimiento">,
 ): Promise<void> {
-  const sold = await db
+  const moves = await db
     .select()
     .from(schema.stockMovements)
     .where(
       and(
         eq(schema.stockMovements.orderId, orderId),
-        eq(schema.stockMovements.reason, "venta"),
+        inArray(schema.stockMovements.reason, ["venta", "cancelacion", "vencimiento"]),
       ),
     );
-
-  // Idempotencia: si ya se revirtió (hay movimientos de vuelta con este
-  // orderId), no se devuelve dos veces.
-  const returned = await db
-    .select()
-    .from(schema.stockMovements)
-    .where(
-      and(
-        eq(schema.stockMovements.orderId, orderId),
-        inArray(schema.stockMovements.reason, ["cancelacion", "vencimiento"]),
-      ),
-    );
-  if (returned.length) return;
-
-  for (const m of sold) {
-    await applyStockMovement(db, {
+  const net = new Map<string, { variantId: string; productSlug: string; locationId: string; delta: number }>();
+  for (const m of moves) {
+    const key = `${m.variantId}|${m.locationId}`;
+    const entry = net.get(key) ?? {
+      variantId: m.variantId,
       productSlug: m.productSlug,
       locationId: m.locationId,
-      delta: -m.delta, // la venta fue negativa: esto repone
+      delta: 0,
+    };
+    entry.delta += m.delta;
+    net.set(key, entry);
+  }
+  for (const e of net.values()) {
+    if (e.delta >= 0) continue;
+    await applyStockMovement(db, {
+      variantId: e.variantId,
+      productSlug: e.productSlug,
+      locationId: e.locationId,
+      delta: -e.delta, // el saldo es negativo: esto repone
       reason,
       orderId,
     });
@@ -220,7 +251,30 @@ export async function revertOrderMovements(
 
 /* ── Lecturas ─────────────────────────────────────────────── */
 
-/** qty por sucursal para un conjunto de productos: Map slug → Map loc → qty. */
+/** qty por variante y sucursal: Map variantId → Map loc → qty. */
+export async function getVariantStockMatrix(
+  db: Db,
+  productSlugs?: string[],
+): Promise<Map<string, Map<string, number>>> {
+  const rows = productSlugs
+    ? await db
+        .select()
+        .from(schema.productStock)
+        .where(inArray(schema.productStock.productSlug, productSlugs))
+    : await db.select().from(schema.productStock);
+  const map = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    const inner = map.get(r.variantId) ?? new Map<string, number>();
+    inner.set(r.locationId, r.qty);
+    map.set(r.variantId, inner);
+  }
+  return map;
+}
+
+/**
+ * qty por producto y sucursal (suma de sus variantes):
+ * Map slug → Map loc → qty.
+ */
 export async function getStockMatrix(
   db: Db,
   productSlugs?: string[],
@@ -234,13 +288,13 @@ export async function getStockMatrix(
   const map = new Map<string, Map<string, number>>();
   for (const r of rows) {
     const inner = map.get(r.productSlug) ?? new Map<string, number>();
-    inner.set(r.locationId, r.qty);
+    inner.set(r.locationId, (inner.get(r.locationId) ?? 0) + r.qty);
     map.set(r.productSlug, inner);
   }
   return map;
 }
 
-/** Totales agregados: Map slug → SUM(qty). */
+/** Totales agregados por producto: Map slug → SUM(qty). */
 export async function getStockTotals(db: Db): Promise<Map<string, number>> {
   const rows = await db
     .select({
@@ -250,6 +304,18 @@ export async function getStockTotals(db: Db): Promise<Map<string, number>> {
     .from(schema.productStock)
     .groupBy(schema.productStock.productSlug);
   return new Map(rows.map((r) => [r.slug, r.total]));
+}
+
+/** Totales agregados por variante: Map variantId → SUM(qty). */
+export async function getVariantTotals(db: Db): Promise<Map<string, number>> {
+  const rows = await db
+    .select({
+      id: schema.productStock.variantId,
+      total: sql<number>`sum(${schema.productStock.qty})`.mapWith(Number),
+    })
+    .from(schema.productStock)
+    .groupBy(schema.productStock.variantId);
+  return new Map(rows.map((r) => [r.id, r.total]));
 }
 
 /** Últimos movimientos de un producto, más recientes primero. */

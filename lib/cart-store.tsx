@@ -6,7 +6,8 @@ import { lexicon } from "@/lib/data/content";
 import type { CartItem } from "@/lib/types";
 
 /**
- * Carrito, persistente en localStorage. Guarda solo {slug, cantidad}: los
+ * Carrito, persistente en localStorage. Guarda solo {slug, variante,
+ * cantidad}: una línea por producto + variante (talle × color). Los
  * datos del producto (nombre, precio, foto, stock) los aporta el server en
  * cada render vía CartCatalog — el precio que se muestra siempre es el
  * vigente, y el cobro real se recalcula server-side en createOrder.
@@ -18,12 +19,22 @@ interface CartState {
   /** false hasta que zustand rehidrata desde localStorage. */
   hydrated: boolean;
 
-  add: (slug: string, max: number) => void;
-  setQty: (slug: string, qty: number, max: number) => void;
-  remove: (slug: string) => void;
+  /** Suma una unidad de la variante (o del producto de variante única). */
+  add: (slug: string, max: number, variantId?: string) => void;
+  setQty: (slug: string, qty: number, max: number, variantId?: string) => void;
+  remove: (slug: string, variantId?: string) => void;
   clear: () => void;
   setOpen: (open: boolean) => void;
   setHydrated: () => void;
+}
+
+/** Clave de una línea del carrito: producto + variante. */
+export function cartLineKey(item: Pick<CartItem, "productSlug" | "variantId">): string {
+  return `${item.productSlug}::${item.variantId ?? ""}`;
+}
+
+function sameLine(item: CartItem, slug: string, variantId?: string): boolean {
+  return item.productSlug === slug && (item.variantId ?? "") === (variantId ?? "");
 }
 
 export const useCart = create<CartState>()(
@@ -33,33 +44,33 @@ export const useCart = create<CartState>()(
       open: false,
       hydrated: false,
 
-      add: (slug, max) => {
+      add: (slug, max, variantId) => {
         const items = get().items;
-        const existing = items.find((i) => i.productSlug === slug);
+        const existing = items.find((i) => sameLine(i, slug, variantId));
         const next = existing
           ? items.map((i) =>
-              i.productSlug === slug
+              sameLine(i, slug, variantId)
                 ? { ...i, quantity: Math.min(i.quantity + 1, max) }
                 : i,
             )
-          : [...items, { productSlug: slug, quantity: 1 }];
+          : [...items, { productSlug: slug, ...(variantId ? { variantId } : {}), quantity: 1 }];
         set({ items: next, open: true });
       },
 
-      setQty: (slug, qty, max) => {
+      setQty: (slug, qty, max, variantId) => {
         const capped = Math.min(Math.max(0, Math.floor(qty)), max);
         set({
           items:
             capped <= 0
-              ? get().items.filter((i) => i.productSlug !== slug)
+              ? get().items.filter((i) => !sameLine(i, slug, variantId))
               : get().items.map((i) =>
-                  i.productSlug === slug ? { ...i, quantity: capped } : i,
+                  sameLine(i, slug, variantId) ? { ...i, quantity: capped } : i,
                 ),
         });
       },
 
-      remove: (slug) =>
-        set({ items: get().items.filter((i) => i.productSlug !== slug) }),
+      remove: (slug, variantId) =>
+        set({ items: get().items.filter((i) => !sameLine(i, slug, variantId)) }),
 
       clear: () => set({ items: [] }),
 

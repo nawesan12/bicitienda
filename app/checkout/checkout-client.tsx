@@ -10,7 +10,7 @@ import {
   darkPanel,
   radioDot,
 } from "@/components/store/form-styles";
-import { useCart } from "@/lib/cart-store";
+import { cartLineKey, useCart } from "@/lib/cart-store";
 import type { CartProduct } from "@/lib/cart-view";
 import { lexicon } from "@/lib/data/content";
 import { formatARS } from "@/lib/format";
@@ -171,7 +171,7 @@ export function CheckoutClient({
   const lines = items
     .map((item) => ({ item, product: bySlug.get(item.productSlug) }))
     .filter((l) => l.product) as {
-    item: { productSlug: string; quantity: number };
+    item: { productSlug: string; variantId?: string; quantity: number };
     product: CartProduct;
   }[];
 
@@ -267,6 +267,7 @@ export function CheckoutClient({
       const result = await placeOrder({
         items: lines.map((l) => ({
           productSlug: l.item.productSlug,
+          ...(l.item.variantId ? { variantId: l.item.variantId } : {}),
           quantity: l.item.quantity,
         })),
         name,
@@ -691,7 +692,7 @@ export function CheckoutClient({
             </div>
             <div className="mt-4 flex flex-col gap-3">
               {lines.map((l) => (
-                <div key={l.item.productSlug} className="flex items-center gap-3">
+                <div key={cartLineKey(l.item)} className="flex items-center gap-3">
                   <div className="relative aspect-[4/3] w-[64px] flex-none overflow-hidden rounded-[10px] bg-cream-4">
                     {l.product.image && (
                       // eslint-disable-next-line @next/next/no-img-element -- Cloudinary transforma (img())

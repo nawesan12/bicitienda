@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { store } from "@/lib/config";
 import { products as seedProducts } from "@/lib/data/catalog";
@@ -7,6 +7,7 @@ import { TEXTS } from "@/lib/data/texts";
 import { resolveImage } from "@/lib/images";
 import { getDb, schema } from "@/lib/server/db";
 import { getStockMatrix, getStockTotals } from "@/lib/server/stock";
+import { getVariantsBySlug } from "@/lib/server/variants";
 import type {
   AgendaEvent,
   Article,
@@ -63,18 +64,32 @@ function seedIndex(id: string): number {
 
 /**
  * Catálogo visible completo, en el orden del seed. El `stock` de cada
- * producto es el agregado SUM sobre las sucursales — la fuente de verdad
- * por sucursal vive en `product_stock`.
+ * producto es el agregado SUM sobre sus variantes y sucursales — la fuente
+ * de verdad vive en `product_stock`. No entran los ocultos, los borradores
+ * ni los "ocultar sin stock" agotados.
  */
 export const getVisibleProducts = unstable_cache(
   async (): Promise<Product[]> => {
     const db = await getDb();
-    const [rows, totals] = await Promise.all([
-      db.select().from(schema.products).where(eq(schema.products.hidden, false)),
+    const [rows, totals, variants] = await Promise.all([
+      db
+        .select()
+        .from(schema.products)
+        .where(
+          and(eq(schema.products.hidden, false), eq(schema.products.status, "publicado")),
+        ),
       getStockTotals(db),
+      getVariantsBySlug(db, { activeOnly: true }),
     ]);
     return bySeedOrder(
-      rows.map((r) => ({ ...r, hidden: false, stock: totals.get(r.slug) ?? 0 })),
+      rows
+        .map((r) => ({
+          ...r,
+          hidden: false,
+          stock: totals.get(r.slug) ?? 0,
+          variants: variants.get(r.slug) ?? [],
+        }))
+        .filter((p) => !(p.hideWhenOut && p.stock <= 0)),
     );
   },
   ["visible-products"],
@@ -138,10 +153,24 @@ export const getCategories = unstable_cache(
         .orderBy(asc(schema.categories.order), asc(schema.categories.slug)),
       getVisibleProducts(),
     ]);
-    return rows.map((c) => ({
-      ...c,
-      count: visible.filter((p) => p.category === c.slug).length,
-    }));
+    // El contador de un grupo (Bicicletas) suma los de sus tipos (MTB…).
+    const descendants = (slug: string): Set<string> => {
+      const out = new Set([slug]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const c of rows)
+          if (c.parentSlug && out.has(c.parentSlug) && !out.has(c.slug)) {
+            out.add(c.slug);
+            grew = true;
+          }
+      }
+      return out;
+    };
+    return rows.map((c) => {
+      const tree = descendants(c.slug);
+      return { ...c, count: visible.filter((p) => tree.has(p.category)).length };
+    });
   },
   ["categories"],
   { tags: ["catalog"], revalidate: BACKUP_REVALIDATE },
@@ -291,6 +320,14 @@ export const getSettings = unstable_cache(
 export interface RuntimeStore extends StoreConfig {
   /** Contenido editable completo (hero, Nosotros, comunidad, test). */
   content: SiteContent;
+  /** Horas de reserva del pago en efectivo. null = no vence. */
+  cashReservationHours: number | null;
+  /** Minutos que un pago online pendiente reserva el stock. */
+  onlineReservationMinutes: number;
+  /** Efectivo en el local habilitado desde Ajustes. */
+  cashEnabled: boolean;
+  /** Tope de cuotas sin interés de Mercado Pago. */
+  maxInstallments: number;
 }
 
 export async function getStore(): Promise<RuntimeStore> {
@@ -318,6 +355,10 @@ export async function getStore(): Promise<RuntimeStore> {
     depositRate: s.depositRate,
     depositMinTotal: s.depositMinTotal,
     reservationHours: s.reservationHours,
+    cashReservationHours: s.cashReservationHours,
+    onlineReservationMinutes: s.onlineReservationMinutes,
+    cashEnabled: s.cashEnabled,
+    maxInstallments: s.maxInstallments,
     localShippingCost: s.localShippingCost,
     showPrices: s.showPrices,
     ventaOnline: s.ventaOnline,
