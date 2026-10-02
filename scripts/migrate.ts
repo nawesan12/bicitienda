@@ -6,7 +6,19 @@
  */
 const MIGRATIONS = { migrationsFolder: "lib/server/db/migrations" };
 
+/** Variables de .env.local (DATABASE_URL, etc.) como hace `next dev`. */
+function loadEnvLocal() {
+  for (const file of [".env.local", ".env"]) {
+    try {
+      process.loadEnvFile(file);
+    } catch {
+      /* no existe: modo local */
+    }
+  }
+}
+
 async function main() {
+  loadEnvLocal();
   const url = process.env.DATABASE_URL;
 
   if (url?.startsWith("postgres")) {
@@ -28,6 +40,10 @@ async function main() {
       import("node:fs"),
     ]);
   mkdirSync(".data/pglite", { recursive: true });
+  // Dos procesos sobre la misma carpeta la corrompen: falla si `pnpm dev`
+  // (u otro script) la tiene abierta.
+  const { acquirePgliteLock } = await import("@/lib/server/db");
+  acquirePgliteLock(await import("node:fs"));
   const client = new PGlite(".data/pglite");
   await migrate(drizzle(client), MIGRATIONS);
   await client.close();

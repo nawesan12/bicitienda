@@ -64,6 +64,13 @@
       "when": 1790896881533,
       "tag": "0008_instagram_login",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790903258942,
+      "tag": "0009_bicitienda",
+      "breakpoints": true
     }
   ]
 }

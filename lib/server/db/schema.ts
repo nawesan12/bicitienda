@@ -1,5 +1,7 @@
 import {
+  type AnyPgColumn,
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -13,6 +15,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type {
+  AppointmentSource,
+  AppointmentStatus,
   DeliveryMethodId,
   LeadStatus,
   LeadType,
@@ -21,10 +25,14 @@ import type {
   PaymentMethodId,
   PaymentMode,
   PaymentProvider,
+  ProductStatus,
+  QuoteKind,
+  QuoteStatus,
   SiteContent,
   Spec,
   StockMovementReason,
   StockOverride,
+  WhatsAppTemplateId,
 } from "@/lib/types";
 
 /**
@@ -53,6 +61,8 @@ export const categories = pgTable("categories", {
   imgProductId: text("img_product_id"),
   pathSlug: text("path_slug").notNull().unique(),
   order: integer("order").notNull().default(0),
+  /** Grupo de navegación (Bicicletas → MTB). null = raíz. */
+  parentSlug: text("parent_slug").references((): AnyPgColumn => categories.slug),
 });
 
 export const brands = pgTable("brands", {
@@ -89,7 +99,41 @@ export const products = pgTable("products", {
   description: text("description").notNull().default(""),
   /** ISO corto, ordena "más nuevos". */
   createdAt: text("created_at").notNull(),
+  /** SKU del producto: clave de la importación (upsert). */
+  sku: text("sku").unique(),
+  /** Rodado para el filtro ("29", "27.5", "700c"). */
+  rodado: text("rodado"),
+  /** Se puede reservar una prueba en el local. */
+  testRide: boolean("test_ride").notNull().default(false),
+  /** Sin stock → no aparece en la web. */
+  hideWhenOut: boolean("hide_when_out").notNull().default(false),
+  status: text("status").$type<ProductStatus>().notNull().default("publicado"),
 });
+
+/**
+ * Variantes vendibles (talle × color). El stock vive por variante; un
+ * producto sin talles tiene una sola, "Único". No se borran si tienen
+ * historial (pedidos o movimientos): se desactivan.
+ */
+export const productVariants = pgTable(
+  "product_variants",
+  {
+    id: text("id").primaryKey(),
+    productSlug: text("product_slug")
+      .notNull()
+      .references(() => products.slug),
+    size: text("size").notNull().default("Único"),
+    color: text("color").notNull().default(""),
+    heightRange: text("height_range"),
+    sku: text("sku").notNull().unique(),
+    order: integer("order").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+  },
+  (t) => [
+    uniqueIndex("product_variants_combo").on(t.productSlug, t.size, t.color),
+    index("product_variants_product_idx").on(t.productSlug),
+  ],
+);
 
 /* ── Sucursales y stock ───────────────────────────────────── */
 
@@ -110,13 +154,17 @@ export const locations = pgTable("locations", {
 });
 
 /**
- * Stock por sucursal — la fuente de verdad del inventario. El total de un
- * producto es SUM(qty); ninguna otra tabla guarda stock. Se escribe SOLO
- * a través de `applyStockMovement` (lib/server/stock.ts).
+ * Stock por variante y sucursal — la fuente de verdad del inventario. El
+ * total de un producto es SUM(qty) de sus variantes; ninguna otra tabla
+ * guarda stock. `productSlug` va desnormalizado (agregados sin join). Se
+ * escribe SOLO a través de `applyStockMovement` (lib/server/stock.ts).
  */
 export const productStock = pgTable(
   "product_stock",
   {
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
     productSlug: text("product_slug")
       .notNull()
       .references(() => products.slug),
@@ -125,7 +173,10 @@ export const productStock = pgTable(
       .references(() => locations.id),
     qty: integer("qty").notNull().default(0),
   },
-  (t) => [primaryKey({ columns: [t.productSlug, t.locationId] })],
+  (t) => [
+    primaryKey({ columns: [t.variantId, t.locationId] }),
+    index("product_stock_product_idx").on(t.productSlug),
+  ],
 );
 
 /**
@@ -135,6 +186,7 @@ export const productStock = pgTable(
  */
 export const stockMovements = pgTable("stock_movements", {
   id: serial("id").primaryKey(),
+  variantId: text("variant_id").notNull(),
   productSlug: text("product_slug").notNull(),
   locationId: text("location_id").notNull(),
   delta: integer("delta").notNull(),
@@ -207,7 +259,27 @@ export const settings = pgTable("settings", {
   depositRate: real("deposit_rate").notNull(),
   /** Total mínimo del pedido para ofrecer reserva con seña. */
   depositMinTotal: integer("deposit_min_total").notNull().default(2_000_000),
+  /** Horas de reserva de una transferencia sin acreditar. */
   reservationHours: integer("reservation_hours").notNull(),
+  /**
+   * Minutos que un pedido con pago online (MP) reserva el stock esperando
+   * el pago. Pasado eso vence y el stock vuelve (y Checkout Pro deja de
+   * aceptar el pago).
+   */
+  onlineReservationMinutes: integer("online_reservation_minutes").notNull().default(60),
+  /** Horas de reserva del pago en efectivo. null = no vence. */
+  cashReservationHours: integer("cash_reservation_hours"),
+  /** Efectivo en el local habilitado en el checkout. */
+  cashEnabled: boolean("cash_enabled").notNull().default(true),
+  /** Tope de cuotas sin interés que se ofrecen en Mercado Pago. */
+  maxInstallments: integer("max_installments").notNull().default(6),
+  /** Turnos: duración de cada slot, turnos por slot, anticipación y horizonte. */
+  slotMinutes: integer("slot_minutes").notNull().default(30),
+  slotCapacity: integer("slot_capacity").notNull().default(1),
+  minNoticeMin: integer("min_notice_min").notNull().default(120),
+  maxDaysAhead: integer("max_days_ahead").notNull().default(30),
+  /** Un turno web nace confirmado (true) o pendiente de confirmar. */
+  autoConfirmAppointments: boolean("auto_confirm_appointments").notNull().default(true),
   localShippingCost: integer("local_shipping_cost").notNull(),
   showPrices: boolean("show_prices").notNull().default(true),
   /** false = la web es 100% WhatsApp: sin carrito ni botones de compra. */
@@ -269,15 +341,64 @@ export const stockAlerts = pgTable(
 
 /* ── Clientes y pedidos ───────────────────────────────────── */
 
-export const customers = pgTable("customers", {
+/**
+ * Cuentas de cliente (email + contraseña scrypt). Separadas del admin:
+ * otra cookie, otro secreto. `sessionVersion` invalida todas las sesiones
+ * abiertas (recupero de contraseña).
+ */
+export const customerAccounts = pgTable("customer_accounts", {
   id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
-  email: text("email").notNull(),
+  /** WhatsApp normalizado (lib/phone.ts). */
   phone: text("phone").notNull(),
-  address: text("address"),
-  city: text("city"),
+  sessionVersion: integer("session_version").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
 });
+
+/**
+ * Tokens de recupero de contraseña: se guarda solo el SHA-256 del token;
+ * se consume una sola vez (UPDATE condicional sobre `usedAt`).
+ */
+export const passwordResets = pgTable(
+  "password_resets",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => customerAccounts.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("password_resets_account_idx").on(t.accountId)],
+);
+
+/**
+ * Clientes (CRM): uno por WhatsApp normalizado. Los crean los pedidos, los
+ * turnos y los presupuestos (con o sin cuenta).
+ */
+export const customers = pgTable(
+  "customers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    /** Opcional: sin email no salen mails. */
+    email: text("email"),
+    /** Normalizado (lib/phone.ts): 549 + característica + número. */
+    phone: text("phone").notNull(),
+    address: text("address"),
+    city: text("city"),
+    accountId: uuid("account_id").references(() => customerAccounts.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("customers_phone_unique").on(t.phone),
+    index("customers_email_idx").on(t.email),
+  ],
+);
 
 export const orders = pgTable("orders", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -315,6 +436,12 @@ export const orders = pgTable("orders", {
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   timeline: jsonb("timeline").$type<OrderEvent[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Comprobante de transferencia (Cloudinary o archivo local del admin). */
+  transferReceiptUrl: text("transfer_receipt_url"),
+  /** Cuenta de cliente dueña del pedido (comprado logueado o vinculado). */
+  accountId: uuid("account_id").references(() => customerAccounts.id),
+  /** Presupuesto del que salió el pedido ("Crear pedido"). */
+  quoteId: uuid("quote_id"),
 });
 
 export const orderItems = pgTable("order_items", {
@@ -322,7 +449,11 @@ export const orderItems = pgTable("order_items", {
   orderId: uuid("order_id")
     .notNull()
     .references(() => orders.id),
-  productSlug: text("product_slug").notNull(),
+  /** null en líneas libres de un presupuesto (fuera del catálogo). */
+  productSlug: text("product_slug"),
+  variantId: text("variant_id"),
+  /** "Talle M · Negro" congelado al comprar. */
+  variantLabel: text("variant_label"),
   name: text("name").notNull(),
   image: text("image").notNull().default(""),
   quantity: integer("quantity").notNull(),
@@ -356,4 +487,147 @@ export const payments = pgTable("payments", {
 export const counters = pgTable("counters", {
   id: text("id").primaryKey(),
   value: integer("value").notNull(),
+});
+
+/* ── Turnos ───────────────────────────────────────────────── */
+
+/** Servicios que se reservan con turno (prueba, asesoramiento). */
+export const appointmentServices = pgTable("appointment_services", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  durationMin: integer("duration_min").notNull().default(30),
+  /** "Se paga en el local", "Sin cargo"… */
+  priceNote: text("price_note").notNull().default(""),
+  /** La prueba lleva producto (y variante) a probar. */
+  allowsProduct: boolean("allows_product").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  order: integer("order").notNull().default(0),
+});
+
+export const appointments = pgTable(
+  "appointments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    number: text("number").notNull().unique(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    accountId: uuid("account_id").references(() => customerAccounts.id),
+    serviceId: text("service_id")
+      .notNull()
+      .references(() => appointmentServices.id),
+    productSlug: text("product_slug"),
+    variantId: text("variant_id"),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    durationMin: integer("duration_min").notNull(),
+    status: text("status").$type<AppointmentStatus>().notNull(),
+    source: text("source").$type<AppointmentSource>().notNull(),
+    /** Lo que escribió el cliente ("MTB R29 · talle M", "primera bici"). */
+    note: text("note").notNull().default(""),
+    /** Nota interna del local (no la ve el cliente). */
+    internalNote: text("internal_note").notNull().default(""),
+    /** Token para que un cliente sin cuenta gestione su turno por link. */
+    manageToken: text("manage_token").notNull(),
+    /** Turno original cuando este es una reprogramación. */
+    rescheduledFromId: uuid("rescheduled_from_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("appointments_starts_idx").on(t.startsAt),
+    index("appointments_customer_idx").on(t.customerId),
+  ],
+);
+
+/**
+ * Ocupación por slot: la capacidad se garantiza con un UPDATE condicional
+ * atómico (`booked < capacidad`), igual que el stock — sin transacciones
+ * interactivas. Se escribe SOLO desde lib/server/appointments.ts.
+ */
+export const appointmentSlots = pgTable("appointment_slots", {
+  startsAt: timestamp("starts_at", { withTimezone: true }).primaryKey(),
+  booked: integer("booked").notNull().default(0),
+});
+
+/** Horario semanal de turnos: franjas por día (0 = domingo). */
+export const scheduleRules = pgTable("schedule_rules", {
+  id: serial("id").primaryKey(),
+  weekday: integer("weekday").notNull(),
+  /** "HH:MM" en la hora del local. */
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  active: boolean("active").notNull().default(true),
+});
+
+/** Horarios bloqueados (feriado, el dueño no está…). */
+export const scheduleBlocks = pgTable(
+  "schedule_blocks",
+  {
+    id: serial("id").primaryKey(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    reason: text("reason").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("schedule_blocks_starts_idx").on(t.startsAt)],
+);
+
+/* ── Presupuestos ─────────────────────────────────────────── */
+
+export const quoteRequests = pgTable(
+  "quote_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    number: text("number").notNull().unique(),
+    kind: text("kind").$type<QuoteKind>().notNull(),
+    /** Título corto para el admin (default: el comienzo del detalle). */
+    title: text("title").notNull().default(""),
+    detail: text("detail").notNull(),
+    forBike: text("for_bike").notNull().default(""),
+    budget: text("budget").notNull().default(""),
+    photos: jsonb("photos").$type<string[]>().notNull().default([]),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    accountId: uuid("account_id").references(() => customerAccounts.id),
+    status: text("status").$type<QuoteStatus>().notNull().default("nuevo"),
+    /** Demora de entrega ("30 a 45 días", "En stock"). */
+    eta: text("eta").notNull().default(""),
+    validUntil: date("valid_until"),
+    orderId: uuid("order_id").references(() => orders.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("quote_requests_created_idx").on(t.createdAt)],
+);
+
+/** Ítems de la cotización (libres o del catálogo). */
+export const quoteLines = pgTable("quote_lines", {
+  id: serial("id").primaryKey(),
+  quoteId: uuid("quote_id")
+    .notNull()
+    .references(() => quoteRequests.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  /** Precio unitario en pesos. */
+  price: integer("price").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  productSlug: text("product_slug"),
+  variantId: text("variant_id"),
+  order: integer("order").notNull().default(0),
+});
+
+/* ── WhatsApp ─────────────────────────────────────────────── */
+
+/**
+ * Plantillas de mensajes (links wa.me, sin envío automático). Variables:
+ * {nombre} {día} {hora} {servicio} {producto} {número} {link}.
+ */
+export const whatsappTemplates = pgTable("whatsapp_templates", {
+  id: text("id").$type<WhatsAppTemplateId>().primaryKey(),
+  name: text("name").notNull(),
+  /** Cuándo se usa ("Al reservar", "Al marcarlo listo"). */
+  trigger: text("trigger").notNull().default(""),
+  body: text("body").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

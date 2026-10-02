@@ -2,10 +2,19 @@ import { eq, notInArray } from "drizzle-orm";
 import { store } from "@/lib/config";
 import { brands, categories, products } from "@/lib/data/catalog";
 import { agendaEvents, articles, content } from "@/lib/data/content";
+import {
+  appointmentServices,
+  operationSettings,
+  scheduleRules,
+  whatsappTemplates,
+} from "@/lib/data/operations";
 import { resolveImage } from "@/lib/images";
 import type { Db } from "@/lib/server/db";
 import * as schema from "@/lib/server/db/schema";
-import { applyStockMovement, getStockMatrix } from "@/lib/server/stock";
+import { applyStockMovement, getVariantStockMatrix } from "@/lib/server/stock";
+import { SINGLE_SIZE, type SeedProduct, type SeedVariant } from "@/lib/types";
+import { defaultVariantId, defaultVariantSku } from "@/lib/variants";
+import { slugify } from "@/lib/slug";
 
 /**
  * Carga los valores originales de la capa por-tienda (lib/config.ts,
@@ -72,38 +81,114 @@ async function seedLocations(db: Db) {
   }
 }
 
+/** Variantes del seed con id y SKU resueltos. */
+function seedVariantsOf(p: SeedProduct): (SeedVariant & { id: string; sku: string; order: number })[] {
+  if (!p.variants?.length)
+    return [
+      {
+        id: defaultVariantId(p.slug),
+        size: SINGLE_SIZE,
+        color: "",
+        heightRange: null,
+        sku: defaultVariantSku(p.slug, p.sku),
+        stock: p.stock,
+        order: 0,
+      },
+    ];
+  return p.variants.map((v, i) => {
+    const single = v.size === SINGLE_SIZE && !v.color;
+    const key = [v.size, v.color].filter(Boolean).join("-");
+    return {
+      ...v,
+      id: single ? defaultVariantId(p.slug) : `${p.slug}--${slugify(key, 30)}`,
+      sku:
+        v.sku ??
+        (single
+          ? defaultVariantSku(p.slug, p.sku)
+          : `${(p.sku || p.slug).toUpperCase()}-${slugify(key, 30).toUpperCase()}`),
+      order: i,
+    };
+  });
+}
+
+/** Upsert de las variantes del seed (por id). */
+async function seedVariants(db: Db) {
+  for (const p of products) {
+    for (const v of seedVariantsOf(p)) {
+      const row = {
+        id: v.id,
+        productSlug: p.slug,
+        size: v.size,
+        color: v.color ?? "",
+        heightRange: v.heightRange ?? null,
+        sku: v.sku,
+        order: v.order,
+        active: true,
+      };
+      await db
+        .insert(schema.productVariants)
+        .values(row)
+        .onConflictDoUpdate({ target: schema.productVariants.id, set: row });
+    }
+  }
+}
+
 /**
- * Stock inicial: el del catálogo seed va entero a la sucursal principal.
- * En una corrida normal solo completa productos SIN filas de stock (no
- * pisa inventario vivo); con `reset` vuelve todo al valor del seed.
+ * Stock inicial: el del catálogo seed va entero a la sucursal principal,
+ * por variante. En una corrida normal solo completa variantes SIN filas de
+ * stock (no pisa inventario vivo); con `reset` vuelve todo al seed.
  */
 async function seedStock(db: Db, opts: { reset: boolean }) {
   const principal = store.locations[0].id;
-  const matrix = await getStockMatrix(db);
+  const matrix = await getVariantStockMatrix(db);
 
   for (const p of products) {
-    const existing = matrix.get(p.slug);
-    if (!opts.reset && existing && existing.size > 0) continue;
+    for (const v of seedVariantsOf(p)) {
+      const existing = matrix.get(v.id);
+      if (!opts.reset && existing && existing.size > 0) continue;
 
-    if (opts.reset && existing) {
-      // Todas las sucursales a cero primero (queda asentado en el libro).
-      for (const [locationId, qty] of existing) {
-        if (qty !== 0)
-          await applyStockMovement(db, {
-            productSlug: p.slug,
-            locationId,
-            delta: -qty,
-            reason: "seed",
-          });
+      if (opts.reset && existing) {
+        for (const [locationId, qty] of existing) {
+          if (qty !== 0)
+            await applyStockMovement(db, {
+              variantId: v.id,
+              productSlug: p.slug,
+              locationId,
+              delta: -qty,
+              reason: "seed",
+            });
+        }
       }
+      if (v.stock > 0)
+        await applyStockMovement(db, {
+          variantId: v.id,
+          productSlug: p.slug,
+          locationId: principal,
+          delta: v.stock,
+          reason: "seed",
+        });
     }
-    if (p.stock > 0)
-      await applyStockMovement(db, {
-        productSlug: p.slug,
-        locationId: principal,
-        delta: p.stock,
-        reason: "seed",
-      });
+  }
+}
+
+/** Servicios de turnos, horario semanal y plantillas de WhatsApp. */
+async function seedOperations(db: Db, opts: { reset: boolean }) {
+  for (const svc of appointmentServices) {
+    await db
+      .insert(schema.appointmentServices)
+      .values(svc)
+      .onConflictDoNothing({ target: schema.appointmentServices.id });
+  }
+  const rules = await db.select({ id: schema.scheduleRules.id }).from(schema.scheduleRules);
+  if (opts.reset && rules.length) await db.delete(schema.scheduleRules);
+  if (opts.reset || !rules.length) {
+    for (const r of scheduleRules) await db.insert(schema.scheduleRules).values(r);
+  }
+  for (const t of whatsappTemplates) {
+    const q = db.insert(schema.whatsappTemplates).values(t);
+    await (opts.reset
+      ? q.onConflictDoUpdate({ target: schema.whatsappTemplates.id, set: t })
+      : q.onConflictDoNothing({ target: schema.whatsappTemplates.id }));
   }
 }
 
@@ -119,7 +204,11 @@ export async function runSeed(
     keepOperational?: boolean;
   } = {},
 ) {
-  for (const c of categories) {
+  // Raíces primero: los tipos (MTB) referencian a su grupo (Bicicletas).
+  const sortedCategories = [...categories].sort(
+    (a, b) => Number(!!a.parentSlug) - Number(!!b.parentSlug),
+  );
+  for (const c of sortedCategories) {
     const row = {
       slug: c.slug,
       label: c.label,
@@ -129,6 +218,7 @@ export async function runSeed(
       imgProductId: c.imgProductId,
       pathSlug: c.pathSlug,
       order: c.order,
+      parentSlug: c.parentSlug ?? null,
     };
     await db
       .insert(schema.categories)
@@ -165,6 +255,11 @@ export async function runSeed(
       custom: p.custom,
       description: p.description,
       createdAt: p.createdAt,
+      sku: p.sku ?? null,
+      rodado: p.rodado ?? null,
+      testRide: p.testRide ?? false,
+      hideWhenOut: p.hideWhenOut ?? false,
+      status: p.status ?? "publicado",
     };
     await db
       .insert(schema.products)
@@ -212,6 +307,7 @@ export async function runSeed(
   }
 
   await seedLocations(db);
+  await seedVariants(db);
 
   if (opts.reset && opts.keepOperational) {
     // Contenido y catálogo al seed; lo creado desde el admin desaparece
@@ -223,6 +319,7 @@ export async function runSeed(
       .where(notInArray(schema.products.id, productIds));
     for (const p of stray) {
       await db.delete(schema.productStock).where(eq(schema.productStock.productSlug, p.slug));
+      await db.delete(schema.productVariants).where(eq(schema.productVariants.productSlug, p.slug));
       await db.delete(schema.stockAlerts).where(eq(schema.stockAlerts.productSlug, p.slug));
     }
     await db.delete(schema.texts);
@@ -244,16 +341,29 @@ export async function runSeed(
     const categorySlugs = categories.map((c) => c.slug);
     const articleIds = articles.map((a) => a.id);
     const eventIds = agendaEvents.map((ev) => ev.id);
+    await db.delete(schema.quoteLines);
+    await db.delete(schema.quoteRequests);
+    await db.delete(schema.appointments);
+    await db.delete(schema.appointmentSlots);
+    await db.delete(schema.scheduleBlocks);
     await db.delete(schema.payments);
     await db.delete(schema.orderItems);
     await db.delete(schema.orders);
     await db.delete(schema.customers);
+    await db.delete(schema.passwordResets);
+    await db.delete(schema.customerAccounts);
     await db.delete(schema.stockAlerts);
     await db.delete(schema.newsletterSubscribers);
     await db.delete(schema.leads);
     await db.delete(schema.texts);
     await db.delete(schema.stockMovements);
     await db.delete(schema.productStock);
+    const strayProducts = await db
+      .select({ slug: schema.products.slug })
+      .from(schema.products)
+      .where(notInArray(schema.products.id, productIds));
+    for (const p of strayProducts)
+      await db.delete(schema.productVariants).where(eq(schema.productVariants.productSlug, p.slug));
     await db
       .delete(schema.products)
       .where(notInArray(schema.products.id, productIds));
@@ -269,12 +379,20 @@ export async function runSeed(
   }
 
   await seedStock(db, { reset: !!opts.reset && !opts.keepOperational });
+  await seedOperations(db, { reset: !!opts.reset && !opts.keepOperational });
 
-  // Numeración de pedidos: arranca en 1041 (el contador guarda el último).
-  await db
-    .insert(schema.counters)
-    .values({ id: "order_number", value: 1040 })
-    .onConflictDoNothing({ target: schema.counters.id });
+  // Numeración (el contador guarda el último): pedidos desde
+  // store.firstOrderNumber, presupuestos desde P-0213, turnos desde T-0001.
+  for (const [id, value] of [
+    ["order_number", (store.firstOrderNumber ?? 1041) - 1],
+    ["quote_number", 212],
+    ["appointment_number", 0],
+  ] as const) {
+    await db
+      .insert(schema.counters)
+      .values({ id, value })
+      .onConflictDoNothing({ target: schema.counters.id });
+  }
 
   const settingsRow = {
     id: "main",
@@ -292,6 +410,7 @@ export async function runSeed(
     depositRate: store.depositRate,
     depositMinTotal: store.depositMinTotal,
     reservationHours: store.reservationHours,
+    ...operationSettings,
     localShippingCost: store.localShippingCost,
     showPrices: store.showPrices,
     ventaOnline: store.ventaOnline,

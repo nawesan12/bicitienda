@@ -47,7 +47,7 @@ async function connect(): Promise<Db> {
  * correr `pnpm build` con `pnpm dev` abierto, o cualquier script suelto
  * con el server levantado. Mejor fallar ruidoso acá que perder la base.
  */
-function acquirePgliteLock(fs: typeof import("node:fs")) {
+export function acquirePgliteLock(fs: typeof import("node:fs")) {
   const lockPath = ".data/pglite.lock";
   try {
     const holder = Number(fs.readFileSync(lockPath, "utf8"));

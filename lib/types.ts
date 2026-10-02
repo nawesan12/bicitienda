@@ -31,6 +31,11 @@ export interface Category {
   /** Slug largo para la URL pública: "bicicletas". */
   pathSlug: Slug;
   order: number;
+  /**
+   * Grupo de navegación al que pertenece (Bicicletas → MTB, Ruta/Gravel…).
+   * null = categoría raíz (un grupo o una categoría suelta).
+   */
+  parentSlug: Slug | null;
 }
 
 /** Categoría con el contador de productos visibles (para home y filtros). */
@@ -90,7 +95,44 @@ export interface Product {
   custom: boolean;
   description: string;
   createdAt: string;
+  /** SKU del producto (agrupa sus variantes en la importación). null = sin SKU. */
+  sku: string | null;
+  /** Rodado para el filtro del catálogo ("29", "27.5", "700c"…). null = no aplica. */
+  rodado: string | null;
+  /** Se puede reservar una prueba en el local (turno con producto). */
+  testRide: boolean;
+  /** Sin stock en ninguna variante → no aparece en la web. */
+  hideWhenOut: boolean;
+  /** "borrador" no aparece en la web aunque no esté oculto. */
+  status: ProductStatus;
+  /** Variantes activas (talle × color), en orden. Siempre al menos una. */
+  variants: ProductVariant[];
 }
+
+export type ProductStatus = "publicado" | "borrador";
+
+/**
+ * Variante vendible de un producto (talle × color). El stock por sucursal
+ * vive por variante; un producto sin talles tiene una sola, "Único".
+ */
+export interface ProductVariant {
+  id: string;
+  productSlug: Slug;
+  /** "S", "M", "L", "XL", "16"… o "Único" si el producto no tiene talles. */
+  size: string;
+  /** "" si el producto no tiene colores. */
+  color: string;
+  /** Altura sugerida para el talle: "1,65 – 1,75 m". */
+  heightRange: string | null;
+  sku: string;
+  order: number;
+  active: boolean;
+  /** Unidades disponibles de la variante (suma de las sucursales). */
+  stock: number;
+}
+
+/** Talle de la variante única de un producto sin talles. */
+export const SINGLE_SIZE = "Único";
 
 export type StockOverride = "sin_stock";
 
@@ -765,7 +807,11 @@ export type PaymentProvider = "payway" | "mp";
 export type PaymentMode = "total" | "sena";
 
 export interface OrderItem {
-  productSlug: Slug;
+  /** null en líneas libres (presupuestos: un importado que no está en el catálogo). */
+  productSlug: Slug | null;
+  variantId: string | null;
+  /** "Talle M · Negro" congelado al comprar. null si no aplica. */
+  variantLabel: string | null;
   name: string;
   image: string;
   quantity: number;
@@ -839,8 +885,9 @@ export interface Payment {
 export interface Customer {
   id: string;
   name: string;
-  email: string;
-  /** Obligatorio: la coordinación de entrega es por WhatsApp. */
+  /** Opcional: sin email no salen mails, todo sigue por WhatsApp. */
+  email: string | null;
+  /** Obligatorio y normalizado (lib/phone.ts): la coordinación es por WhatsApp. */
   phone: string;
   address: string | null;
   city: string | null;
@@ -851,12 +898,19 @@ export interface Customer {
 
 export interface CartItem {
   productSlug: Slug;
+  /**
+   * Variante elegida (talle × color). Opcional solo si el producto tiene una
+   * única variante activa: el server la resuelve.
+   */
+  variantId?: string;
   quantity: number;
 }
 
 /** Línea de carrito ya resuelta contra el catálogo, lista para renderizar. */
 export interface CartLine extends CartItem {
   product: Product;
+  /** Variante resuelta (en el server, siempre presente). */
+  variant?: ProductVariant;
   unitPrice: number;
   lineTotal: number;
   /** Unidades disponibles del producto. */
@@ -902,7 +956,8 @@ export type StockMovementReason =
   | "vencimiento"
   | "ajuste"
   | "transferencia"
-  | "reposicion";
+  | "reposicion"
+  | "importacion";
 
 /* ── Configuración de la tienda ───────────────────────────── */
 
@@ -940,6 +995,26 @@ export interface FeatureFlags {
    * vuelva". Sin definir = prendidos.
    */
   emails?: boolean;
+  /** Reparaciones: página, formulario y bloque de la home. Sin definir = prendido. */
+  repairs?: boolean;
+  /** Comunidad (perks, galería y agenda). Sin definir = prendido. */
+  community?: boolean;
+  /** Reserva con seña en pagos online. Sin definir = prendida. */
+  deposit?: boolean;
+  /** Variantes talle × color visibles en la web y el admin. */
+  variants?: boolean;
+  /** Cuentas de cliente (registro, login, mis pedidos/turnos). */
+  accounts?: boolean;
+  /** Turnos en el local (prueba, asesoramiento) con agenda. */
+  appointments?: boolean;
+  /** Pedidos de presupuesto. */
+  quotes?: boolean;
+  /** Pago en efectivo al retirar (la reserva vence según `cashReservationHours`). */
+  cashPayment?: boolean;
+  /** Solo retiro en el local: sin envíos. */
+  pickupOnly?: boolean;
+  /** Importación de productos desde CSV/XLSX. */
+  csvImport?: boolean;
   /** Pasarelas de pago online habilitadas en el checkout. */
   payments: {
     payway: boolean;
@@ -1023,4 +1098,81 @@ export interface StoreConfig {
   lowStock: number;
   locations: StoreLocation[];
   features: FeatureFlags;
+  /** Prefijo del número de pedido: "BT-" → "BT-10482". "" = solo el número. */
+  orderPrefix?: string;
+  /** Primer número de pedido (el contador arranca en este − 1). */
+  firstOrderNumber?: number;
+  /** Colores de marca para los emails (sin definir = paleta neutra del core). */
+  emailColors?: EmailColors;
 }
+
+/** Paleta de los emails transaccionales. */
+export interface EmailColors {
+  /** Fondo del header y textos fuertes. */
+  ink: string;
+  /** Fondo de la página del mail. */
+  paper: string;
+  /** Acento de acciones (botones, filete del header). */
+  accent: string;
+  /** Texto sobre el acento. */
+  onAccent: string;
+  /** Ofertas / urgencia. */
+  offer: string;
+}
+
+/* ── Turnos ───────────────────────────────────────────────── */
+
+export type AppointmentStatus =
+  | "pendiente"
+  | "confirmado"
+  | "asistio"
+  | "no_asistio"
+  | "cancelado"
+  | "reprogramado";
+
+/** De dónde salió el turno: la web (cliente) o cargado a mano en el admin. */
+export type AppointmentSource = "web" | "manual";
+
+/* ── Presupuestos ─────────────────────────────────────────── */
+
+export type QuoteKind = "bici" | "rep" | "imp" | "otro";
+
+export type QuoteStatus =
+  | "nuevo"
+  | "cotizado"
+  | "aceptado"
+  | "pedido_creado"
+  | "rechazado";
+
+/* ── Plantillas de WhatsApp ───────────────────────────────── */
+
+export type WhatsAppTemplateId = "turno_confirmado" | "pedido_listo";
+
+/* ── Seed del catálogo (capa por tienda) ──────────────────── */
+
+/** Variante del seed: sin `sku` se deriva del slug del producto. */
+export interface SeedVariant {
+  size: string;
+  color?: string;
+  heightRange?: string | null;
+  sku?: string;
+  /** Unidades iniciales en la sucursal principal. */
+  stock: number;
+}
+
+/**
+ * Producto del seed: los campos nuevos son opcionales (default: sin SKU,
+ * sin rodado, publicado). Sin `variants` nace con una variante "Único"
+ * con el `stock` del producto.
+ */
+export type SeedProduct = Omit<
+  Product,
+  "sku" | "rodado" | "testRide" | "hideWhenOut" | "status" | "variants"
+> &
+  Partial<Pick<Product, "sku" | "rodado" | "testRide" | "hideWhenOut" | "status">> & {
+    variants?: SeedVariant[];
+  };
+
+export type SeedCategory = Omit<Category, "parentSlug"> & {
+  parentSlug?: Slug | null;
+};

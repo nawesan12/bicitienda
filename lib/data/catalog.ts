@@ -6,7 +6,7 @@
  * fuente), las fotos en public/products/ (`pnpm optimize:images`) y
  * subilas a Cloudinary con `pnpm seed:images` antes del seed.
  */
-import type { Brand, Category, Product } from "@/lib/types";
+import type { Brand, SeedCategory, SeedProduct } from "@/lib/types";
 
 export const brands: Brand[] = [
   { id: "faro", name: "Faro" },
@@ -19,7 +19,7 @@ export const brands: Brand[] = [
  * tarjetas; `sub` es el subtítulo de la tarjeta del home (vacío = contador
  * de productos); `imgProductId` elige la foto de la tarjeta.
  */
-export const categories: Category[] = [
+export const categories: SeedCategory[] = [
   {
     slug: "hogar",
     label: "Hogar",
@@ -42,7 +42,7 @@ export const categories: Category[] = [
   },
 ];
 
-export const products: Product[] = [
+export const products: SeedProduct[] = [
   {
     id: "lampara-duna",
     slug: "lampara-duna",
