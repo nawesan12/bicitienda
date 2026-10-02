@@ -11,7 +11,7 @@ next-env.d.ts
 .vercel
 
 # referencia de diseño (no versionar, 19 MB de handoff)
-/design_handoff_rodar_digital
+/design_handoff_bicitienda_mdq
 /.playwright-mcp
 
 # misc
