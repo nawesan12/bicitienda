@@ -1,4 +1,36 @@
-# tienda-starter
+# BiciTienda MDQ
+
+Tienda online de una bicicletería de Mar del Plata: catálogo con talles y
+colores, compra con retiro en el local (Mercado Pago, transferencia 10% off o
+efectivo), turnos de prueba y asesoramiento, presupuestos y cuentas de cliente.
+**Proyecto independiente**: se generó copiando `tienda-starter/` y evoluciona
+solo; no comparte código en vivo con Rodar ni con otras tiendas.
+
+Diseño: `design_handoff_bicitienda_mdq/` (no versionado; abrir
+`BiciTienda MDQ.dc.html` con `npx serve` en esa carpeta).
+
+## Estado (2026-10-01) — en construcción
+
+| Fase | Estado |
+|---|---|
+| B0 · Core: variantes talle × color, pedidos de retiro (MP / transferencia / efectivo), cuentas con recupero por mail, turnos, presupuestos → pedido, plantillas WhatsApp `wa.me`, importación CSV/XLSX, mails | ✅ commiteado (tests en `scripts/tests/`), con pendientes de endurecimiento (ver abajo) |
+| B1a · Identidad (tokens, Archivo wdth + JetBrains Mono, logo, íconos) y datos demo (`lib/data/demo/*`, fotos en Cloudinary `bicitienda-mdq/demo/`) | ✅ |
+| B2a · Sistema de diseño (`components/bt/*`, muestra en `/bt-kit` en dev) | ✅ — falta revisarlo en el navegador |
+| B1b · Seed real con los datos demo | ⏭️ |
+| B2 · Pantallas públicas · B3 · Admin propio · B4 · Pantallas sin diseño | ⏭️ |
+| B5 · Este README + DEPLOY | ⏭️ (manual del core ya en `../factory/docs/`) |
+
+**Pendientes de B0:** bloquear el pago simulado en producción sin pasarela,
+vencimiento de pedidos online con liberación de stock, cancelar pedidos
+pagados repone stock, flags que apaguen rutas/links/sitemap de verdad,
+`db:migrate`/`db:seed` cargando `.env.local` y respetando el lock de PGlite.
+
+Plan completo: `~/.claude/plans/bicitienda-construccion.md`.
+
+---
+
+## Base heredada del starter
+
 
 Plantilla base de la fábrica de tiendas. **No se edita a mano**: se regenera
 desde la tienda de referencia (`rodar/`, su HEAD commiteado) con
