@@ -1,0 +1,26 @@
+# deps / build
+/node_modules
+/.next/
+/out/
+*.tsbuildinfo
+next-env.d.ts
+
+# env / vercel
+.env*
+!.env.example
+.vercel
+
+# referencia de diseño (no versionar, 19 MB de handoff)
+/design_handoff_rodar_digital
+/.playwright-mcp
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+
+# base de datos local (PGlite)
+.data/
+
+# worktrees de agentes
+.claude/

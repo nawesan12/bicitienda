@@ -1,0 +1,66 @@
+/* ─────────────────────────────────────────────────────────────
+   IDENTIDAD "CARBONO" — deportiva / técnica
+   Negro carbón + amarillo señal. Para rubros de performance:
+   deportes, herramientas, motos, gaming, outdoor técnico.
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  /* Marca */
+  --color-brand: #ffd60a;
+  --color-brand-hover: #ffe14d;
+  /* Acento legible sobre fondos claros. */
+  --color-brand-deep: #8a7400;
+  --color-brand-deeper: #6b5a00;
+  --color-brand-pastel: #fff3bf;
+
+  /* Oscuros */
+  --color-night: #0b0b0d;
+  --color-ink: #131316;
+
+  /* Fondos claros */
+  --color-cream: #f2f3f5;
+  --color-cream-2: #e8e9ec;
+  --color-cream-3: #fafbfc;
+  --color-cream-4: #f6f7f9;
+  --color-chip: #ecedf0;
+  /* Riel de las barras del comparador y rayado de placeholders. */
+  --color-cream-5: #ecedf0;
+
+  /* Texto secundario sobre claro */
+  --color-body: #45474d;
+  --color-text-2: #6b6e75;
+  --color-text-3: #989ba2;
+
+  /* Semánticos */
+  --color-danger: #d32f2f;
+  --color-danger-bg: #fdeaea;
+
+  /* Layout */
+  --spacing-content: 1180px;
+  --spacing-wide: 1280px;
+}
+
+@theme inline {
+  --font-sans: var(--font-store-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-store-display), var(--font-store-sans), sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+}
+
+/* Display condensado en mayúsculas: carácter de cartel deportivo. */
+/* En la capa components para que las utilidades (font-extrabold,
+   tracking-*) lo puedan pisar. */
+@layer components {
+  .font-display {
+    font-weight: 400; /* Anton solo trae 400: el peso visual lo pone el trazo */
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+  }
+}
+
+/* Anton es solo de cartel: el texto corrido (que el core pone en el
+   display) va en la fuente de UI. `html body` le gana a la regla base de
+   globals.css por especificidad. */
+@layer base {
+  html body {
+    font-family: var(--font-sans);
+  }
+}
