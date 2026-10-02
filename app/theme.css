@@ -1,66 +1,190 @@
 /* ─────────────────────────────────────────────────────────────
-   IDENTIDAD "CARBONO" — deportiva / técnica
-   Negro carbón + amarillo señal. Para rubros de performance:
-   deportes, herramientas, motos, gaming, outdoor técnico.
+   IDENTIDAD "BICITIENDA MDQ" — mostrador de bicicletería
+   Negro domina; rojo = ofertas/urgencia; amarillo = acciones/selección.
+   Nada más. (design_handoff_bicitienda_mdq/README.md → Design Tokens)
+
+   Dos familias de tokens:
+   1. Los del handoff (ink, surface*, line*, paper, text-2..4, yellow,
+      red, red-light, card-*): son los que usan components/bt/**.
+   2. Los nombres del core (brand*, night, cream*, chip, body, danger*):
+      se conservan para que los componentes de components/store y
+      components/ui sigan compilando y se vean coherentes, mapeados a
+      la paleta de BiciTienda.
    ───────────────────────────────────────────────────────────── */
 @theme {
-  /* Marca */
-  --color-brand: #ffd60a;
-  --color-brand-hover: #ffe14d;
-  /* Acento legible sobre fondos claros. */
-  --color-brand-deep: #8a7400;
-  --color-brand-deeper: #6b5a00;
-  --color-brand-pastel: #fff3bf;
+  /* ── Paleta del handoff ─────────────────────────────────── */
+  /* Fondo de toda la tienda y el admin. También "ink" del core
+     (texto oscuro sobre fondos claros): es el mismo negro. */
+  --color-ink: #121110;
+  --color-ink-deep: #0b0a09; /* sidebar admin, header admin mobile */
+  --color-surface: #1f1d1a; /* cards, paneles, inputs */
+  --color-surface-2: #1a1816; /* header de tablas */
+  --color-surface-3: #26231f; /* burbuja de preview de WhatsApp */
+  --color-line: #2b2824; /* bordes y divisores */
+  --color-line-strong: #3a362f; /* bordes de inputs/chips, pill neutra */
+  --color-line-btn: #4a453e; /* botón secundario, upload punteado */
+  --color-line-muted: #5a554c; /* checkbox vacío, pill "Rechazado"/"Borrador" */
+  --color-paper: #f4efe4; /* texto principal sobre oscuro; cuerpo de la card */
+  /* OJO: text-2/text-3 existían en el core con valores para fondo claro;
+     ahora son los del handoff (secundario/apagado sobre oscuro). */
+  --color-text-2: #cfc8bb; /* texto secundario */
+  --color-text-3: #8d867a; /* labels apagados, placeholders */
+  --color-text-4: #6f675a; /* eyebrows mono sobre paper */
+  --color-yellow: #ffd21f; /* acción: botones, selección, precios admin */
+  --color-red: #d7261e; /* ofertas, "Tienda" del wordmark, urgente */
+  --color-red-light: #ff6a5c; /* precio transferencia sobre oscuro, avisos */
 
-  /* Oscuros */
-  --color-night: #0b0b0d;
-  --color-ink: #131316;
+  /* Extras de la product card clara (cuerpo bg-paper) y la agenda. */
+  --color-card-photo: #e8e1d3; /* fondo de la foto de la card */
+  --color-card-dash: #c9c0ae; /* divisor punteado de la card */
+  --color-card-cuotas: #4c463d; /* "6 x $ … sin interés" */
+  --color-card-transfer: #b81d16; /* "$ … por transferencia" sobre paper */
+  --color-card-meta: #6f675a; /* "CATEGORÍA / MARCA" mono sobre paper */
+  --color-agenda-empty: #221f1c; /* borde de celda vacía de la agenda */
 
-  /* Fondos claros */
-  --color-cream: #f2f3f5;
-  --color-cream-2: #e8e9ec;
-  --color-cream-3: #fafbfc;
-  --color-cream-4: #f6f7f9;
-  --color-chip: #ecedf0;
-  /* Riel de las barras del comparador y rayado de placeholders. */
-  --color-cream-5: #ecedf0;
+  /* ── Nombres del core, mapeados a BiciTienda ────────────── */
+  --color-brand: #ffd21f;
+  --color-brand-hover: #ffdc4d;
+  /* Acento legible sobre fondos claros (paper). */
+  --color-brand-deep: #7a6200;
+  --color-brand-deeper: #5c4a00;
+  --color-brand-pastel: #fff3c2;
 
-  /* Texto secundario sobre claro */
-  --color-body: #45474d;
-  --color-text-2: #6b6e75;
-  --color-text-3: #989ba2;
+  --color-night: #0b0a09;
+
+  /* Fondos claros del core → tonos paper. */
+  --color-cream: #f4efe4;
+  --color-cream-2: #e8e1d3;
+  --color-cream-3: #faf7f0;
+  --color-cream-4: #f7f3ea;
+  --color-cream-5: #e8e1d3;
+  --color-chip: #ebe5d8;
+  --color-line-3: #c9c0ae;
+
+  --color-body: #4c463d; /* texto corrido sobre claro */
 
   /* Semánticos */
-  --color-danger: #d32f2f;
-  --color-danger-bg: #fdeaea;
+  --color-danger: #d7261e;
+  --color-danger-bg: #fbe4e1;
+  --color-danger-line: #d7261e;
 
-  /* Layout */
+  /* ── Radios (rounded-tag, rounded-btn, …) ───────────────── */
+  --radius-tag: 4px; /* tags de producto */
+  --radius-btn: 6px; /* botones, inputs */
+  --radius-box: 8px; /* option cards, cajas internas */
+  --radius-card: 10px; /* cards y paneles */
+  --radius-pill: 999px; /* pills, chips, toggles */
+
+  /* ── Layout ─────────────────────────────────────────────── */
   --spacing-content: 1180px;
-  --spacing-wide: 1280px;
+  --spacing-wide: 1328px; /* 1440 − 2 × 56 de gutter del handoff */
+  --spacing-gutter: 56px; /* px-gutter: gutter desktop de la tienda */
+  --spacing-gutter-admin: 40px;
 }
 
 @theme inline {
   --font-sans: var(--font-store-sans), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-store-display), var(--font-store-sans), sans-serif;
-  --font-mono: ui-monospace, Menlo, monospace;
+  --font-mono: var(--font-store-mono), ui-monospace, Menlo, monospace;
 }
 
-/* Display condensado en mayúsculas: carácter de cartel deportivo. */
-/* En la capa components para que las utilidades (font-extrabold,
-   tracking-*) lo puedan pisar. */
+/* Display y texto corrido son la misma Archivo (una sola descarga):
+   --font-store-display es un alias de --font-store-sans, que next/font
+   cuelga del <html> (app/fonts.ts). */
+html {
+  --font-store-display: var(--font-store-sans);
+}
+
+/* ── Utilidades tipográficas ─────────────────────────────────
+   stretch-62 … stretch-85: ancho del eje wdth de Archivo.
+   El handoff usa 66 (H1), 68, 70 (títulos de panel), 72 (wordmark,
+   precios), 75, 80, 85 (nav). Ej: `font-black stretch-66 uppercase`. */
+@utility stretch-* {
+  font-stretch: calc(--value(integer) * 1%);
+}
+
+/* Display condensado: Archivo 900 @66%, mayúsculas, interlineado de
+   cartel. Combinable: `display-condensed stretch-72 text-[30px]`. */
+@utility display-condensed {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-stretch: 66%;
+  text-transform: uppercase;
+  line-height: 0.88;
+}
+
+/* Wordmark: Archivo 900 @72% en mayúsculas ("Bici" paper + "Tienda"
+   rojo + "MDQ" paper; lo arma components/bt). */
+@utility wordmark {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-stretch: 72%;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+/* Nav: Archivo 700 15px @85%, mayúsculas, tracking .06em. */
+@utility nav-label {
+  font-weight: 700;
+  font-stretch: 85%;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Botones: Archivo 800 mayúsculas, tracking .06em (tamaño aparte). */
+@utility btn-label {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Labels / eyebrows: Archivo 700 mayúsculas, tracking .08em.
+   Color aparte (text-text-3, o text-yellow en eyebrows de sección). */
+@utility eyebrow {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Datos: JetBrains Mono 600 (SKU, # de pedido, fechas, encabezados de
+   tabla en mayúsculas con `uppercase`). */
+@utility mono-data {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* Selección del handoff: fila elegida y opción elegida. */
+@utility selected-row {
+  background-color: rgb(255 210 31 / 0.06);
+  box-shadow: inset 3px 0 0 var(--color-yellow);
+}
+@utility selected-option {
+  background-color: rgb(255 210 31 / 0.08);
+  border-color: var(--color-yellow);
+}
+
+/* Compat core: `.font-display` es el display condensado de la marca.
+   En la capa components para que las utilidades (font-extrabold,
+   tracking-*, stretch-*) lo puedan pisar. */
 @layer components {
   .font-display {
-    font-weight: 400; /* Anton solo trae 400: el peso visual lo pone el trazo */
-    letter-spacing: 0.01em;
+    font-weight: 900;
+    font-stretch: 66%;
     text-transform: uppercase;
   }
 }
 
-/* Anton es solo de cartel: el texto corrido (que el core pone en el
-   display) va en la fuente de UI. `html body` le gana a la regla base de
-   globals.css por especificidad. */
+/* Toda la tienda y el admin son oscuros: fondo ink, texto paper, y el
+   texto corrido en Archivo de ancho normal. `html body` le gana a la
+   regla base de globals.css por especificidad. */
 @layer base {
   html body {
+    background: var(--color-ink);
+    color: var(--color-paper);
     font-family: var(--font-sans);
+  }
+  ::placeholder {
+    color: var(--color-text-3);
   }
 }
