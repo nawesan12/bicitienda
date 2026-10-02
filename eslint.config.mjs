@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Referencia de diseño del handoff: prototipos, no código nuestro.
     "design_handoff_rodar_digital/**",
+    "design_handoff_bicitienda_mdq/**",
     // Base de datos local de PGlite.
     ".data/**",
   ]),
