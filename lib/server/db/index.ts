@@ -79,10 +79,39 @@ export function acquirePgliteLock(fs: typeof import("node:fs")) {
 
 const globalForDb = globalThis as unknown as { __storeDb?: Promise<Db> };
 
+const MIGRATIONS_FOLDER = "lib/server/db/migrations";
+
+/**
+ * Migraciones pendientes sobre la PGlite local, en `next dev`. Con el dev
+ * server abierto `pnpm db:migrate` no puede tomar el lock de PGlite (y
+ * abrirla dos veces la corrompe), así que el propio server las aplica: el
+ * chequeo es por evaluación del módulo, y el hot-reload lo reevalúa cuando
+ * cambia el schema (que importa). El migrator de drizzle es idempotente.
+ */
+let localMigrations: Promise<void> | undefined;
+
+async function migrateLocal(db: Db): Promise<void> {
+  try {
+    const { migrate } = await import("drizzle-orm/pglite/migrator");
+    await migrate(db as ReturnType<typeof drizzlePglite<typeof schema>>, {
+      migrationsFolder: MIGRATIONS_FOLDER,
+    });
+  } catch (err) {
+    // No tumbar el dev server: la query que falte columna lo va a decir.
+    console.error("[db] no se pudieron aplicar las migraciones locales:", err);
+  }
+}
+
 /** La conexión (promesa compartida). Usar: `const db = await getDb()`. */
 export function getDb(): Promise<Db> {
   globalForDb.__storeDb ??= connect();
-  return globalForDb.__storeDb;
+  const db = globalForDb.__storeDb;
+  // Solo `next dev` sobre PGlite (los tests corren sin NODE_ENV y migran
+  // su base temporal ellos mismos).
+  const local = !process.env.DATABASE_URL?.startsWith("postgres");
+  if (!local || process.env.NODE_ENV !== "development") return db;
+  localMigrations ??= db.then(migrateLocal);
+  return localMigrations.then(() => db);
 }
 
 export { schema };

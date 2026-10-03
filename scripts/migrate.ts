@@ -41,9 +41,17 @@ async function main() {
     ]);
   mkdirSync(".data/pglite", { recursive: true });
   // Dos procesos sobre la misma carpeta la corrompen: falla si `pnpm dev`
-  // (u otro script) la tiene abierta.
+  // (u otro script) la tiene abierta. Con `next dev` abierto no hace falta:
+  // getDb() aplica las migraciones pendientes al próximo request.
   const { acquirePgliteLock } = await import("@/lib/server/db");
-  acquirePgliteLock(await import("node:fs"));
+  try {
+    acquirePgliteLock(await import("node:fs"));
+  } catch (err) {
+    console.error(
+      `${(err as Error).message}\n→ Si es \`pnpm dev\`: las migraciones se aplican solas en el próximo request.`,
+    );
+    process.exit(1);
+  }
   const client = new PGlite(".data/pglite");
   await migrate(drizzle(client), MIGRATIONS);
   await client.close();

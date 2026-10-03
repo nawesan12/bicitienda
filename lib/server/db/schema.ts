@@ -251,6 +251,10 @@ export const settings = pgTable("settings", {
   hours: text("hours").notNull().default(""),
   mapsUrl: text("maps_url").notNull().default(""),
   transferAlias: text("transfer_alias").notNull(),
+  /** Datos de la cuenta para transferir (mail y pantalla de pedido). */
+  transferCbu: text("transfer_cbu").notNull().default(""),
+  transferHolder: text("transfer_holder").notNull().default(""),
+  transferBank: text("transfer_bank").notNull().default(""),
   /** Descuento por transferencia en % (el `dto`): 5 = 5%. */
   transferDiscount: real("transfer_discount").notNull(),
   /** Recargo % del Plan MiPyME en 3 y 6 cuotas. */

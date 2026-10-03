@@ -71,6 +71,13 @@
       "when": 1790903258942,
       "tag": "0009_bicitienda",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791000757361,
+      "tag": "0010_transfer_datos",
+      "breakpoints": true
     }
   ]
 }

@@ -328,6 +328,10 @@ export interface RuntimeStore extends StoreConfig {
   cashEnabled: boolean;
   /** Tope de cuotas sin interés de Mercado Pago. */
   maxInstallments: number;
+  /** Cuenta para transferir (además del alias): CBU/CVU, titular y banco. */
+  transferCbu: string;
+  transferHolder: string;
+  transferBank: string;
 }
 
 export async function getStore(): Promise<RuntimeStore> {
@@ -349,6 +353,10 @@ export async function getStore(): Promise<RuntimeStore> {
     hours: s.hours || store.hours,
     mapsUrl: s.mapsUrl || store.mapsUrl,
     transferAlias: s.transferAlias,
+    // `?? ""`: una fila cacheada de antes de la migración 0010 no los trae.
+    transferCbu: s.transferCbu ?? "",
+    transferHolder: s.transferHolder ?? "",
+    transferBank: s.transferBank ?? "",
     transferDiscount: s.transferDiscount,
     r3: s.r3,
     r6: s.r6,

@@ -53,6 +53,25 @@ const settingsPatchSchema = z
     r6: pct(300),
     transferDiscount: pct(90),
     transferAlias: z.string().trim().max(60),
+    /** CBU (22 dígitos) o CVU; se guarda sin espacios ni guiones. "" = sin dato. */
+    transferCbu: z
+      .string()
+      .trim()
+      .max(40)
+      .refine((v) => {
+        const d = v.replace(/[\s-]/g, "");
+        return d === "" || /^\d{22}$/.test(d) || /^\[.*\]$/.test(v);
+      }, "El CBU/CVU tiene 22 números."),
+    transferHolder: z.string().trim().max(120),
+    transferBank: z.string().trim().max(80),
+    /** Efectivo en el local habilitado en el checkout. */
+    cashEnabled: z.boolean(),
+    /** Tope de cuotas sin interés de Mercado Pago (1 = sin cuotas). */
+    maxInstallments: z.number().int().min(1).max(24),
+    /** Horas que se guarda una reserva en efectivo. null = no vence. */
+    cashReservationHours: z.number().int().min(1).max(24 * 30).nullable(),
+    /** Minutos que un pago online pendiente reserva el stock. */
+    onlineReservationMinutes: z.number().int().min(10).max(24 * 60),
     /** Seña en % (10 = 10%). */
     depositPct: pct(90),
     depositMinTotal: z.number().int().min(0).max(1_000_000_000),
@@ -86,6 +105,14 @@ export async function patchSettings(patch: unknown): Promise<Result> {
   if (p.r6 !== undefined) set.r6 = round2(p.r6);
   if (p.transferDiscount !== undefined) set.transferDiscount = round2(p.transferDiscount);
   if (p.transferAlias !== undefined) set.transferAlias = p.transferAlias;
+  if (p.transferCbu !== undefined)
+    set.transferCbu = /^\[.*\]$/.test(p.transferCbu) ? p.transferCbu : p.transferCbu.replace(/[\s-]/g, "");
+  if (p.transferHolder !== undefined) set.transferHolder = p.transferHolder;
+  if (p.transferBank !== undefined) set.transferBank = p.transferBank;
+  if (p.cashEnabled !== undefined) set.cashEnabled = p.cashEnabled;
+  if (p.maxInstallments !== undefined) set.maxInstallments = p.maxInstallments;
+  if (p.cashReservationHours !== undefined) set.cashReservationHours = p.cashReservationHours;
+  if (p.onlineReservationMinutes !== undefined) set.onlineReservationMinutes = p.onlineReservationMinutes;
   if (p.depositPct !== undefined) set.depositRate = round2(p.depositPct) / 100;
   if (p.depositMinTotal !== undefined) set.depositMinTotal = p.depositMinTotal;
   if (p.reservationHours !== undefined) set.reservationHours = p.reservationHours;

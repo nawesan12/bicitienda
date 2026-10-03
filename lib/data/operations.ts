@@ -50,6 +50,10 @@ export const operationSettings = {
   /** null = la reserva en efectivo no vence. */
   cashReservationHours: PAYMENT_SETTINGS.cashReservationHours,
   cashEnabled: PAYMENT_SETTINGS.cashEnabled,
+  /** Cuenta para transferir: "[… a confirmar]" hasta que el local la pase. */
+  transferCbu: PAYMENT_SETTINGS.cbu,
+  transferHolder: PAYMENT_SETTINGS.holder,
+  transferBank: PAYMENT_SETTINGS.bank,
 };
 
 /** Plantillas de WhatsApp (links wa.me, sin envío automático). */

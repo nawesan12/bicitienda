@@ -98,6 +98,10 @@ export const PAYMENT_SETTINGS = {
   /** "Reservamos el stock 24 hs" (transferencia). */
   transferReservationHours: 24,
   alias: "[Alias a confirmar]",
+  /** Datos de la cuenta para transferir (mail del pedido y Ajustes → Pagos). */
+  cbu: "[CBU a confirmar]",
+  holder: "[Titular a confirmar]",
+  bank: "[Banco a confirmar]",
   /** "Efectivo al retirar" prendido. */
   cashEnabled: true,
   /** Reserva en efectivo: el prototipo no dice que venza (null = no vence). */
