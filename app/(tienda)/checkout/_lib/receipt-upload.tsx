@@ -6,6 +6,32 @@ import { UploadDropzone } from "@/components/bt/upload-dropzone";
 import { uploadTransferReceipt } from "@/lib/server/actions/transfer-receipt";
 import { BUY } from "./copy";
 
+/** Debe coincidir con MAX_PRIVATE_UPLOAD_BYTES (lib/server/uploads.ts). */
+const MAX_BYTES = 3.8 * 1024 * 1024;
+
+/**
+ * Las fotos del celular suelen pasar el tope del body de la action: se
+ * achican a JPEG en el navegador (legible para un comprobante). Los PDF
+ * van como vienen.
+ */
+async function prepare(file: File): Promise<File | null> {
+  if (!file.type.startsWith("image/")) return file;
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) return file;
+  const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+  return blob ? new File([blob], "comprobante.jpg", { type: "image/jpeg" }) : file;
+}
+
 const T = BUY.confirm.transfer;
 
 /**
@@ -32,11 +58,16 @@ export function ReceiptUpload({
     e.preventDefault();
     if (!file) return;
     setError(null);
-    const fd = new FormData();
-    fd.set("number", number);
-    fd.set("contact", contact);
-    fd.set("file", file);
     startTransition(async () => {
+      const ready = await prepare(file);
+      if (!ready || ready.size > MAX_BYTES) {
+        setError("El archivo supera los 4 MB. Probá con una foto o mandalo por WhatsApp.");
+        return;
+      }
+      const fd = new FormData();
+      fd.set("number", number);
+      fd.set("contact", contact);
+      fd.set("file", ready);
       const r = await uploadTransferReceipt(fd);
       if (r.ok) {
         setSent(true);

@@ -70,7 +70,7 @@ export const BUY = {
       amountNote: "Ya tiene el {off}% off aplicado.",
       uploadTitle: "Mandanos el comprobante",
       uploadLabel: "Subí el comprobante",
-      uploadHint: "(foto o PDF, hasta 6 MB)",
+      uploadHint: "(foto o PDF, hasta 4 MB)",
       uploadCta: "Enviar comprobante",
       uploading: "Subiendo…",
       uploaded: "¡Listo! Recibimos el comprobante.",

@@ -51,7 +51,8 @@ type Column = (typeof IMPORT_COLUMNS)[number];
 const REQUIRED: Column[] = ["sku_producto", "nombre", "categoria"];
 
 export const MAX_IMPORT_ROWS = 2000;
-export const MAX_IMPORT_BYTES = 4 * 1024 * 1024;
+/** Con margen bajo el `bodySizeLimit` de 4 MB de las server actions. */
+export const MAX_IMPORT_BYTES = 3.8 * 1024 * 1024;
 
 /** Plantilla descargable: encabezados + dos ejemplos (con talles y sin). */
 export function importTemplateCsv(): string {
