@@ -9,7 +9,15 @@ import { paths } from "@/lib/paths";
 import { formatArPhone, isValidArPhone } from "@/lib/phone";
 import { getMyAccount } from "@/lib/server/actions/account";
 import { bookAppointment } from "@/lib/server/actions/appointments";
-import type { BookingData, TestRideBike } from "@/lib/server/screens/cliente-c";
+import type { BookingData } from "@/lib/server/screens/cliente-c";
+
+/** Parche mínimo (R1): getTestRideBikes ya no existe; R2 saca el picker de bici. */
+type TestRideBike = {
+  slug: string;
+  name: string;
+  image: string | null;
+  variants: { id: string; size: string; label: string; height: string | null; available: boolean }[];
+};
 import { longDayLabel } from "@/lib/zoned-time";
 
 const T = COPY.appointment;

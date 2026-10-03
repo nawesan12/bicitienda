@@ -389,7 +389,7 @@ export async function getResumen() {
 
 /* ── Turnos ───────────────────────────────────────────────── */
 
-export type AgendaService = "prueba" | "asesoramiento" | "otro";
+export type AgendaService = "reparacion" | "asesoramiento" | "otro";
 
 export interface AgendaAppointment {
   id: string;
@@ -434,7 +434,7 @@ export interface AgendaData {
 }
 
 function serviceKind(id: string): AgendaService {
-  if (id === "prueba") return "prueba";
+  if (id === "reparacion") return "reparacion";
   if (id === "asesoramiento") return "asesoramiento";
   return "otro";
 }
@@ -535,7 +535,10 @@ export async function getAgendaWeek(monday: string): Promise<AgendaData> {
     appointments,
     blocks: blockRows.map(({ id, date, from, to, reason, allDay }) => ({ id, date, from, to, reason, allDay })),
     slotMinutes: step,
-    services: services.map((s) => ({ id: s.id, name: s.name, allowsProduct: s.allowsProduct })),
+    // Turno manual: solo servicios activos (la "prueba" vieja queda inactiva).
+    services: services
+      .filter((s) => s.active)
+      .map((s) => ({ id: s.id, name: s.name, allowsProduct: s.allowsProduct })),
   };
 }
 

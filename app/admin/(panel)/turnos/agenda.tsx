@@ -84,14 +84,14 @@ export function Legend({
    - vacía: borde line/60 (el #221f1c del prototipo); `href` = crear acá.
    - cerrada: borde transparente.
    - bloqueada (nuevo): fondo #1a1816, borde punteado, "Bloqueado".
-   - prueba: amarillo; asesoramiento: paper; otro servicio: #26231f.
+   - reparación: amarillo; asesoramiento: paper; otro servicio: #26231f.
    - sin confirmar: borde rojo #d7261e (solo eso).
    - seleccionada: anillo amarillo de 2 px separado 2 px (no el borde
      rojo: así no se confunde con "sin confirmar").
    - pasada (vino / no vino): opacidad .55.
    ──────────────────────────────────────────────────────────── */
 
-export type AgendaCellKind = "empty" | "closed" | "blocked" | "prueba" | "asesoramiento" | "otro";
+export type AgendaCellKind = "empty" | "closed" | "blocked" | "reparacion" | "asesoramiento" | "otro";
 
 export interface AgendaCellProps {
   kind: AgendaCellKind;
@@ -112,7 +112,7 @@ const KIND: Record<AgendaCellKind, string> = {
   empty: "border-line/60",
   closed: "border-transparent",
   blocked: "border-dashed border-line-strong bg-surface-2 text-text-3",
-  prueba: "border-yellow bg-yellow text-ink",
+  reparacion: "border-yellow bg-yellow text-ink",
   asesoramiento: "border-paper bg-paper text-ink",
   otro: "border-surface-3 bg-surface-3 text-paper",
 };
@@ -130,7 +130,7 @@ export function AgendaCell({
   size = "week",
   className,
 }: AgendaCellProps) {
-  const filled = kind === "prueba" || kind === "asesoramiento" || kind === "otro";
+  const filled = kind === "reparacion" || kind === "asesoramiento" || kind === "otro";
   const cls = cx(
     "relative box-border flex min-w-0 flex-col justify-center gap-px overflow-hidden rounded-btn border-[1.5px] px-2 py-[6px]",
     size === "week" ? "h-14" : "min-h-14",

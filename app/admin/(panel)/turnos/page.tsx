@@ -34,7 +34,7 @@ function hrefWith(sp: SP, patch: Partial<SP>): string {
   return s ? `/admin/turnos?${s}` : "/admin/turnos";
 }
 
-const SUB: Record<string, string> = { prueba: "Prueba", asesoramiento: "Asesor.", otro: "" };
+const SUB: Record<string, string> = { reparacion: "Taller", asesoramiento: "Asesor.", otro: "" };
 
 /** Celdas de la grilla para un set de días (semana o un día). */
 function buildGroups(data: AgendaData, sp: SP, dates: string[], selId: string | null, selBlock: number | null): WeekAgendaGroup[] {

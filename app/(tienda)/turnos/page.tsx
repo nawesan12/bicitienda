@@ -3,7 +3,7 @@ import { Display, Eyebrow } from "@/components/bt";
 import { COPY } from "@/lib/data/demo/copy";
 import { features } from "@/lib/features";
 import { paths } from "@/lib/paths";
-import { getBookingData, getTestRideBikes } from "@/lib/server/screens/cliente-c";
+import { getBookingData } from "@/lib/server/screens/cliente-c";
 import { ogImagePath, pageMetadata, SEO } from "@/lib/seo";
 import { BookingClient } from "./booking-client";
 
@@ -25,7 +25,8 @@ export const revalidate = 300;
  */
 export default async function AppointmentsPage() {
   if (!features.appointments) notFound();
-  const [data, bikes] = await Promise.all([getBookingData(), getTestRideBikes()]);
+  // Parche mínimo (R1): sin pruebas de bici no hay bicis para elegir. R2 rehace la isla.
+  const data = await getBookingData();
   return (
     <div className="px-4 pt-5 pb-7 md:px-14 md:pt-10 md:pb-20">
       <header className="flex flex-col gap-2 md:gap-3">
@@ -38,7 +39,7 @@ export default async function AppointmentsPage() {
         </Display>
       </header>
       <div className="pt-5 md:pt-8">
-        <BookingClient data={data} bikes={bikes} />
+        <BookingClient data={data} bikes={[]} />
       </div>
     </div>
   );
