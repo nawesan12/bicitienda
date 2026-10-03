@@ -56,8 +56,9 @@ const SUMMARY_NAMES: Record<string, string> = COPY.appointment.summaryServiceNam
 
 /**
  * Servicios activos + horizonte de la agenda para /turnos (estática). Tag
- * "settings" y revalidate corto: las actions del admin que editan
- * servicios y ajustes de agenda hoy solo invalidan /admin (ver reporte).
+ * "settings": las actions del admin que editan servicios, horario y
+ * ajustes de agenda (lib/server/actions/admin-appointments.ts) llaman a
+ * invalidatePublic("settings").
  */
 export const getBookingData = unstable_cache(
   async (): Promise<BookingData> => {

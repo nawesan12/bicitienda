@@ -18,7 +18,7 @@ import {
   type AppointmentRow,
 } from "@/lib/server/appointments";
 import { getDb, schema } from "@/lib/server/db";
-import { invalidateAdmin } from "@/lib/server/revalidate";
+import { invalidateAdmin, invalidatePublic } from "@/lib/server/revalidate";
 
 /**
  * Turnos del lado del admin (3b y Ajustes → Turnos): confirmar, Vino /
@@ -156,6 +156,7 @@ export async function adminSaveScheduleRules(rules: unknown): Promise<{ ok: true
   try {
     await replaceScheduleRules(p.data);
     invalidateAdmin();
+    invalidatePublic("settings"); // /turnos (getBookingData, tag "settings")
     return { ok: true };
   } catch (err) {
     if (err instanceof AppointmentError) return { ok: false, error: err.message };
@@ -181,6 +182,7 @@ export async function adminSaveAgendaSettings(input: unknown): Promise<{ ok: tru
   const db = await getDb();
   await db.update(schema.settings).set(p.data).where(eq(schema.settings.id, "main"));
   invalidateAdmin();
+  invalidatePublic("settings"); // /turnos: anticipación y horizonte
   return { ok: true };
 }
 
@@ -203,5 +205,6 @@ export async function adminPatchService(id: unknown, patch: unknown): Promise<{ 
   const db = await getDb();
   await db.update(schema.appointmentServices).set(p.data).where(eq(schema.appointmentServices.id, i.data));
   invalidateAdmin();
+  invalidatePublic("settings"); // /turnos: servicios activos
   return { ok: true };
 }

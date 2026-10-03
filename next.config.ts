@@ -50,7 +50,17 @@ const nextConfig: NextConfig = {
    * abrirían N veces el mismo directorio y rompen. Un solo cpu en local;
    * con Neon (DATABASE_URL) el paralelismo queda como viene.
    */
-  ...(process.env.DATABASE_URL ? {} : { experimental: { cpus: 1 } }),
+  experimental: {
+    ...(process.env.DATABASE_URL ? {} : { cpus: 1 }),
+    /**
+     * Server actions con archivos: el comprobante de transferencia
+     * (seguimiento/confirmación) y las fotos del presupuesto viajan en el
+     * FormData de la action. El default de Next es 1 MB y una foto de
+     * celular o un PDF lo pasan. Vercel corta el body de una función en
+     * 4.5 MB: no subir de 4 MB.
+     */
+    serverActions: { bodySizeLimit: "4mb" },
+  },
 
   async rewrites() {
     return routePairs.map((r) => ({

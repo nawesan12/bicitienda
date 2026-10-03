@@ -80,38 +80,79 @@ export function acquirePgliteLock(fs: typeof import("node:fs")) {
 const globalForDb = globalThis as unknown as { __storeDb?: Promise<Db> };
 
 const MIGRATIONS_FOLDER = "lib/server/db/migrations";
+const MIGRATIONS_JOURNAL = `${MIGRATIONS_FOLDER}/meta/_journal.json`;
 
 /**
- * Migraciones pendientes sobre la PGlite local, en `next dev`. Con el dev
- * server abierto `pnpm db:migrate` no puede tomar el lock de PGlite (y
- * abrirla dos veces la corrompe), así que el propio server las aplica: el
- * chequeo es por evaluación del módulo, y el hot-reload lo reevalúa cuando
- * cambia el schema (que importa). El migrator de drizzle es idempotente.
+ * Migraciones pendientes sobre la PGlite local, SOLO en `next dev` sin
+ * `DATABASE_URL` postgres (nunca toca Neon ni corre en build/producción;
+ * los tests migran su base temporal ellos mismos). Con el dev server
+ * abierto `pnpm db:migrate` no puede tomar el lock de PGlite (y abrirla dos
+ * veces la corrompe), así que el propio server las aplica en el primer
+ * request después de que cambia `meta/_journal.json` (una migración nueva).
+ *
+ * Seguridad:
+ *   - Estado en globalThis (no en el módulo): Next puede evaluar este
+ *     archivo en varias capas (RSC, route handlers, actions) y con HMR; todas
+ *     comparten la misma corrida para la misma versión del journal.
+ *   - Serializado: cada corrida se encadena a la anterior, así dos
+ *     requests concurrentes nunca migran a la vez (si no, ambos leerían la
+ *     misma "última migración" y el segundo fallaría con columnas
+ *     duplicadas).
+ *   - Idempotente: el migrator de drizzle salta las ya aplicadas.
+ *   - Si falla, se loguea (no tumba el server) y se reintenta en el
+ *     próximo request.
  */
-let localMigrations: Promise<void> | undefined;
+type MigrationState = { key: string; done: Promise<void> };
+const globalForMigrations = globalThis as unknown as { __storeDbMigrations?: MigrationState };
 
-async function migrateLocal(db: Db): Promise<void> {
+async function migrateLocal(db: Db): Promise<boolean> {
   try {
     const { migrate } = await import("drizzle-orm/pglite/migrator");
     await migrate(db as ReturnType<typeof drizzlePglite<typeof schema>>, {
       migrationsFolder: MIGRATIONS_FOLDER,
     });
+    return true;
   } catch (err) {
     // No tumbar el dev server: la query que falte columna lo va a decir.
     console.error("[db] no se pudieron aplicar las migraciones locales:", err);
+    return false;
   }
+}
+
+async function ensureLocalMigrations(db: Db): Promise<void> {
+  const { statSync } = await import("node:fs");
+  let key: string;
+  try {
+    const st = statSync(MIGRATIONS_JOURNAL);
+    key = `${st.mtimeMs}:${st.size}`;
+  } catch {
+    key = "sin-journal";
+  }
+  // Desde acá hasta asignar el estado no hay await: chequeo y alta atómicos.
+  const prev = globalForMigrations.__storeDbMigrations;
+  if (prev?.key === key) return prev.done;
+  const state: MigrationState = {
+    key,
+    done: (prev?.done ?? Promise.resolve()).then(async () => {
+      const ok = await migrateLocal(db);
+      if (!ok && globalForMigrations.__storeDbMigrations === state)
+        globalForMigrations.__storeDbMigrations = undefined;
+    }),
+  };
+  globalForMigrations.__storeDbMigrations = state;
+  return state.done;
 }
 
 /** La conexión (promesa compartida). Usar: `const db = await getDb()`. */
 export function getDb(): Promise<Db> {
   globalForDb.__storeDb ??= connect();
   const db = globalForDb.__storeDb;
-  // Solo `next dev` sobre PGlite (los tests corren sin NODE_ENV y migran
-  // su base temporal ellos mismos).
   const local = !process.env.DATABASE_URL?.startsWith("postgres");
   if (!local || process.env.NODE_ENV !== "development") return db;
-  localMigrations ??= db.then(migrateLocal);
-  return localMigrations.then(() => db);
+  return db.then(async (conn) => {
+    await ensureLocalMigrations(conn);
+    return conn;
+  });
 }
 
 export { schema };

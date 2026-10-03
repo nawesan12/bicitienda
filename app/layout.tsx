@@ -13,7 +13,8 @@ import "./globals.css";
 export const metadata: Metadata = rootMetadata();
 
 export const viewport: Viewport = {
-  themeColor: "#0e1116",
+  // Fondo oscuro de BiciTienda (barra del navegador en mobile).
+  themeColor: "#121110",
 };
 
 export default function RootLayout({
