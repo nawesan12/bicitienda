@@ -1,22 +1,22 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { UnderConstruction } from "@/components/store/under-construction";
 import { features } from "@/lib/features";
-import { paths } from "@/lib/paths";
+import { NOINDEX } from "@/lib/seo";
+import { RecoverFlow } from "../auth-forms";
+import { AuthShell } from "../auth-shell";
 
-export const metadata: Metadata = {
-  title: "Recuperar contraseña",
-  robots: { index: false },
-};
+export const metadata: Metadata = { title: "Recuperar contraseña", robots: NOINDEX };
 
-/** Placeholder de la ola 0: la pantalla real llega en la ola 1. */
-export default function Page() {
+/**
+ * Recuperar contraseña (sin diseño, derivada de 2h). Sin `?token=` pide el
+ * mail; con `?token=` (el link que arma `sendPasswordResetEmail` con
+ * `paths.recover()`) valida el token y fija la contraseña nueva.
+ */
+export default function RecoverPage() {
   if (!features.accounts) notFound();
   return (
-    <UnderConstruction
-      title="Recuperar contraseña"
-      description="Muy pronto vas a poder cambiar tu contraseña desde acá."
-      action={{ href: paths.catalog(), label: "Ver el catálogo" }}
-    />
+    <AuthShell>
+      <RecoverFlow />
+    </AuthShell>
   );
 }
