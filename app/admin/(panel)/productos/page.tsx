@@ -93,12 +93,28 @@ export default async function AdminProductosPage({
         search={{ action: "/admin/productos", placeholder: T.searchPlaceholder, width: 280, defaultValue: q }}
         actions={
           <>
+            <Button variant="secondary" size="md" href="/admin/productos/categorias">
+              Categorías
+            </Button>
             {features.csvImport && (
               <Button variant="secondary" size="md" href="/admin/productos/importar">
                 {T.import}
               </Button>
             )}
             <NewProductButton label={T.create} />
+          </>
+        }
+        mobileActions={
+          <>
+            <Button variant="secondary" size="md" href="/admin/productos/categorias">
+              Categorías
+            </Button>
+            {features.csvImport && (
+              <Button variant="secondary" size="md" href="/admin/productos/importar">
+                {T.import}
+              </Button>
+            )}
+            <NewProductButton label={T.create} className="col-span-2" />
           </>
         }
       />
