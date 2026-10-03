@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Button, cx, Field, Input, Panel, PanelTitle, Pill, ResponsiveTopBar, Select, Toggle } from "@/components/bt";
-import { ScheduleDayRow, SettingsSubNav, WhatsAppTemplateCard } from "./settings-parts";
+import { Button, cx, Field, Input, Panel, PanelTitle, Pill, ResponsiveTopBar, Select, Textarea, Toggle } from "@/components/bt";
+import { RepairServicesList, ScheduleDayRow, SettingsSubNav, WhatsAppTemplateCard } from "./settings-parts";
 import { useToast } from "@/components/admin/toast";
 import { COPY } from "@/lib/data/demo/copy";
 import { features } from "@/lib/features";
 import { adminPatchService, adminSaveAgendaSettings, adminSaveScheduleRules } from "@/lib/server/actions/admin-appointments";
+import { adminSaveRepairsContent, resetRepairsContent } from "@/lib/server/actions/content";
 import { patchSettings, type SettingsPatch } from "@/lib/server/actions/settings";
 import { adminResetWhatsAppTemplate, adminSaveWhatsAppTemplate } from "@/lib/server/actions/whatsapp";
 import type { SettingsScreen } from "@/lib/server/screens/admin-d2";
@@ -51,6 +52,7 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
   const setPay = <K extends keyof SettingsScreen["payments"]>(k: K, v: SettingsScreen["payments"][K]) =>
     setS((x) => ({ ...x, payments: { ...x.payments, [k]: v } }));
   const setAgenda = (k: keyof SettingsScreen["agenda"], v: number) => setS((x) => ({ ...x, agenda: { ...x.agenda, [k]: v } }));
+  const setRep = (patch: Partial<SettingsScreen["repairs"]>) => setS((x) => ({ ...x, repairs: { ...x.repairs, ...patch } }));
   const setDay = (wd: number, patch: Partial<SettingsScreen["schedule"][number]>) =>
     setS((x) => ({ ...x, schedule: x.schedule.map((d) => (d.weekday === wd ? { ...d, ...patch } : d)) }));
 
@@ -69,6 +71,7 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
   function save() {
     setError(null);
     if (Object.values(bad).some((b) => b.am || b.pm)) return setError("Revisá los horarios: usá el formato 10:00 – 13:00 o dejalo vacío (cerrado).");
+    if (!s.repairs.title.trim()) return setError("El taller necesita un título.");
     start(async () => {
       // 1) Local y pagos.
       const patch: SettingsPatch = {};
@@ -127,6 +130,11 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
           if (!r.ok) return setError(r.error);
         }
       }
+      // 6) Taller (content.rep): los servicios vacíos se descartan al guardar.
+      if (JSON.stringify(s.repairs) !== JSON.stringify(base.repairs)) {
+        const r = await adminSaveRepairsContent(s.repairs);
+        if (!r.ok) return setError(r.error);
+      }
       setBase(s);
       toast("Ajustes guardados");
       router.refresh();
@@ -141,6 +149,7 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
   const g = s.payments.gateway;
   const sections = [
     { id: "local", label: "Local" },
+    { id: "taller", label: "Taller" },
     ...(features.appointments ? [{ id: "turnos", label: "Turnos" }] : []),
     { id: "pagos", label: "Pagos" },
     { id: "notificaciones", label: "Notificaciones" },
@@ -191,6 +200,40 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
                 <Input value={shown(s.local.hours)} placeholder={placeholderOf(s.local.hours, "Lun a vie 10–13 y 16–19 · Sáb 10–13")} onChange={(e) => setLocal("hours", e.target.value)} maxLength={120} />
               </Field>
             </div>
+          </Panel>
+          </div>
+
+          {/* A2. Taller: lo que más deja; textos de /reparaciones y de la home. */}
+          <div id="taller" className="min-w-0 scroll-mt-28">
+          <Panel surface="surface" padding="lg" as="section" className="border-l-[3px] border-l-yellow">
+            <PanelTitle action={<span className="text-[13px] text-text-3 max-md:hidden">Se ve en Reparaciones y en la home</span>}>Taller</PanelTitle>
+            <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="flex min-w-0 flex-col gap-3">
+                <Field label="Título">
+                  <Input value={s.repairs.title} placeholder="Taller de bicis" onChange={(e) => setRep({ title: e.target.value })} maxLength={120} invalid={!s.repairs.title.trim()} />
+                </Field>
+                <Field label="Texto" hint="Corto: qué hace el taller y cómo se pide turno. Sin precios.">
+                  <Textarea rows={5} value={s.repairs.body} onChange={(e) => setRep({ body: e.target.value })} maxLength={800} />
+                </Field>
+              </div>
+              <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+                <legend className="mb-2 p-0 text-[12px] font-bold uppercase tracking-[.08em] text-text-3">Servicios del taller</legend>
+                <RepairServicesList items={s.repairs.services} onChange={(services) => setRep({ services })} />
+                <span className="text-[13px] text-text-3">En este orden se ven en la web.</span>
+              </fieldset>
+            </div>
+            <button
+              type="button"
+              className="self-start rounded-[2px] text-[12px] font-bold uppercase tracking-[.08em] text-text-3 hover:text-paper focus-visible:outline-2 focus-visible:outline-yellow"
+              onClick={async () => {
+                const r = await resetRepairsContent();
+                if (!r.ok) return setError(r.error);
+                toast("Texto original del taller restaurado");
+                router.refresh();
+              }}
+            >
+              ↺ Volver al texto original
+            </button>
           </Panel>
           </div>
 

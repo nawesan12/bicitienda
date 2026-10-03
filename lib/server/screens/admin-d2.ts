@@ -11,6 +11,7 @@ import { getCustomerDetail } from "@/lib/server/admin-crm";
 import { STATUS_LABELS } from "@/lib/server/order-queries";
 import { customerWhatsApp, getWhatsAppTemplates } from "@/lib/server/whatsapp-templates";
 import { getDb, schema } from "@/lib/server/db";
+import { getRepairsContent } from "@/lib/server/queries";
 import { addDays, localToUtc, toLocalParts, weekdayOf } from "@/lib/zoned-time";
 
 /**
@@ -387,14 +388,17 @@ export interface SettingsScreen {
     cashFeature: boolean;
   };
   templates: { id: "turno_confirmado" | "pedido_listo"; name: string; when: string; body: string }[];
+  /** Taller (`content.rep`): título, texto y servicios de /reparaciones y la home. */
+  repairs: { title: string; body: string; services: string[] };
 }
 
 export async function getSettingsScreen(): Promise<SettingsScreen> {
-  const [s, rules, services, templates] = await Promise.all([
+  const [s, rules, services, templates, rep] = await Promise.all([
     getAdminSettings(),
     getScheduleRules(),
     getAppointmentServices(),
     getWhatsAppTemplates(),
+    getRepairsContent(),
   ]);
   const schedule = [1, 2, 3, 4, 5, 6, 0].map((wd) => {
     const day = rules.filter((r) => r.weekday === wd && r.active);
@@ -424,7 +428,8 @@ export async function getSettingsScreen(): Promise<SettingsScreen> {
     },
     schedule,
     agenda: { slotCapacity: s.slotCapacity, minNoticeMin: s.minNoticeMin, maxDaysAhead: s.maxDaysAhead, slotMinutes: s.slotMinutes },
-    services: services.map((x) => ({
+    // La "prueba de bici" vieja no se ofrece más: no aparece para reactivarla.
+    services: services.filter((x) => x.id !== "prueba").map((x) => ({
       id: x.id,
       name: x.name,
       note: [`${x.durationMin} min`, x.priceNote.toLowerCase()].filter(Boolean).join(" · "),
@@ -447,5 +452,6 @@ export async function getSettingsScreen(): Promise<SettingsScreen> {
       .filter((t) => t.id === "turno_confirmado" || t.id === "pedido_listo")
       .sort((a, b) => (a.id === "turno_confirmado" ? -1 : b.id === "turno_confirmado" ? 1 : 0))
       .map((t) => ({ id: t.id as "turno_confirmado" | "pedido_listo", name: t.name, when: t.trigger, body: t.body })),
+    repairs: { title: rep.title, body: rep.body, services: [...rep.services] },
   };
 }

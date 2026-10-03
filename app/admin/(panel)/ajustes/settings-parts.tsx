@@ -155,3 +155,78 @@ export function WhatsAppTemplateCard({
     </div>
   );
 }
+
+/* ── RepairServicesList ───────────────────────────────────────
+   Ajustes → Taller: la lista de trabajos que hace el taller (se ve en
+   /reparaciones y en el bloque de la home). Una fila por servicio con
+   input compacto, ↑ / ↓ para reordenar y × para quitar; "+ Agregar
+   servicio" al pie. Botones de 36 px (44 en mobile) con foco amarillo.
+   ──────────────────────────────────────────────────────────── */
+
+export function RepairServicesList({
+  items,
+  onChange,
+  max = 20,
+}: {
+  items: string[];
+  onChange: (items: string[]) => void;
+  max?: number;
+}) {
+  const move = (i: number, d: -1 | 1) => {
+    const j = i + d;
+    if (j < 0 || j >= items.length) return;
+    const next = [...items];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+  const btn = cx(
+    "flex size-11 flex-none items-center justify-center rounded-btn border border-line-strong text-[15px] font-extrabold text-text-2 hover:border-text-4 hover:text-paper disabled:pointer-events-none disabled:opacity-35 lg:size-9",
+    TRANSITION,
+    FOCUS,
+  );
+  return (
+    <div className={cx("flex flex-col gap-2", FONT)}>
+      <ol className="m-0 flex list-none flex-col gap-2 p-0">
+        {items.map((v, i) => (
+          <li key={i} className="flex items-center gap-[6px]">
+            <span className={cx("w-6 flex-none text-right text-[12px] font-semibold text-text-3", MONO)}>{String(i + 1).padStart(2, "0")}</span>
+            <input
+              className={cx(COMPACT_INPUT, "min-w-0 flex-1")}
+              value={v}
+              maxLength={120}
+              placeholder="Ej.: Service completo"
+              aria-label={`Servicio ${i + 1}`}
+              onChange={(e) => onChange(items.map((x, k) => (k === i ? e.target.value : x)))}
+            />
+            <button type="button" className={btn} aria-label={`Subir servicio ${i + 1}`} disabled={i === 0} onClick={() => move(i, -1)}>
+              ↑
+            </button>
+            <button type="button" className={btn} aria-label={`Bajar servicio ${i + 1}`} disabled={i === items.length - 1} onClick={() => move(i, 1)}>
+              ↓
+            </button>
+            <button
+              type="button"
+              className={cx(btn, "hover:border-red-light hover:text-red-light")}
+              aria-label={`Quitar servicio ${i + 1}`}
+              onClick={() => onChange(items.filter((_, k) => k !== i))}
+            >
+              ×
+            </button>
+          </li>
+        ))}
+      </ol>
+      {items.length === 0 && <p className="m-0 text-[13px] text-text-3">Sin servicios: agregá al menos uno para que se vea la lista.</p>}
+      <button
+        type="button"
+        disabled={items.length >= max}
+        onClick={() => onChange([...items, ""])}
+        className={cx(
+          "self-start rounded-[2px] py-2 text-[13px] font-extrabold uppercase tracking-[.06em] text-yellow hover:text-paper disabled:text-text-3",
+          FOCUS,
+        )}
+      >
+        + Agregar servicio
+      </button>
+    </div>
+  );
+}
