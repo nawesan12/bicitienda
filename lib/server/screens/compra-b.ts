@@ -43,8 +43,6 @@ export interface CartCatalogItem {
   brand: string;
   /** Pertenece al grupo Bicicletas. */
   isBike: boolean;
-  /** Se puede reservar una prueba en el local. */
-  testRide: boolean;
   /** Stock total (tope si la línea no tiene variante). */
   stock: number;
   variants: CartVariantView[];
@@ -75,7 +73,6 @@ export async function getCartCatalog(): Promise<CartCatalogItem[]> {
       category: bySlug.get(p.category)?.label ?? "",
       brand: brandById.get(p.brandId) ?? "",
       isBike: rootOf(p.category, bySlug)?.slug === BIKE_GROUP,
-      testRide: p.testRide,
       stock: p.stock,
       variants: p.variants.map((v) => ({
         id: v.id,

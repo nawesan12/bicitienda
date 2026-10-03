@@ -43,7 +43,6 @@ export interface CatalogItem {
   price: number;
   tag: string | null;
   rodado: string | null;
-  testRide: boolean;
   /** Talles reales (sin "Único") con su stock. */
   sizes: CardSize[];
   /** Variante a agregar desde el "+" de la card; null si hay que elegir. */
@@ -130,7 +129,6 @@ export function toCatalogItem(
     price: p.price ?? 0,
     tag: p.tag,
     rodado: p.rodado,
-    testRide: p.testRide,
     sizes: sizesOfProduct(p),
     quickVariant: single && !out && single.stock > 0 ? { id: single.id, stock: single.stock } : null,
     outOfStock: out,

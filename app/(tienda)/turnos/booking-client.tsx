@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Button, cx, Display, Eyebrow, Input, OptionCard, Panel, SizeSelector, SummaryRows } from "@/components/bt";
-import { SelectedProductRow } from "./selected-product-row";
+import { useEffect, useState } from "react";
+import { Button, cx, Display, Eyebrow, Input, OptionCard, Panel, SummaryRows, Textarea } from "@/components/bt";
 import { SlotPicker, type SlotValue } from "@/components/bt/slot-picker";
 import { COPY } from "@/lib/data/demo/copy";
 import { paths } from "@/lib/paths";
@@ -11,13 +10,6 @@ import { getMyAccount } from "@/lib/server/actions/account";
 import { bookAppointment } from "@/lib/server/actions/appointments";
 import type { BookingData } from "@/lib/server/screens/cliente-c";
 
-/** Parche mínimo (R1): getTestRideBikes ya no existe; R2 saca el picker de bici. */
-type TestRideBike = {
-  slug: string;
-  name: string;
-  image: string | null;
-  variants: { id: string; size: string; label: string; height: string | null; available: boolean }[];
-};
 import { longDayLabel } from "@/lib/zoned-time";
 
 const T = COPY.appointment;
@@ -31,7 +23,6 @@ interface Booked {
   serviceName: string;
   dayText: string;
   time: string;
-  bikeLabel: string | null;
 }
 
 function cap(s: string) {
@@ -42,17 +33,20 @@ function fill(tpl: string, min: number) {
   return tpl.replace("{min}", String(min));
 }
 
+/** Servicio preseleccionado: el taller, si está activo. */
+const DEFAULT_SERVICE = "reparacion";
+
 /**
  * Reserva de turno (2f desktop / 4e mobile). Isla cliente: la página es
- * estática y la disponibilidad se pide con `fetchAvailability`. La
- * preselección (`?servicio=prueba&producto=<slug>&variante=<id>`, desde el
- * botón de la ficha) se lee de la URL al montar.
+ * estática y la disponibilidad se pide con `fetchAvailability`. Arranca en
+ * reparación; `?servicio=reparacion|asesoramiento` (desde /reparaciones,
+ * el carrito o la ficha) se lee de la URL al montar.
  */
-export function BookingClient({ data, bikes }: { data: BookingData; bikes: TestRideBike[] }) {
-  const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
-  const [bikeSlug, setBikeSlug] = useState<string | null>(null);
-  const [variantId, setVariantId] = useState<string | null>(null);
-  const [picking, setPicking] = useState(false);
+export function BookingClient({ data }: { data: BookingData }) {
+  const [serviceId, setServiceId] = useState(
+    (data.services.find((s) => s.id === DEFAULT_SERVICE) ?? data.services[0])?.id ?? "",
+  );
+  const [note, setNote] = useState("");
   const [slot, setSlot] = useState<SlotValue>({ date: null, time: null });
   const [refreshKey, setRefreshKey] = useState(0);
   const [account, setAccount] = useState<Account | undefined>(undefined);
@@ -65,28 +59,14 @@ export function BookingClient({ data, bikes }: { data: BookingData; bikes: TestR
   const [booked, setBooked] = useState<Booked | null>(null);
 
   const service = data.services.find((s) => s.id === serviceId) ?? data.services[0];
-  const bike = bikes.find((b) => b.slug === bikeSlug) ?? null;
-  const variant = bike?.variants.find((v) => v.id === variantId) ?? null;
-  const showBike = !!service?.allowsProduct && bikes.length > 0;
+  const noteCopy = service?.id === DEFAULT_SERVICE ? T.noteRepair : T.noteAdvice;
 
   // Preselección por URL + sesión (en el navegador: la página es estática).
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search);
-    const wanted = q.get("servicio");
-    const slug = q.get("producto");
-    const found = slug ? bikes.find((b) => b.slug === slug) : undefined;
-    const svc =
-      data.services.find((s) => s.id === wanted) ??
-      (found ? data.services.find((s) => s.allowsProduct) : undefined);
-    const vid = q.get("variante");
-    /* eslint-disable react-hooks/set-state-in-effect -- lectura única de la URL al montar */
+    const wanted = new URLSearchParams(window.location.search).get("servicio");
+    const svc = data.services.find((s) => s.id === wanted);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lectura única de la URL al montar
     if (svc) setServiceId(svc.id);
-    if (found) {
-      setBikeSlug(found.slug);
-      const v = found.variants.find((x) => x.id === vid) ?? (found.variants.length === 1 ? found.variants[0] : null);
-      setVariantId(v?.id ?? null);
-    }
-    /* eslint-enable react-hooks/set-state-in-effect */
     let alive = true;
     getMyAccount()
       .then((a) => alive && setAccount(a ? { name: a.name, phone: a.phone, email: a.email } : null))
@@ -94,31 +74,12 @@ export function BookingClient({ data, bikes }: { data: BookingData; bikes: TestR
     return () => {
       alive = false;
     };
-  }, [bikes, data.services]);
+  }, [data.services]);
 
   const guest = account === null || account === undefined;
   const ready = !!service && !!slot.date && !!slot.time && (!guest || (name.trim() && phone.trim()));
   const dayText = slot.date ? cap(longDayLabel(slot.date)) : "Elegí un día";
   const timeText = slot.time ? `${slot.time} hs` : T.pickTime;
-  const bikeLabel = bike
-    ? [bike.name, variant && variant.size !== "Único" ? `Talle ${variant.size}` : null].filter(Boolean).join(" · ")
-    : null;
-
-  // Para probar alcanza el talle: se agrupan los colores de cada talle.
-  const sizeOptions = useMemo(() => {
-    const bySize = new Map<string, { value: string; label: string; height?: string; available: boolean }>();
-    for (const v of bike?.variants ?? []) {
-      const cur = bySize.get(v.size);
-      if (cur) cur.available ||= v.available;
-      else bySize.set(v.size, { value: v.size, label: v.size, height: v.height ?? undefined, available: v.available });
-    }
-    return [...bySize.values()];
-  }, [bike]);
-
-  function pickSize(size: string) {
-    const options = (bike?.variants ?? []).filter((v) => v.size === size);
-    setVariantId((options.find((v) => v.available) ?? options[0])?.id ?? null);
-  }
 
   function validate(): boolean {
     if (!guest) return true;
@@ -140,7 +101,7 @@ export function BookingClient({ data, bikes }: { data: BookingData; bikes: TestR
       ...(guest ? { name, phone, email } : {}),
       date: slot.date,
       time: slot.time,
-      ...(showBike && bike ? { productSlug: bike.slug, ...(variant ? { variantId: variant.id } : {}) } : {}),
+      ...(note.trim() ? { note: note.trim() } : {}),
     }).catch(() => null);
     setSubmitting(false);
     if (!res) {
@@ -159,7 +120,6 @@ export function BookingClient({ data, bikes }: { data: BookingData; bikes: TestR
       serviceName: service.summaryName,
       dayText,
       time: slot.time,
-      bikeLabel: showBike ? bikeLabel : null,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -202,45 +162,21 @@ export function BookingClient({ data, bikes }: { data: BookingData; bikes: TestR
               />
             ))}
           </div>
-          {showBike && (
-            <div className="flex flex-col gap-3">
-              <SelectedProductRow
-                eyebrow={T.bikeToTry}
-                title={bikeLabel ?? "Elegí el modelo (opcional)"}
-                image={bike?.image}
-                action={
-                  <button
-                    type="button"
-                    onClick={() => setPicking((p) => !p)}
-                    aria-expanded={picking}
-                    className="text-[14px] font-bold text-yellow underline underline-offset-2 hover:text-brand-hover"
-                  >
-                    {picking ? "Listo" : bike ? T.change : "Elegir"}
-                  </button>
-                }
-              />
-              {picking && (
-                <BikePicker
-                  bikes={bikes}
-                  selected={bikeSlug}
-                  onSelect={(slug) => {
-                    setBikeSlug(slug);
-                    const b = bikes.find((x) => x.slug === slug);
-                    setVariantId(b && b.variants.length === 1 ? b.variants[0].id : null);
-                  }}
-                />
-              )}
-              {bike && sizeOptions.length > 1 && (picking || !variant) && (
-                <SizeSelector
-                  name="variant"
-                  label="Talle a probar"
-                  options={sizeOptions}
-                  value={variant?.size ?? ""}
-                  onChange={pickSize}
-                />
-              )}
-            </div>
-          )}
+          <label className="flex flex-col gap-2 pt-1">
+            <span className="text-[13px] font-bold uppercase tracking-[.08em] text-text-3">
+              {noteCopy.label} <span className="font-semibold normal-case tracking-normal">(opcional)</span>
+            </span>
+            <Textarea
+              surface="page"
+              size="lg"
+              rows={3}
+              maxLength={500}
+              className="min-h-[96px]"
+              placeholder={noteCopy.placeholder}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </label>
         </section>
 
         {/* 2 · Día + 3 · Horario */}
@@ -342,7 +278,6 @@ export function BookingClient({ data, bikes }: { data: BookingData; bikes: TestR
           rows={[
             { label: T.summary.day, value: dayText },
             { label: T.summary.time, value: timeText },
-            ...(showBike && bikeLabel ? [{ label: "Bici", value: bikeLabel }] : []),
             { label: T.summary.duration, value: fill(T.durationValue, service?.durationMin ?? 30) },
             { label: T.summary.where, value: data.address },
           ]}
@@ -370,50 +305,6 @@ export function BookingClient({ data, bikes }: { data: BookingData; bikes: TestR
         )}
         <p className="m-0 text-[14px] leading-[1.45] max-md:hidden">{T.note}</p>
       </Panel>
-    </div>
-  );
-}
-
-function BikePicker({
-  bikes,
-  selected,
-  onSelect,
-}: {
-  bikes: TestRideBike[];
-  selected: string | null;
-  onSelect: (slug: string) => void;
-}) {
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Bici a probar"
-      className="flex max-h-[320px] flex-col gap-[6px] overflow-y-auto rounded-card border border-line p-2"
-    >
-      {bikes.map((b) => (
-        <label
-          key={b.slug}
-          className={cx(
-            "flex cursor-pointer items-center gap-3 rounded-btn border-[1.5px] p-2 transition-colors duration-150",
-            "has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-yellow",
-            selected === b.slug ? "border-yellow bg-yellow/8" : "border-transparent hover:bg-surface",
-          )}
-        >
-          <input
-            type="radio"
-            name="bike"
-            className="sr-only"
-            checked={selected === b.slug}
-            onChange={() => onSelect(b.slug)}
-          />
-          {b.image ? (
-            // eslint-disable-next-line @next/next/no-img-element -- miniatura de Cloudinary
-            <img src={b.image} alt="" className="h-[42px] w-[56px] flex-none rounded-tag bg-card-photo object-cover" />
-          ) : (
-            <span aria-hidden className="h-[42px] w-[56px] flex-none rounded-tag bg-surface-3" />
-          )}
-          <span className="text-[15px] font-bold">{b.name}</span>
-        </label>
-      ))}
     </div>
   );
 }
@@ -464,7 +355,6 @@ function BookingSuccess({ booked, account, address }: { booked: Booked; account:
           rows={[
             { label: T.summary.day, value: booked.dayText },
             { label: T.summary.time, value: `${booked.time} hs` },
-            ...(booked.bikeLabel ? [{ label: "Bici", value: booked.bikeLabel }] : []),
             { label: T.summary.where, value: address },
           ]}
         />

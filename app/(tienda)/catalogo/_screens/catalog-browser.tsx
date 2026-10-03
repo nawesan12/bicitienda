@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/bt/empty-state";
 import { formatMoney } from "@/components/bt/format";
 import { Breadcrumb } from "@/components/bt/navigation";
 import { FOCUS, FONT, MONO, TRANSITION } from "@/components/bt/styles";
-import { Checkbox, Toggle } from "@/components/bt/toggle";
+import { Checkbox } from "@/components/bt/toggle";
 import type { CatalogItem, Pricing } from "@/lib/server/screens/tienda-a";
 import { CatalogCard } from "@/components/bt/catalog-card";
 import { PriceRangeSlider } from "./price-range";
@@ -18,7 +18,7 @@ import { PriceRangeSlider } from "./price-range";
  * Catálogo 2b / 4b (isla cliente). La página es estática/ISR: el server
  * pasa todos los productos del grupo y acá se filtran, ordenan y paginan.
  * El estado vive en la URL (`?tipo=mtb&rodado=29&talle=M&min=…&max=…&
- * prueba=1&orden=…&q=…&pagina=2`): se escribe con history.replaceState
+ * orden=…&q=…&pagina=2`): se escribe con history.replaceState
  * (sin ir al server) y se lee con useSearchParams dentro de un Suspense
  * chico (`SearchSync`), así el HTML estático trae la grilla sin filtros
  * y los links con filtros funcionan igual.
@@ -47,7 +47,6 @@ interface Filters {
   talle: string[];
   min: number | null;
   max: number | null;
-  prueba: boolean;
   orden: SortKey;
   q: string;
   pagina: number;
@@ -59,7 +58,6 @@ const EMPTY: Filters = {
   talle: [],
   min: null,
   max: null,
-  prueba: false,
   orden: "vendidas",
   q: "",
   pagina: 1,
@@ -79,7 +77,6 @@ function parse(sp: URLSearchParams): Filters {
     talle: list(sp.get("talle")),
     min: num(sp.get("min")),
     max: num(sp.get("max")),
-    prueba: sp.get("prueba") === "1",
     orden: orden && SORTS.some((s) => s.key === orden) ? orden : "vendidas",
     q: sp.get("q")?.trim() ?? "",
     pagina: Math.max(1, Math.floor(num(sp.get("pagina")) ?? 1)),
@@ -94,7 +91,6 @@ function serialize(f: Filters): string {
   if (f.talle.length) sp.set("talle", f.talle.join(","));
   if (f.min != null) sp.set("min", String(f.min));
   if (f.max != null) sp.set("max", String(f.max));
-  if (f.prueba) sp.set("prueba", "1");
   if (f.orden !== "vendidas") sp.set("orden", f.orden);
   if (f.pagina > 1) sp.set("pagina", String(f.pagina));
   const s = sp.toString().replace(/%2C/g, ",");
@@ -132,7 +128,7 @@ export interface CatalogBrowserProps {
   items: CatalogItem[];
   pricing: Pricing;
   types: TypeOption[];
-  /** Rodado, talle y "se puede probar" (solo grupos de bicis). */
+  /** Rodado y talle (solo grupos de bicis). */
   bikeFilters: boolean;
   rodados: { value: string; enabled: boolean }[];
   sizes: { value: string; enabled: boolean }[];
@@ -145,8 +141,6 @@ export interface CatalogBrowserProps {
     rodado: string;
     price: string;
     size: string;
-    testRide: string;
-    testRideHint: string;
     clear: string;
     mobileButton: string;
     sortLabel: string;
@@ -206,8 +200,7 @@ export function CatalogBrowser(props: CatalogBrowserProps) {
         (!f.rodado.length || (it.rodado != null && f.rodado.includes(it.rodado))) &&
         (!f.talle.length || it.sizes.some((s) => s.stock > 0 && f.talle.includes(s.size))) &&
         it.price >= lo &&
-        it.price <= hi &&
-        (!f.prueba || it.testRide),
+        it.price <= hi,
     );
     const sorted = [...out];
     if (f.orden === "precio-asc") sorted.sort((a, b) => a.price - b.price || a.rank - b.rank);
@@ -250,7 +243,6 @@ export function CatalogBrowser(props: CatalogBrowserProps) {
           },
         ]
       : []),
-    ...(f.prueba ? [{ key: "prueba", label: "Se puede probar", remove: { prueba: false } }] : []),
   ];
   const clearAll = () => update({ ...EMPTY, orden: f.orden });
   const nFilters = chips.length;
@@ -619,18 +611,6 @@ function FilterGroups({
             ))}
           </div>
         </Group>
-      )}
-
-      {bikeFilters && (
-        <div className="flex flex-col gap-[10px] rounded-card border border-line bg-surface p-[18px]">
-          <Toggle
-            label={<span className="text-[16px] leading-[1.15] font-extrabold text-paper">{copy.testRide}</span>}
-            checked={f.prueba}
-            onChange={(e) => update({ prueba: e.target.checked })}
-            className="items-start"
-          />
-          <p className="m-0 text-[14px] leading-[1.45] text-text-2">{copy.testRideHint}</p>
-        </div>
       )}
     </div>
   );

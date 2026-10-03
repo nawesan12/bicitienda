@@ -73,7 +73,7 @@ export const COPY = {
       ctaMobile: "Ver todo →",
     },
     steps: [
-      { n: "01", title: "Elegís online", text: "O pasás a probarla antes con un turno." },
+      { n: "01", title: "Elegís online", text: "O traés la tuya al taller con un turno." },
       { n: "02", title: "Pagás como quieras", text: "Mercado Pago, transferencia o efectivo en el local." },
       { n: "03", title: "La retirás armada", text: "Te avisamos por WhatsApp cuando está lista." },
     ],
@@ -87,8 +87,6 @@ export const COPY = {
       rodado: "Rodado",
       price: "Precio",
       size: "Talle",
-      testRide: "Se puede probar en el local",
-      testRideHint: "Mostramos solo las bicis disponibles para reservar una prueba.",
       clear: "Limpiar",
       mobileButton: "Filtros · {n}",
     },
@@ -110,8 +108,7 @@ export const COPY = {
     sizeHelpMobile: "¿Cuál es mi talle?",
     colorLabel: "Color · {color}",
     addToCart: "Agregar al carrito",
-    testRide: "Reservar una prueba de esta bici",
-    testRideMobile: "Reservar una prueba",
+    repairLink: "¿Ya tenés bici? Service en nuestro taller →",
     pickupTitle: "Retiro en el local",
     pickupText: "Armada y ajustada a tu altura",
     stockTitle: "Stock en el local",
@@ -125,10 +122,10 @@ export const COPY = {
     title: "Tu carrito",
     continueShopping: "← Seguir comprando",
     remove: "Quitar",
-    testRideBanner: {
-      title: "¿Querés probar la MTB antes de pagar?",
-      text: "Reservá una prueba de {min} minutos en el local. Tu carrito queda guardado.",
-      cta: "Reservar prueba →",
+    repairBanner: {
+      title: "¿Tu bici necesita un service?",
+      text: "Sacá turno en el taller: la revisamos y te pasamos el presupuesto. Tu carrito queda guardado.",
+      cta: "Sacar turno →",
     },
     payTitle: "1 · Cómo pagás",
     pickupTitle: "2 · Dónde la retirás",
@@ -193,8 +190,8 @@ export const COPY = {
     title: "Reservá tu turno",
     step1: "1 · ¿Qué necesitás?",
     durationBadge: "{min} MIN",
-    bikeToTry: "Bici a probar",
-    change: "Cambiar",
+    noteRepair: { label: "¿Qué le pasa a tu bici?", placeholder: "Frenos, cambios, pinchadura, service general…" },
+    noteAdvice: { label: "¿Qué estás buscando?", placeholder: "Una MTB para empezar, una bici para la ciudad, talle…" },
     step2: "2 · Elegí el día",
     step2Mobile: "2 · Día",
     calendarNote: "Domingos cerrado · días tachados sin turnos",
@@ -211,7 +208,7 @@ export const COPY = {
     /** Sin "y un recordatorio": no hay recordatorios automáticos. */
     note: "Te mandamos la confirmación por WhatsApp. Podés reprogramar desde tu cuenta.",
     /** Nombre del servicio en el resumen. */
-    summaryServiceName: { prueba: "Prueba de bici", asesoramiento: "Asesoramiento de compra" },
+    summaryServiceName: { reparacion: "Reparación / service", asesoramiento: "Asesoramiento de compra" },
   },
 
   account: {
@@ -231,7 +228,7 @@ export const COPY = {
     photoAlt: "Bicicletas colgadas en el local",
     asideTitleLead: "Tus turnos y pedidos,",
     asideTitleHighlight: "en un lugar.",
-    asideText: "Reprogramá una prueba, seguí el armado de tu bici y comprá más rápido la próxima vez.",
+    asideText: "Reprogramá tu turno del taller, seguí el armado de tu bici y comprá más rápido la próxima vez.",
     tabs: { login: "Ingresar", register: "Crear cuenta" },
     titles: { login: "Hola de nuevo", register: "Creá tu cuenta" },
     ctas: { login: "Ingresar", register: "Crear cuenta" },

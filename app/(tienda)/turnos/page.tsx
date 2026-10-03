@@ -19,13 +19,12 @@ export const metadata = pageMetadata({
 export const revalidate = 300;
 
 /**
- * 2f / 4e · Reservá tu turno. Estática: servicios, horizonte de la agenda
- * y bicis con prueba vienen cacheados; los días y horarios libres los pide
+ * 2f / 4e · Reservá tu turno (taller o asesoramiento). Estática: servicios
+ * y horizonte de la agenda vienen cacheados; los días y horarios libres los pide
  * la isla con `fetchAvailability`, y la sesión con `getMyAccount`.
  */
 export default async function AppointmentsPage() {
   if (!features.appointments) notFound();
-  // Parche mínimo (R1): sin pruebas de bici no hay bicis para elegir. R2 rehace la isla.
   const data = await getBookingData();
   return (
     <div className="px-4 pt-5 pb-7 md:px-14 md:pt-10 md:pb-20">
@@ -39,7 +38,7 @@ export default async function AppointmentsPage() {
         </Display>
       </header>
       <div className="pt-5 md:pt-8">
-        <BookingClient data={data} bikes={[]} />
+        <BookingClient data={data} />
       </div>
     </div>
   );

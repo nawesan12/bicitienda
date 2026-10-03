@@ -115,10 +115,6 @@ export function CheckoutClient({
     ? fillTemplate(selected.note, { monto: formatMoney(discount) })
     : "";
 
-  // Banner de prueba: solo si hay una bici con prueba en el local.
-  const bike = lines.find((l) => l.product?.isBike && l.product.testRide)?.product;
-  const bikeName = bike && /^[A-Z0-9]{2,5}$/.test(bike.category) ? `la ${bike.category}` : B.testRideFallback;
-
   function firstInvalid(): { field: FieldKey; message: string } | null {
     if (name.trim().length < 2) return { field: "name", message: B.errors.name };
     if (!isValidArPhone(phone)) return { field: "phone", message: B.errors.phone };
@@ -217,7 +213,7 @@ export function CheckoutClient({
     <form onSubmit={submit} noValidate>
       {header}
       <div className="grid items-start gap-[18px] px-4 pt-[18px] pb-7 md:px-14 md:pt-8 md:pb-20 lg:grid-cols-[minmax(0,1fr)_480px] lg:gap-10">
-        {/* Columna izquierda: líneas + banner de prueba */}
+        {/* Columna izquierda: líneas + banner del taller */}
         <div className="flex min-w-0 flex-col gap-6">
           <ul className="m-0 list-none border-t border-line p-0">
             {lines.map(({ item, product, variant, available, warning }) => (
@@ -237,15 +233,13 @@ export function CheckoutClient({
               />
             ))}
           </ul>
-          {bike && (
-            <CalloutLink
-              className="max-md:hidden"
-              href={`${hrefs.appointments}?producto=${encodeURIComponent(bike.slug)}`}
-              title={C.testRideBanner.title.replace("la MTB", bikeName)}
-              text={fillTemplate(C.testRideBanner.text, { min: 30 })}
-              cta={C.testRideBanner.cta}
-            />
-          )}
+          <CalloutLink
+            className="max-md:hidden"
+            href={`${hrefs.appointments}?servicio=reparacion`}
+            title={C.repairBanner.title}
+            text={C.repairBanner.text}
+            cta={C.repairBanner.cta}
+          />
         </div>
 
         {/* Panel: en mobile no hay caja, los bloques van sobre la página */}
