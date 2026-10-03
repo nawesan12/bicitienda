@@ -149,7 +149,7 @@ export default async function AdminTurnosPage({ searchParams }: { searchParams: 
   const legend = (
     <Legend
       items={[
-        { label: "Prueba de bici", swatch: "yellow" },
+        { label: "Taller · reparación", swatch: "repair" },
         { label: "Asesoramiento", swatch: "paper" },
         { label: "Sin confirmar", swatch: "red-outline" },
         { label: "Bloqueado", swatch: "blocked" },

@@ -31,7 +31,7 @@ export function TurnosDialogs({
   blockOpen,
   closeHref,
 }: {
-  services: { id: string; name: string; allowsProduct: boolean }[];
+  services: { id: string; name: string }[];
   times: string[];
   newOpen: boolean;
   newDate: string;
@@ -43,6 +43,10 @@ export function TurnosDialogs({
   const toast = useToast();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Por defecto, el taller (lo que más deja); si no está activo, el primero.
+  const defaultService = (services.find((s) => s.id === "reparacion") ?? services[0])?.id;
+  const [serviceId, setServiceId] = useState(defaultService);
+  const isRepair = serviceId === "reparacion";
   const close = () => {
     setError(null);
     router.replace(closeHref, { scroll: false });
@@ -92,7 +96,7 @@ export function TurnosDialogs({
         <form action={createAppt} className="flex flex-col gap-4">
           <div className="grid gap-3 md:grid-cols-3">
             <Field label="Servicio">
-              <Select name="serviceId" size="sm" defaultValue={services[0]?.id}>
+              <Select name="serviceId" size="sm" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
                 {services.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -124,8 +128,16 @@ export function TurnosDialogs({
           <Field label="Email" optional>
             <Input type="email" name="email" size="sm" autoComplete="off" />
           </Field>
-          <Field label="Detalle" optional hint="Qué bici quiere probar o qué consulta (lo ve el cliente).">
-            <Input name="note" size="sm" placeholder="MTB rodado 29 · talle M" />
+          <Field
+            label={isRepair ? "Qué le pasa a la bici" : "Detalle"}
+            optional
+            hint={isRepair ? "Lo que contó el cliente: lo ve en su turno y en el taller." : "Qué consulta trae (lo ve el cliente)."}
+          >
+            <Input
+              name="note"
+              size="sm"
+              placeholder={isRepair ? "Cambio cambia mal · frenos flojos" : "Qué bici le conviene para ciudad"}
+            />
           </Field>
           <Field label="Nota interna" optional>
             <Textarea name="internalNote" size="sm" rows={2} />
