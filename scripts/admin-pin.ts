@@ -87,9 +87,10 @@ async function main() {
     console.warn("⚠ Ese PIN es muy fácil de adivinar: conviene otro.");
   }
 
-  console.log("\nPegá estas dos líneas en .env.local (y en Vercel):\n");
+  console.log("\nPegá estas líneas en .env.local (y en Vercel):\n");
   console.log(`ADMIN_PIN_HASH=${hashPassword(pin)}`);
   console.log(`ADMIN_SESSION_SECRET=${randomBytes(32).toString("base64url")}`);
+  console.log(`CUSTOMER_SESSION_SECRET=${randomBytes(32).toString("base64url")}`);
 }
 
 main().catch((err) => {

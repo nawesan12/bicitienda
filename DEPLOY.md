@@ -37,14 +37,6 @@ viejo, se borra.
 
 ### Cambios de código pendientes
 
-- [ ] **Seed sin demo**: `pnpm db:seed` sobre una base vacía carga también
-      la operación demo (22 clientes, pedidos, turnos, presupuestos y la
-      cuenta `juanperez@gmail.com`), y el script no tiene flag para
-      evitarlo. `runSeed()` acepta `{ demo: false }`: falta exponerlo en
-      `scripts/seed.ts` (por ejemplo, `pnpm db:seed --sin-demo`). Ver
-      sección 3.
-- [ ] Sumar `CUSTOMER_SESSION_SECRET` a `.env.example`. El código la exige
-      en producción y hoy no figura (ver la tabla de variables).
 - [ ] Ola 2 y Ola 3 cerradas y aprobadas por el usuario (ver el README).
 
 ## 1. Repo y proyecto en Vercel
@@ -92,7 +84,7 @@ Cómo arrancar con el catálogo real:
 
 1. Seed sin demo contra Neon (una sola vez):
    ```bash
-   DATABASE_URL="postgres://…" pnpm db:seed --sin-demo   # una vez que exista el flag
+   DATABASE_URL="postgres://…" pnpm db:seed --sin-demo
    ```
    El seed hace upsert sobre los ids del seed. Volver a correrlo pisa
    ajustes, textos y precios que el dueño haya editado: **no repetirlo en
@@ -248,7 +240,7 @@ quedar **vacías**: o llevan valor o no se cargan.
 | `DATABASE_URL` | Neon. Sin ella, PGlite local. | Sí |
 | `ADMIN_PIN_HASH` | Hash scrypt del PIN (`pnpm admin:pin`) | Sí |
 | `ADMIN_SESSION_SECRET` | Firma de la cookie del admin, 16 caracteres o más (`pnpm admin:pin`) | Sí |
-| `CUSTOMER_SESSION_SECRET` | Firma de la cookie de las cuentas de cliente, 16 caracteres o más. **No está en `.env.example`.** | Sí (sin ella falla el login de clientes) |
+| `CUSTOMER_SESSION_SECRET` | Firma de la cookie de las cuentas de cliente, 16 caracteres o más. También la genera `pnpm admin:pin`. | Sí (sin ella falla el login de clientes) |
 | `CRON_SECRET` | Autoriza el cron diario `/api/cron/diario` | Sí (sin ella el cron da 401) |
 | `CLOUDINARY_URL` | `cloudinary://key:secret@cloud`. Fotos y comprobantes. | Sí |
 | `RESEND_API_KEY` | Envío de mails. Sin ella, outbox local. | Sí |

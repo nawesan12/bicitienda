@@ -1,7 +1,8 @@
 /**
  * Puebla la base desde la capa por-tienda. Idempotente.
  *
- *   pnpm db:seed
+ *   pnpm db:seed              (con la operación demo, si la base no tiene clientes)
+ *   pnpm db:seed --sin-demo   (producción: solo catálogo, settings y plantillas)
  *
  * La lógica vive en lib/server/seed.ts (también la usa el botón
  * "Restablecer" del admin); acá solo se abre y cierra la conexión.
@@ -46,13 +47,15 @@ function loadEnvLocal() {
 async function main() {
   loadEnvLocal();
   const { db, close } = await connect();
-  const n = await runSeed(db);
+  const withDemo = !process.argv.includes("--sin-demo");
+  const n = await runSeed(db, { demo: withDemo });
   await close();
   console.log(`✔ seed: ${n.products} productos, ${n.articles} notas, ${n.events} eventos y settings`);
   if (n.demo)
     console.log(
       `✔ demo: ${n.demo.customers} clientes, ${n.demo.orders} pedidos, ${n.demo.appointments} turnos, ${n.demo.quotes} presupuestos y la cuenta demo`,
     );
+  else if (!withDemo) console.log("· demo: omitida (--sin-demo)");
   else console.log("· demo: la base ya tiene clientes, no se carga la operación demo");
 }
 
