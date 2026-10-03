@@ -39,7 +39,8 @@ async function main() {
       import("drizzle-orm/pglite/migrator"),
       import("node:fs"),
     ]);
-  mkdirSync(".data/pglite", { recursive: true });
+  const { dataPath } = await import("@/lib/server/data-dir");
+  mkdirSync(dataPath("pglite"), { recursive: true });
   // Dos procesos sobre la misma carpeta la corrompen: falla si `pnpm dev`
   // (u otro script) la tiene abierta. Con `next dev` abierto no hace falta:
   // getDb() aplica las migraciones pendientes al próximo request.
@@ -52,10 +53,10 @@ async function main() {
     );
     process.exit(1);
   }
-  const client = new PGlite(".data/pglite");
+  const client = new PGlite(dataPath("pglite"));
   await migrate(drizzle(client), MIGRATIONS);
   await client.close();
-  console.log("✔ migraciones aplicadas (PGlite en .data/pglite)");
+  console.log(`✔ migraciones aplicadas (PGlite en ${dataPath("pglite")})`);
 }
 
 main().catch((err) => {

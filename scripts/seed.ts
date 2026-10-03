@@ -43,12 +43,13 @@ async function connect() {
     import("drizzle-orm/pglite"),
     import("node:fs"),
   ]);
-  mkdirSync(".data/pglite", { recursive: true });
+  const { dataPath } = await import("@/lib/server/data-dir");
+  mkdirSync(dataPath("pglite"), { recursive: true });
   // Dos procesos sobre la misma carpeta la corrompen: falla si `pnpm dev`
   // (u otro script) la tiene abierta.
   const { acquirePgliteLock } = await import("@/lib/server/db");
   acquirePgliteLock(await import("node:fs"));
-  const client = new PGlite(".data/pglite");
+  const client = new PGlite(dataPath("pglite"));
   return { db: drizzle(client, { schema }), close: () => client.close() };
 }
 

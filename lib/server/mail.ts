@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { ReactElement } from "react";
 import { deliveryMethods, store } from "@/lib/config";
 import { orderInstallments } from "@/lib/order-flow";
+import { dataPath } from "@/lib/server/data-dir";
 import { paths } from "@/lib/paths";
 import { formatARS, zonedParts } from "@/lib/format";
 import { withSnapshotName } from "@/lib/server/customers";
@@ -55,11 +56,12 @@ export async function deliver(opts: {
   }
   if (!key) {
     const { mkdir, writeFile } = await import("node:fs/promises");
-    await mkdir(".data/outbox", { recursive: true });
-    const file = `.data/outbox/${opts.tag}.html`;
+    const outbox = dataPath("outbox");
+    await mkdir(outbox, { recursive: true });
+    const file = `${outbox}/${opts.tag}.html`;
     await writeFile(file, opts.html);
     if (opts.text)
-      await writeFile(`.data/outbox/${opts.tag}.txt`, `Asunto: ${opts.subject}\nPara: ${opts.to}\n\n${opts.text}\n`);
+      await writeFile(`${outbox}/${opts.tag}.txt`, `Asunto: ${opts.subject}\nPara: ${opts.to}\n\n${opts.text}\n`);
     console.log(`[mail:outbox] ${opts.subject} → ${opts.to} (${file})`);
     return;
   }

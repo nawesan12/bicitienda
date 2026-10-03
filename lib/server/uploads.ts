@@ -3,6 +3,7 @@ import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { store } from "@/lib/config";
 import { MAX_UPLOAD_BYTES, type UploadKind } from "@/lib/images";
+import { dataPath } from "@/lib/server/data-dir";
 import {
   destroyFromCloudinary,
   isCloudinaryConfigured,
@@ -25,7 +26,7 @@ import {
  * se validan por firma de bytes y se persisten.
  */
 
-const LOCAL_DIR = ".data/uploads";
+const LOCAL_DIR = dataPath("uploads");
 
 export type ImageMime = "image/jpeg" | "image/webp";
 
@@ -125,7 +126,7 @@ export function localUploadPath(
   const m = /^[a-z0-9-]+-[a-f0-9]{10}\.(webp|jpg)$/.exec(file);
   if (!m) return null;
   return {
-    path: path.join(process.cwd(), LOCAL_DIR, file),
+    path: path.resolve(LOCAL_DIR, file),
     contentType: m[1] === "jpg" ? "image/jpeg" : "image/webp",
   };
 }
@@ -146,7 +147,7 @@ export function localUploadPath(
 export type PrivateKind = "comprobantes" | "presupuestos";
 export type PrivateMime = "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
 
-const PRIVATE_DIR = ".data/private";
+const PRIVATE_DIR = dataPath("private");
 const PRIVATE_EXT: Record<PrivateMime, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -227,5 +228,5 @@ export function localPrivatePath(
   if (!m) return null;
   const contentType = (Object.entries(PRIVATE_EXT).find(([, ext]) => ext === m[1])?.[0] ??
     "application/octet-stream") as PrivateMime;
-  return { path: path.join(process.cwd(), PRIVATE_DIR, kind, file), contentType };
+  return { path: path.resolve(PRIVATE_DIR, kind, file), contentType };
 }

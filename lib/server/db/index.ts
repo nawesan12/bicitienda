@@ -1,12 +1,13 @@
 import type { drizzle as drizzleNeon } from "drizzle-orm/neon-http";
 import type { drizzle as drizzlePglite } from "drizzle-orm/pglite";
+import { dataPath } from "../data-dir";
 import * as schema from "./schema";
 
 /**
  * Conexión a la base con switch de driver:
  *
  *   - `DATABASE_URL` postgres…  → Neon serverless por HTTP (producción).
- *   - sin `DATABASE_URL`        → PGlite embebido en `.data/pglite` (dev
+ *   - sin `DATABASE_URL`        → PGlite embebido en `.data/pglite` (o `$DATA_DIR/pglite`; dev
  *     y builds locales), mismo dialecto Postgres, cero servicios.
  *
  * Los drivers se cargan con import() dinámico para que cada modo arrastre
@@ -36,9 +37,9 @@ async function connect(): Promise<Db> {
     import("node:fs"),
   ]);
   // PGlite no crea directorios anidados por sí solo.
-  fs.mkdirSync(".data/pglite", { recursive: true });
+  fs.mkdirSync(dataPath("pglite"), { recursive: true });
   acquirePgliteLock(fs);
-  return drizzle(new PGlite(".data/pglite"), { schema });
+  return drizzle(new PGlite(dataPath("pglite")), { schema });
 }
 
 /**
@@ -48,14 +49,14 @@ async function connect(): Promise<Db> {
  * con el server levantado. Mejor fallar ruidoso acá que perder la base.
  */
 export function acquirePgliteLock(fs: typeof import("node:fs")) {
-  const lockPath = ".data/pglite.lock";
+  const lockPath = dataPath("pglite.lock");
   try {
     const holder = Number(fs.readFileSync(lockPath, "utf8"));
     if (holder && holder !== process.pid) {
       try {
         process.kill(holder, 0); // ¿sigue vivo?
         throw new Error(
-          `La base PGlite (.data/pglite) ya está abierta por el proceso ${holder}. ` +
+          `La base PGlite (${dataPath("pglite")}) ya está abierta por el proceso ${holder}. ` +
             "Cerrá el otro server/script antes de seguir — abrirla dos veces la corrompe.",
         );
       } catch (err) {
