@@ -26,12 +26,15 @@ export function paymentOptions(runtime: RuntimeStore): CheckoutOption[] {
     .filter((p) => !isOnlinePayment(p.id) || isOnlinePaymentAvailable(p.id))
     .map((p) => {
       switch (p.id) {
-        case "mercadopago":
+        case "mercadopago": {
+          // Tope real de Checkout Pro (Ajustes → Pagos), sin prometer interés.
+          const n = runtime.maxInstallments;
           return {
             ...p,
-            detail: `Tarjeta de crédito, débito o dinero en cuenta. Hasta ${runtime.maxInstallments} cuotas sin interés.`,
-            note: `Hasta ${runtime.maxInstallments} cuotas sin interés`,
+            detail: n > 1 ? `${p.detail} Hasta ${n} cuotas.` : p.detail,
+            note: n > 1 ? `Hasta ${n} cuotas` : "En un pago",
           };
+        }
         case "transferencia":
           return {
             ...p,

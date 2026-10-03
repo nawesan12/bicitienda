@@ -55,7 +55,6 @@ export interface CatalogItem {
 }
 
 export interface Pricing {
-  installments: number;
   transferDiscountPct: number;
 }
 
@@ -140,10 +139,10 @@ export function toCatalogItem(
   };
 }
 
-/** Cuotas y % de transferencia vigentes (Ajustes). */
+/** % de transferencia vigente (Ajustes). Sin cuotas: no hay plan fijo que promocionar. */
 export async function getPricing(): Promise<Pricing> {
   const s = await getSettings();
-  return { installments: s.maxInstallments, transferDiscountPct: s.transferDiscount };
+  return { transferDiscountPct: s.transferDiscount };
 }
 
 /**

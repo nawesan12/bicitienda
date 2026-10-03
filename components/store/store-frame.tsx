@@ -97,7 +97,6 @@ export async function StoreFrame({ children }: { children: ReactNode }) {
           { label: "Instagram", href: `https://www.instagram.com/${runtime.instagram}` },
           { label: "Facebook" },
         ]}
-        installments={runtime.maxInstallments}
         transferDiscountPct={runtime.transferDiscount}
       />
     </div>

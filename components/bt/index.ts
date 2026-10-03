@@ -5,8 +5,6 @@
 export { cx } from "./cx";
 export {
   formatMoney,
-  installmentAmount,
-  installmentsLabel,
   transferLabel,
   transferPrice,
 } from "./format";

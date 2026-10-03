@@ -36,7 +36,6 @@ export default async function CheckoutPage() {
   if (!runtime.ventaOnline) redirect(paths.catalog());
 
   const vars = {
-    cuotas: runtime.maxInstallments,
     off: runtime.transferDiscount,
     horas: runtime.reservationHours,
   };
@@ -52,7 +51,8 @@ export default async function CheckoutPage() {
       id: p.id,
       name,
       description: p.id === "payway" ? p.detail : fillTemplate(c.desc, vars),
-      note: c.note,
+      // La nota de MP (cuotas en Mercado Pago) no aplica a Payway.
+      note: p.id === "payway" ? "" : c.note,
       cta: p.id === "payway" ? "Pagar con tarjeta" : c.cta,
       transferDiscount: p.transferDiscount && runtime.transferDiscount > 0,
     };
@@ -67,7 +67,6 @@ export default async function CheckoutPage() {
       catalog={catalog}
       payments={payments}
       transferDiscountPct={runtime.transferDiscount}
-      maxInstallments={runtime.maxInstallments}
       pickupLocationId={local?.id}
       pickup={{
         title: COPY.cart.pickup.title,

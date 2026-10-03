@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { cx } from "./cx";
-import { formatMoney, installmentsLabel, transferLabel, installmentAmount, transferPrice } from "./format";
+import { formatMoney, transferLabel, transferPrice } from "./format";
 import { FONT, MONO } from "./styles";
 import { Tag, type TagTone } from "./tag";
 
@@ -13,12 +13,15 @@ import { Tag, type TagTone } from "./tag";
  * Desktop (≥ md, o layout="desktop"): radio 10, foto 4/3 sobre #e8e1d3,
  * tag 12 px, cuerpo paper padding 18 gap 6, mono 12 px #6f675a
  * "CATEGORÍA / MARCA", nombre 700 18/1.2, divisor dashed #c9c0ae
- * (padding-top 12), precio 900 30 @75 %, cuotas 500 13 #4c463d,
- * transferencia 700 13 #b81d16, botón "+" 40×40 tinta/amarillo.
+ * (padding-top 12), precio 900 30 @75 %, transferencia 700 13 #b81d16,
+ * botón "+" 40×40 tinta/amarillo.
  *
  * Mobile (< md, o layout="mobile"): radio 8, foto 1:1, tag 10 px, padding
  * 10/10/12 gap 4, mono 10 px, nombre 700 14/1.2, precio 900 22 @75 %,
- * cuotas 500 11 px; sin transferencia ni "+" (como 4a/4b).
+ * transferencia 700 11 px; sin "+" (como 4a/4b).
+ *
+ * Sin cuotas: la tienda no promociona un plan fijo (las cuotas de Mercado
+ * Pago se eligen al pagar).
  *
  * Toda la card es un link (stretched link); `addAction` es el botón "+"
  * real (cliente) y queda por encima del link.
@@ -33,7 +36,6 @@ export interface ProductCardProps {
   image: { src: string; alt?: string };
   price: number;
   tag?: { label: string; tone?: TagTone };
-  installments?: number;
   transferDiscountPct?: number;
   /** "responsive" cambia de mobile a desktop en md. */
   layout?: "responsive" | "desktop" | "mobile";
@@ -61,7 +63,6 @@ export function ProductCard({
   image,
   price,
   tag,
-  installments = 6,
   transferDiscountPct = 10,
   layout = "responsive",
   imageAspect = "auto",
@@ -147,18 +148,12 @@ export function ProductCard({
             >
               {formatMoney(price)}
             </span>
-            <span
-              className={cx(
-                "truncate font-medium text-card-cuotas",
-                pick(layout, "text-[11px]", "text-[13px]", "text-[11px] md:text-[13px]"),
-              )}
-              aria-label={`${installments} cuotas sin interés de ${formatMoney(installmentAmount(price, installments))}`}
-            >
-              {installmentsLabel(price, installments)}
-            </span>
-            {showDesktopExtras && transferDiscountPct > 0 && (
+            {transferDiscountPct > 0 && (
               <span
-                className={cx("text-[13px] font-bold text-card-transfer", extrasCls)}
+                className={cx(
+                  "truncate font-bold text-card-transfer",
+                  pick(layout, "text-[11px]", "text-[13px]", "text-[11px] md:text-[13px]"),
+                )}
                 aria-label={`${formatMoney(transferPrice(price, transferDiscountPct))} pagando por transferencia`}
               >
                 {transferLabel(price, transferDiscountPct)}
@@ -226,17 +221,15 @@ export function RelatedProductCard({
 
 /**
  * Caja de precio del producto (2c / 4c): panel #1f1d1a, precio 900 56 @72 %
- * (mobile 44), "6 cuotas sin interés" amarillo + " de $ …" #cfc8bb 600 16
- * (mobile 14), transferencia #ff6a5c 700 16 (mobile 14).
+ * (mobile 44) y transferencia #ff6a5c 700 16 (mobile 14). Sin cuotas (ver
+ * ProductCard).
  */
 export function PriceBox({
   price,
-  installments = 6,
   transferDiscountPct = 10,
   className,
 }: {
   price: number;
-  installments?: number;
   transferDiscountPct?: number;
   className?: string;
 }) {
@@ -249,12 +242,6 @@ export function PriceBox({
       )}
     >
       <span className="text-[44px] font-black leading-none stretch-72 md:text-[56px]">{formatMoney(price)}</span>
-      {installments > 1 && (
-        <span className="text-[14px] font-semibold text-text-2 md:text-[16px]">
-          <span className="text-yellow">{installments} cuotas sin interés</span> de{" "}
-          {formatMoney(installmentAmount(price, installments))}
-        </span>
-      )}
       {transferDiscountPct > 0 && (
         <span className="text-[14px] font-bold text-red-light md:text-[16px]">
           {formatMoney(transferPrice(price, transferDiscountPct))}

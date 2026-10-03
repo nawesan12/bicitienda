@@ -27,7 +27,7 @@ export interface CartPayment {
   id: PaymentMethodId;
   name: string;
   description: string;
-  /** Plantilla de la nota bajo el total ({cuotas}, {monto}). */
+  /** Plantilla de la nota bajo el total ({monto} = lo que ahorra por transferencia). */
   note: string;
   cta: string;
   transferDiscount: boolean;
@@ -44,7 +44,6 @@ export function CheckoutClient({
   catalog,
   payments,
   transferDiscountPct,
-  maxInstallments,
   pickupLocationId,
   pickup,
   hrefs,
@@ -52,7 +51,6 @@ export function CheckoutClient({
   catalog: CartCatalogItem[];
   payments: CartPayment[];
   transferDiscountPct: number;
-  maxInstallments: number;
   pickupLocationId?: string;
   pickup: { title: string; place: string; note: string };
   hrefs: { catalog: string; bikes: string; appointments: string };
@@ -114,12 +112,7 @@ export function CheckoutClient({
     : 0;
   const total = subtotal - discount;
   const note = selected
-    ? fillTemplate(selected.note, {
-        cuotas: maxInstallments,
-        monto: formatMoney(
-          selected.transferDiscount ? discount : Math.round(total / Math.max(1, maxInstallments)),
-        ),
-      })
+    ? fillTemplate(selected.note, { monto: formatMoney(discount) })
     : "";
 
   // Banner de prueba: solo si hay una bici con prueba en el local.

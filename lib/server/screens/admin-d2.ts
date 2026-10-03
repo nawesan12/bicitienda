@@ -186,7 +186,6 @@ export interface ProductEditorData {
   variants: EditorVariant[];
   categories: { slug: string; label: string; group: string | null }[];
   transferDiscount: number;
-  maxInstallments: number;
 }
 
 export async function getProductEditor(id: string): Promise<ProductEditorData | null> {
@@ -236,7 +235,6 @@ export async function getProductEditor(id: string): Promise<ProductEditorData | 
       })),
     categories,
     transferDiscount: s?.transferDiscount ?? 10,
-    maxInstallments: s?.maxInstallments ?? 6,
   };
 }
 

@@ -113,7 +113,6 @@ export async function ProductScreenView({ product: p }: { product: Product }) {
           {p.price != null && runtime.showPrices && (
             <PriceBox
               price={p.price}
-              installments={pricing.installments}
               transferDiscountPct={pricing.transferDiscountPct}
             />
           )}

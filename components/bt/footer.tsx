@@ -13,8 +13,6 @@ export interface FooterProps {
   /** Link wa.me opcional para el número. */
   whatsappHref?: string;
   socials?: { label: string; href?: string }[];
-  /** Cuotas sin interés de la tira (6). */
-  installments?: number;
   /** % off por transferencia (10). */
   transferDiscountPct?: number;
   className?: string;
@@ -22,10 +20,11 @@ export interface FooterProps {
 
 /**
  * Footer (Footer.dc.html).
- * Desktop (≥ lg): tira de 4 celdas (Mercado Pago · N cuotas sin interés
- * [amarillo] · X% off transferencia · Retiro en el local; títulos 900 22
- * @72 % uppercase, bajada 14 px; padding 26×56 la primera y 26×40 el
- * resto) y debajo logo 56 + wordmark 26 con columnas Local / Horarios /
+ * Desktop (≥ lg): tira de 3 celdas (Mercado Pago · X% off transferencia
+ * [amarillo] · Retiro en el local; títulos 900 22 @72 % uppercase,
+ * bajada 14 px; padding 26×56 la primera y 26×40 el resto; el handoff
+ * tenía una celda de cuotas que se sacó: no hay plan fijo) y debajo
+ * logo 56 + wordmark 26 con columnas Local / Horarios /
  * WhatsApp (1.4fr 1fr 1fr 1fr, gap 40, padding 44×56, 15/1.6).
  * Mobile (< lg, 4a): logo 44 + wordmark 22, dirección · horarios,
  * WhatsApp · redes y la tira resumida en mono 11 px.
@@ -37,14 +36,12 @@ export function Footer({
   whatsapp,
   whatsappHref,
   socials = [{ label: "Instagram" }, { label: "Facebook" }],
-  installments = 6,
   transferDiscountPct = 10,
   className,
 }: FooterProps) {
   const strip = [
     { title: "Mercado Pago", sub: "Tarjetas, débito y dinero en cuenta" },
-    { title: `${installments} cuotas sin interés`, sub: "Con bancos seleccionados", highlight: true },
-    { title: `${transferDiscountPct}% off transferencia`, sub: "O pagás en efectivo en el local" },
+    { title: `${transferDiscountPct}% off transferencia`, sub: "O pagás en efectivo en el local", highlight: true },
     { title: "Retiro en el local", sub: "Te la damos armada y ajustada" },
   ];
 
@@ -73,14 +70,14 @@ export function Footer({
     <footer className={cx("border-t border-line bg-ink text-text-2", FONT, className)}>
       {/* Desktop */}
       <div className="max-lg:hidden">
-        <ul className="m-0 grid list-none grid-cols-4 border-b border-line p-0">
+        <ul className="m-0 grid list-none grid-cols-3 border-b border-line p-0">
           {strip.map((c, i) => (
             <li
               key={c.title}
               className={cx(
                 "flex flex-col gap-1 py-[26px]",
                 i === 0 ? "px-14" : "px-10",
-                i < 3 && "border-r border-line",
+                i < strip.length - 1 && "border-r border-line",
               )}
             >
               <span
@@ -123,7 +120,7 @@ export function Footer({
           WhatsApp {wa} · {socialLinks}
         </span>
         <span className={cx("text-[11px] font-semibold uppercase text-text-3", MONO)}>
-          Mercado Pago · {installments} cuotas · {transferDiscountPct}% off transferencia · Retiro en el local
+          Mercado Pago · {transferDiscountPct}% off transferencia · Retiro en el local
         </span>
       </div>
     </footer>

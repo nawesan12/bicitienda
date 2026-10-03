@@ -6,7 +6,6 @@ import { DEMO_PHOTOS } from "./photos";
  *
  * Tokens que se completan con `fillTemplate()` (format.ts) desde los
  * settings / el contexto:
- *   {cuotas}  → PAYMENT_SETTINGS.maxInstallments (6)
  *   {off}     → PAYMENT_SETTINGS.transferDiscountPct (10)
  *   {horas}   → PAYMENT_SETTINGS.transferReservationHours (24)
  *   {min}     → duración del servicio (30)
@@ -47,14 +46,13 @@ export const COPY = {
   footer: {
     strip: [
       { title: "Mercado Pago", text: "Tarjetas, débito y dinero en cuenta" },
-      { title: "{cuotas} cuotas sin interés", text: "Con bancos seleccionados", highlight: true },
-      { title: "{off}% off transferencia", text: "O pagás en efectivo en el local" },
+      { title: "{off}% off transferencia", text: "O pagás en efectivo en el local", highlight: true },
       { title: "Retiro en el local", text: "Te la damos armada y ajustada" },
     ],
     columns: { local: "Local", hours: "Horarios", whatsapp: "WhatsApp" },
     social: "Instagram · Facebook",
     /** Versión mobile de la tira. */
-    mobileStrip: "Mercado Pago · {cuotas} cuotas · {off}% off transferencia · Retiro en el local",
+    mobileStrip: "Mercado Pago · {off}% off transferencia · Retiro en el local",
   },
 
   home: {
@@ -76,7 +74,7 @@ export const COPY = {
     },
     steps: [
       { n: "01", title: "Elegís online", text: "O pasás a probarla antes con un turno." },
-      { n: "02", title: "Pagás como quieras", text: "Mercado Pago en cuotas, transferencia o efectivo en el local." },
+      { n: "02", title: "Pagás como quieras", text: "Mercado Pago, transferencia o efectivo en el local." },
       { n: "03", title: "La retirás armada", text: "Te avisamos por WhatsApp cuando está lista." },
     ],
   },
@@ -102,13 +100,10 @@ export const COPY = {
 
   productCard: {
     brandPlaceholder: "MARCA",
-    installments: "{cuotas} x {monto} sin interés",
     transfer: "{monto} por transferencia",
   },
 
   product: {
-    installmentsLead: "{cuotas} cuotas sin interés",
-    installmentsTail: "de {monto}",
     transfer: "{monto} pagando por transferencia ({off}% off)",
     sizeLabel: "Talle",
     sizeHelp: "¿No sabés tu talle? Te asesoramos",
@@ -140,8 +135,8 @@ export const COPY = {
     payments: {
       mp: {
         name: "Mercado Pago",
-        desc: "Tarjeta de crédito, débito o dinero en cuenta. Hasta {cuotas} cuotas sin interés.",
-        note: "{cuotas} cuotas sin interés de {monto}",
+        desc: "Tarjeta de crédito, débito o dinero en cuenta.",
+        note: "Las cuotas las elegís en Mercado Pago",
         cta: "Pagar con Mercado Pago",
       },
       transfer: {
@@ -357,7 +352,6 @@ export const COPY = {
         description: "Descripción",
         listPrice: "Precio de lista",
         transferPrice: "Con transferencia (auto)",
-        installments: "Cuotas sin interés",
         variants: "Variantes y stock",
         addVariant: "+ Agregar variante",
         heightRange: "Altura sugerida",
@@ -400,7 +394,7 @@ export const COPY = {
         mp: "Mercado Pago",
         mpConnected: "Conectado",
         transferOff: "Off transferencia",
-        installments: "Cuotas sin interés",
+        installments: "Tope de cuotas en Mercado Pago",
         alias: "Alias / CBU",
         cash: "Efectivo al retirar",
       },
