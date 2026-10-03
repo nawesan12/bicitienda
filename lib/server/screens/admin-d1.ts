@@ -550,6 +550,13 @@ export interface AppointmentDetail {
   whatsappUrl: string | null;
 }
 
+/** true si todas las palabras de `a` ya están en `b` (nota del cliente redundante). */
+function wordsIn(a: string, b: string): boolean {
+  const words = (x: string) => x.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const set = new Set(words(b));
+  return words(a).every((w) => set.has(w));
+}
+
 export async function getAppointmentDetail(id: string): Promise<AppointmentDetail | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const v = await getAppointmentView(id);
@@ -565,7 +572,7 @@ export async function getAppointmentDetail(id: string): Promise<AppointmentDetai
     date: v.date,
     time: v.time,
     detail: v.productLabel ?? (v.appointment.note || "—"),
-    customerNote: v.productLabel && v.appointment.note ? v.appointment.note : "",
+    customerNote: v.productLabel && v.appointment.note && !wordsIn(v.appointment.note, v.productLabel) ? v.appointment.note : "",
     phoneLabel: formatArPhone(v.customer.phone),
     status: v.appointment.status,
     internalNote: v.appointment.internalNote,
