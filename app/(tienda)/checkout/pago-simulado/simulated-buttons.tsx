@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Button } from "@/components/bt/button";
 import { lexicon } from "@/lib/data/content";
 import { simulatePayment } from "@/lib/server/actions/simulated-payment";
 
@@ -14,7 +15,7 @@ export function SimulatedPayButtons({
   confirmUrl,
 }: {
   orderId: string;
-  /** Nombre visible de la pasarela simulada ("Payway"). */
+  /** Nombre visible de la pasarela simulada ("Mercado Pago"). */
   gateway: string;
   /** Monto a cobrar ya formateado, para el botón. */
   amountLabel: string;
@@ -27,40 +28,27 @@ export function SimulatedPayButtons({
   function run(approved: boolean) {
     startTransition(async () => {
       await simulatePayment(orderId, approved);
-      if (approved) {
-        router.push(confirmUrl);
-      } else {
-        setRejected(true);
-      }
+      if (approved) router.push(confirmUrl);
+      else setRejected(true);
     });
   }
 
   return (
-    <div className="mt-6">
-      <div className="flex flex-col gap-[10px]">
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => run(true)}
-          className="min-h-[48px] rounded-[10px] bg-[#1d2433] px-4 py-[14px] text-[15px] font-bold text-white hover:bg-[#2c3550] disabled:opacity-50"
-        >
-          {t.approve(amountLabel)}
-        </button>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => run(false)}
-          className="min-h-[48px] rounded-[10px] border border-[#cfd5df] bg-white px-4 py-[13px] text-[14px] font-bold text-[#b42318] hover:bg-[#fdeceb] disabled:opacity-50"
-        >
-          {t.reject}
-        </button>
-      </div>
+    <div className="flex flex-col gap-[10px]">
+      <Button size="full-lg" disabled={pending} onClick={() => run(true)}>
+        {t.approve(amountLabel)}
+      </Button>
+      <Button size="full" variant="danger" disabled={pending} onClick={() => run(false)}>
+        {t.reject}
+      </Button>
       {rejected && (
-        <div
-          role="alert"
-          className="mt-4 rounded-[10px] border border-[#f3c4bf] bg-[#fdeceb] px-4 py-3 text-[13px] leading-[1.5] text-[#b42318]"
-        >
-          {t.rejected(gateway)}
+        <div className="flex flex-col gap-2">
+          <p role="alert" className="m-0 text-[14px] leading-[1.5] font-semibold text-red-light">
+            {t.rejected(gateway)}
+          </p>
+          <Button href={confirmUrl} size="full" variant="secondary">
+            Volver al pedido
+          </Button>
         </div>
       )}
     </div>

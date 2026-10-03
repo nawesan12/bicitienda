@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { isOnlinePayment } from "@/lib/config";
 import { lexicon } from "@/lib/data/content";
-import { formatARS } from "@/lib/format";
+import { NOINDEX } from "@/lib/seo";
+import { formatMoney } from "@/components/bt/format";
+import { Field, Input } from "@/components/bt/field";
+import { Panel } from "@/components/bt/panel";
+import { Display, Eyebrow, Mono, Price } from "@/components/bt/typography";
+import { KeyValueList } from "@/components/bt/compra-b/blocks";
 import { chargeAmount, isGatewayLive } from "@/lib/server/online-payment";
 import { getOrderById } from "@/lib/server/order-queries";
 import { isPaymentSandboxAllowed } from "@/lib/server/payment-availability";
@@ -11,10 +16,7 @@ import { SimulatedPayButtons } from "./simulated-buttons";
 
 const t = lexicon.commerce.sandbox;
 
-export const metadata: Metadata = {
-  title: t.metaTitle,
-  robots: { index: false },
-};
+export const metadata: Metadata = { title: t.metaTitle, robots: NOINDEX };
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +31,8 @@ const GATEWAY_NAME: Record<string, string> = {
  * reales esta página deja de existir (404) y el cliente va al formulario
  * real.
  *
- * A propósito NO usa el shell ni la identidad de la tienda: tiene que
- * leerse como "saliste a la pasarela", con la cinta rayada de entorno de
- * prueba bien visible. Muestra el plan elegido en el checkout (1, 3 o 6
+ * Vive dentro del shell de la tienda (layout del grupo), con el sistema
+ * bt y la cinta rayada de entorno de prueba bien visible. Muestra el plan elegido en el checkout (1, 3 o 6
  * cuotas, con el recargo ya incluido en el total): en Payway real el
  * formulario se crea con esas cuotas fijas.
  */
@@ -56,117 +57,82 @@ export default async function SimulatedPaymentPage({
   const charge = chargeAmount(order);
   const installments = isDeposit ? 1 : order.installments;
 
-  const row = "flex justify-between gap-4 py-[9px] font-sans text-[13.5px]";
+  const amount = formatMoney(charge);
 
   return (
-    <div className="min-h-screen bg-[#e9ecf1] font-sans text-[#1d2433]">
+    <div className="pb-14 md:pb-20">
       {/* Cinta de entorno de prueba */}
-      <div className="bg-[repeating-linear-gradient(-45deg,#f5c518_0_14px,#1d2433_14px_28px)] px-3 py-[6px]">
-        <div className="mx-auto w-fit rounded-full bg-[#1d2433] px-4 py-[5px] text-center text-[10.5px] font-bold tracking-[.18em] text-[#f5c518]">
+      <div className="bg-[repeating-linear-gradient(-45deg,var(--color-yellow)_0_14px,var(--color-ink)_14px_28px)] px-3 py-[6px]">
+        <Mono size={11} tone="inherit" className="mx-auto block w-fit rounded-pill bg-ink px-4 py-[5px] text-center tracking-[.12em] text-yellow">
           {t.ribbon}
-        </div>
+        </Mono>
       </div>
 
-      <header className="border-b border-[#d5dae3] bg-white">
-        <div className="mx-auto flex max-w-[880px] items-center justify-between gap-4 px-[clamp(16px,4vw,32px)] py-4">
-          <div className="flex items-center gap-[10px]">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1d2433] text-[15px] font-bold text-white">
-              {gateway[0]}
-            </span>
-            <span className="text-[17px] font-bold tracking-[-.01em]">
-              {gateway}
-            </span>
+      <div className="grid items-start gap-6 px-4 pt-6 md:px-14 md:pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-10">
+        <Panel as="section" padding="lg" gap="xl" className="max-lg:order-2">
+          <div className="flex flex-col gap-3">
+            <Eyebrow tone="yellow" size="md">
+              Pago simulado
+            </Eyebrow>
+            <Display size="h2" as="h1">
+              {t.title(gateway)}
+            </Display>
+            <p className="m-0 max-w-[560px] text-[15px] leading-[1.5] text-text-2">{t.sub(gateway)}</p>
           </div>
-          <span className="rounded-full border border-[#d5dae3] px-3 py-[5px] text-[11px] font-bold tracking-[.14em] text-[#5b6578]">
-            SANDBOX
-          </span>
-        </div>
-      </header>
 
-      <main className="mx-auto grid max-w-[880px] items-start gap-5 px-[clamp(16px,4vw,32px)] py-8 min-[760px]:grid-cols-[minmax(0,1fr)_300px]">
-        <section className="animate-pop-in order-2 rounded-2xl border border-[#d5dae3] bg-white p-[clamp(18px,3vw,28px)] min-[760px]:order-1">
-          <h1 className="m-0 text-[22px] font-bold tracking-[-.01em]">
-            {t.title(gateway)}
-          </h1>
-          <p className="mb-0 mt-2 text-[13.5px] leading-[1.6] text-[#5b6578]">
-            {t.sub(gateway)}
-          </p>
-
-          <div className="mt-6 text-[10.5px] font-bold tracking-[.18em] text-[#5b6578]">
-            {t.cardLabel}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <fieldset className="m-0 grid grid-cols-2 gap-3 border-0 p-0">
+            <Eyebrow as="legend" size="md" className="mb-3">
+              {t.cardLabel}
+            </Eyebrow>
             {[
               { label: t.cardNumber, value: "4507 9900 0000 4905", span: true },
               { label: t.cardHolder, value: customer.name.toUpperCase(), span: true },
               { label: t.cardExpiry, value: "12/30", span: false },
               { label: t.cardCvv, value: "123", span: false },
             ].map((f) => (
-              <label key={f.label} className={f.span ? "col-span-2" : ""}>
-                <span className="block text-[12px] font-semibold text-[#5b6578]">
-                  {f.label}
-                </span>
-                <input
-                  readOnly
-                  value={f.value}
-                  className="mt-[6px] box-border block w-full rounded-[10px] border border-[#cfd5df] bg-[#f6f7f9] px-[14px] py-3 font-mono text-[14px] text-[#1d2433] outline-none"
-                />
-              </label>
+              <Field key={f.label} label={f.label} className={f.span ? "col-span-2" : ""}>
+                <Input readOnly value={f.value} className="font-mono" />
+              </Field>
             ))}
-          </div>
-          <div className="mt-2 text-[11.5px] text-[#8a93a5]">{t.testCard}</div>
+            <p className="col-span-2 m-0 text-[13px] text-text-3">{t.testCard}</p>
+          </fieldset>
 
           <SimulatedPayButtons
             orderId={order.id}
             gateway={gateway}
-            amountLabel={formatARS(charge)}
+            amountLabel={amount}
             confirmUrl={`/checkout/confirmacion/${order.number}?e=${encodeURIComponent(customer.email ?? customer.phone)}`}
           />
-        </section>
+        </Panel>
 
-        <aside className="order-1 rounded-2xl border border-[#d5dae3] bg-white p-[clamp(18px,3vw,24px)] min-[760px]:order-2">
-          <div className="text-[10.5px] font-bold tracking-[.18em] text-[#5b6578]">
-            {t.merchant}
+        <Panel as="aside" padding="lg" gap="lg" className="max-lg:order-1">
+          <div className="flex flex-col gap-1">
+            <Eyebrow size="md">{t.merchant}</Eyebrow>
+            <span className="text-[20px] font-extrabold">{runtime.brandName}</span>
           </div>
-          <div className="mt-1 text-[16px] font-bold">{runtime.brandName}</div>
-          <div className="mt-4 divide-y divide-[#e6e9ef] border-t border-[#e6e9ef]">
-            <div className={row}>
-              <span className="text-[#5b6578]">{t.order}</span>
-              <strong>{order.number}</strong>
-            </div>
-            <div className={row}>
-              <span className="text-[#5b6578]">{t.customer}</span>
-              <strong className="min-w-0 truncate">{customer.name}</strong>
-            </div>
-            <div className={row}>
-              <span className="text-[#5b6578]">{t.plan}</span>
-              <strong className="text-right">
-                {installments > 1
-                  ? t.planN(installments, formatARS(Math.round(charge / installments)))
-                  : t.plan1}
-              </strong>
-            </div>
-            {isDeposit && (
-              <div className={row}>
-                <span className="text-[#5b6578]">{t.balance}</span>
-                <strong>{formatARS(order.total - order.depositAmount)}</strong>
-              </div>
-            )}
+          <KeyValueList
+            items={[
+              { label: t.order, value: order.number, mono: true },
+              { label: t.customer, value: customer.name },
+              {
+                label: t.plan,
+                value:
+                  installments > 1
+                    ? t.planN(installments, formatMoney(Math.round(charge / installments)))
+                    : t.plan1,
+              },
+              ...(isDeposit
+                ? [{ label: t.balance, value: formatMoney(order.total - order.depositAmount) }]
+                : []),
+            ]}
+          />
+          <div className="flex items-center justify-between gap-4">
+            <Eyebrow size="md">{isDeposit ? t.deposit : t.amount}</Eyebrow>
+            <Price amount={charge} size="total" tone="yellow" />
           </div>
-          <div className="mt-3 rounded-xl bg-[#1d2433] px-4 py-3 text-white">
-            <div className="text-[10.5px] font-bold tracking-[.18em] text-white/60">
-              {(isDeposit ? t.deposit : t.amount).toUpperCase()}
-            </div>
-            <div className="mt-[2px] text-[26px] font-bold tracking-[-.01em]">
-              {formatARS(charge)}
-            </div>
-          </div>
-        </aside>
-      </main>
-
-      <footer className="pb-8 text-center text-[11.5px] text-[#8a93a5]">
-        {t.footer}
-      </footer>
+        </Panel>
+      </div>
+      <p className="m-0 mt-8 px-4 text-center text-[13px] text-text-3">{t.footer}</p>
     </div>
   );
 }

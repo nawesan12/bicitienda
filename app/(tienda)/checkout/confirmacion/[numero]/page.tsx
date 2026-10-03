@@ -1,76 +1,49 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { isOnlinePayment, whatsappLink } from "@/lib/config";
-import { lexicon } from "@/lib/data/content";
-import { formatARS } from "@/lib/format";
-import { img } from "@/lib/images";
+import type { ReactNode } from "react";
+import { Button } from "@/components/bt/button";
+import { formatMoney } from "@/components/bt/format";
+import { Panel } from "@/components/bt/panel";
+import { StepList } from "@/components/bt/timeline";
+import { Display, Eyebrow, Highlight, Mono, Price } from "@/components/bt/typography";
+import { KeyValueList, OrderSummaryItem, SuccessMark } from "@/components/bt/compra-b/blocks";
+import { SummaryRow, SummaryRows, SummaryTotal } from "@/components/bt/compra-b/summary-rows";
+import { isOnlinePayment } from "@/lib/config";
+import { COPY } from "@/lib/data/demo/copy";
+import { fillTemplate } from "@/lib/data/demo/format";
+import { paths } from "@/lib/paths";
+import { NOINDEX } from "@/lib/seo";
 import { syncPendingPayment } from "@/lib/server/online-payment";
-import { getOrderForCustomer } from "@/lib/server/order-queries";
+import { getOrderForCustomer, publicTimeline } from "@/lib/server/order-queries";
 import { getStore } from "@/lib/server/queries";
+import { getOrderItemsInfo, getTransferDetails } from "@/lib/server/screens/compra-b";
+import { waUrl } from "@/lib/whatsapp";
+import { BUY } from "../../_lib/copy";
+import {
+  approvedAt,
+  expiryLabel,
+  firstName,
+  lastPaymentRejected,
+  longDate,
+  relativeStamp,
+  stepsDone,
+} from "../../_lib/order-view";
+import { TransferPanel } from "../../_lib/transfer-panel";
 
-const t = lexicon.commerce.confirm;
+const C = COPY.confirmation;
+const B = BUY.confirm;
 
-export const metadata: Metadata = {
-  title: t.metaTitle,
-  robots: { index: false },
-};
+export const metadata: Metadata = { title: B.metaTitle, robots: NOINDEX };
 
 export const dynamic = "force-dynamic";
 
-/** Bloque de la caja de precio (negro / crema / pastel), como en la ficha. */
-function Block({
-  label,
-  value,
-  tone,
-  sub,
-}: {
-  label: string;
-  value: string;
-  tone: "night" | "chip" | "pastel";
-  sub?: string;
-}) {
-  const bg =
-    tone === "night"
-      ? "bg-night text-cream"
-      : tone === "pastel"
-        ? "bg-brand-pastel text-brand-deeper"
-        : "bg-chip text-ink";
-  return (
-    <div className={`min-w-0 rounded-xl px-[14px] py-[11px] ${bg}`}>
-      <div
-        className={`font-sans text-[10px] font-bold tracking-[.14em] ${
-          tone === "night" ? "text-cream/60" : tone === "chip" ? "text-ink/55" : ""
-        }`}
-      >
-        {label}
-      </div>
-      <div
-        className={`font-display mt-[3px] break-words text-[19px] font-extrabold tracking-normal ${
-          tone === "night" ? "text-brand" : ""
-        }`}
-      >
-        {value}
-      </div>
-      {sub && (
-        <div
-          className={`mt-[2px] font-sans text-[11.5px] ${
-            tone === "night" ? "text-cream/55" : "opacity-70"
-          }`}
-        >
-          {sub}
-        </div>
-      )}
-    </div>
-  );
-}
+const GATEWAY: Record<string, string> = { mercadopago: "Mercado Pago", payway: "Payway" };
 
 /**
- * Confirmación post-compra, con instrucciones según el medio de pago.
- * Gate: número + email (llega en ?e= desde el checkout o las URLs de
- * retorno de la pasarela). Si el pedido sigue esperando un pago online,
- * antes de mostrarlo se concilia con la pasarela (por si la notificación
- * todavía no llegó).
+ * 2e · Confirmación. El prototipo solo dibuja "Mercado Pago aprobado";
+ * las demás variantes (transferencia, efectivo, pago online pendiente o
+ * rechazado, vencido/cancelado, pedido sin bici) usan el mismo layout.
+ * Gate: número + contacto (?e= lo arma createOrder o la pasarela).
  */
 export default async function ConfirmationPage({
   params,
@@ -81,322 +54,236 @@ export default async function ConfirmationPage({
 }) {
   const [{ numero }, { e }] = await Promise.all([params, searchParams]);
   if (!e) notFound();
-  const [found, runtime] = await Promise.all([
-    getOrderForCustomer(numero, e),
-    getStore(),
-  ]);
+  const found = await getOrderForCustomer(numero, e);
   if (!found) notFound();
   let full = found;
   if (await syncPendingPayment(full.order)) {
     full = (await getOrderForCustomer(numero, e)) ?? full;
   }
+  const [runtime, info, bank] = await Promise.all([
+    getStore(),
+    getOrderItemsInfo(full.items),
+    getTransferDetails(),
+  ]);
 
   const { order, customer, items } = full;
-  // Sucursal del pedido: la elegida al retirar, o la principal.
-  const pickupLocal =
-    runtime.locations.find((l) => l.id === order.pickupLocationId) ??
-    runtime.locations[0];
-  const paid = order.paidAmount >= order.total && order.total > 0;
-  const señado = order.status === "SEÑADO" && order.balanceDue > 0;
-  const ok = paid || señado;
-  const isPickup = order.deliveryMethod === "retiro";
-  const trackingHref = `/seguimiento/${order.number}?e=${encodeURIComponent(customer.email ?? customer.phone)}`;
-  const isTransfer = order.paymentMethod === "transferencia";
-  const isCash = order.paymentMethod === "efectivo";
-  const online = isOnlinePayment(order.paymentMethod);
-  // El recargo del Plan MiPyME no se guarda aparte: es lo que el total
-  // tiene por encima de subtotal − descuento + envío.
-  const surcharge = Math.max(
-    0,
-    order.total - (order.subtotal - order.discount + order.shippingCost),
-  );
+  const contact = customer.email ?? customer.phone;
+  const local = runtime.locations.find((l) => l.id === order.pickupLocationId) ?? runtime.locations[0];
+  const name = firstName(customer.name);
+  const timeline = publicTimeline(order);
 
-  const expires = order.expiresAt
-    ? new Intl.DateTimeFormat("es-AR", {
-        weekday: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(order.expiresAt)
-    : null;
+  const method = order.paymentMethod;
+  const online = isOnlinePayment(method);
+  const isTransfer = method === "transferencia";
+  const isCash = method === "efectivo";
+  const closed = order.status === "CANCELADO" || order.status === "VENCIDO";
+  const paid = timeline[1]?.state === "done";
+  const waitingOnline = online && !paid && !closed;
+  const rejected = waitingOnline && lastPaymentRejected(full);
+  const gateway = GATEWAY[method] ?? "la pasarela";
+  const expires = order.expiresAt && !paid ? expiryLabel(order.expiresAt) : null;
+  const until = expires ? fillTemplate(B.until, { fecha: expires }) : "";
+  const trackingHref = `${paths.tracking(order.number)}?e=${encodeURIComponent(contact)}`;
+  const viewOrderHref = order.accountId ? paths.account() : trackingHref;
+  const vars = { nombre: name, monto: formatMoney(order.total), pasarela: gateway, vence: until };
 
-  // Pago online sin acreditar (rechazado o abandonado en la pasarela).
-  const pendingOnline = !ok && online && order.status === "PENDIENTE_PAGO";
-  const co = lexicon.commerce.checkout;
-  const title = paid
-    ? t.titlePaid(order.number)
-    : señado
-      ? t.titleDeposit(order.number)
-      : pendingOnline && t.titlePending
-        ? t.titlePending(order.number)
-        : t.titleConfirmed(order.number);
-  const body = paid
-    ? t.bodyPaid
-    : señado
-      ? t.bodyDeposit
-      : isTransfer
-        ? t.bodyTransfer
-        : isCash
-          ? t.bodyCash
-          : t.bodyPending;
-
-  return (
+  /* ── Encabezado y pasos según el caso ── */
+  let mark: ReactNode = <SuccessMark />;
+  let title = fillTemplate(C.title, vars);
+  let subtitle: string = info.hasBike ? C.subtitle : B.subtitleNoBike;
+  let text: string = info.hasBike ? C.text : B.textNoBike;
+  const prep = info.hasBike ? C.steps[1] : B.stepPrepNoBike;
+  const ready = info.hasBike ? C.steps[2] : { ...C.steps[2], title: B.stepReadyNoBike };
+  const payStamp = approvedAt(full);
+  let steps: { title: string; description?: string }[] | null = [
+    {
+      title: C.steps[0].title,
+      description: `${online ? gateway : (B.paymentLabels[method] ?? method)} · ${relativeStamp(payStamp ?? order.createdAt)}`,
+    },
+    { title: prep.title, description: prep.text },
+    { title: ready.title, description: ready.text },
+    { title: C.steps[3].title, description: C.steps[3].text },
+  ];
+  let actions: ReactNode = (
     <>
-      <section className="bg-grid-dark bg-night px-[clamp(16px,4vw,40px)] pb-[90px] pt-[60px] text-cream [--grid-size:48px]">
-        <div className="animate-pop-in mx-auto w-[680px] max-w-full">
-          <div className="text-center">
-            <div
-              className={`mx-auto flex h-[84px] w-[84px] items-center justify-center rounded-full text-[38px] font-bold ${
-                ok ? "bg-brand text-night" : "bg-cream text-night"
-              }`}
-            >
-              {ok ? "✓" : "⏱"}
-            </div>
-            <div className="mt-6 font-sans text-[11px] font-bold tracking-[.26em] text-brand">
-              {t.kicker}
-            </div>
-            <h1 className="font-display mb-0 mt-3 text-[clamp(32px,4.4vw,54px)] leading-[1.02]">
-              {title}
-            </h1>
-            <p className="mx-auto mb-0 mt-4 max-w-[48ch] font-sans text-[15px] leading-[1.65] text-cream/65">
-              {body}
-            </p>
-
-            {pendingOnline && (
-              <a
-                href={`/checkout/pagar/${order.number}?e=${encodeURIComponent(customer.email ?? customer.phone)}`}
-                className="mt-6 inline-block rounded-full bg-brand px-7 py-[15px] font-sans text-[15px] font-bold text-night hover:bg-brand-hover"
-              >
-                {t.retry}
-              </a>
-            )}
-          </div>
-
-          {/* Ticket: instrucciones de pago + resumen */}
-          <div className="mt-9 rounded-[24px] bg-white p-[clamp(18px,3vw,28px)] text-ink">
-            {!paid && isTransfer && (
-              <Section kicker={t.transferKicker}>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(170px,100%),1fr))] gap-2">
-                  <Block tone="night" label={t.alias} value={runtime.transferAlias} />
-                  <Block
-                    tone="pastel"
-                    label={t.amount(runtime.transferDiscount)}
-                    value={formatARS(order.total)}
-                    sub={expires ? `${t.reservedUntil} ${expires}` : undefined}
-                  />
-                </div>
-              </Section>
-            )}
-
-            {!paid && isCash && (
-              <Section kicker={t.cashKicker}>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(170px,100%),1fr))] gap-2">
-                  <Block tone="night" label={t.pickupCode} value={order.pickupCode ?? "—"} />
-                  <Block
-                    tone="chip"
-                    label={lexicon.commerce.checkout.total.toUpperCase()}
-                    value={formatARS(order.total)}
-                    sub={expires ? `${t.reservedUntil} ${expires}` : undefined}
-                  />
-                </div>
-                <div className="mt-2 font-sans text-[12.5px] text-ink/55">
-                  {pickupLocal.address} · {pickupLocal.hours}
-                </div>
-              </Section>
-            )}
-
-            {señado && (
-              <Section kicker={t.depositKicker}>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(150px,100%),1fr))] gap-2">
-                  <Block tone="pastel" label={t.depositPaid} value={formatARS(order.paidAmount)} />
-                  <Block tone="night" label={t.balance} value={formatARS(order.balanceDue)} />
-                  <Block tone="chip" label={t.balanceAlias.toUpperCase()} value={runtime.transferAlias} />
-                </div>
-                {isPickup && order.pickupCode && (
-                  <div className="mt-2 font-sans text-[13px] text-ink/65">
-                    {t.pickupCode}: <strong className="text-ink">{order.pickupCode}</strong>
-                  </div>
-                )}
-              </Section>
-            )}
-
-            {pendingOnline && (
-              <Section kicker={t.planKicker}>
-                {order.paymentMode === "sena" && order.depositAmount > 0 ? (
-                  <Block
-                    tone="night"
-                    label={co
-                      .payNow(Math.round((order.depositAmount / order.total) * 100))
-                      .toUpperCase()}
-                    value={formatARS(order.depositAmount)}
-                    sub={`${co.balanceLater}: ${formatARS(order.total - order.depositAmount)}`}
-                  />
-                ) : (
-                  <Block
-                    tone="night"
-                    label={
-                      order.installments > 1
-                        ? t.planLine(order.installments, formatARS(Math.round(order.total / order.installments))).toUpperCase()
-                        : t.planOne.toUpperCase()
-                    }
-                    value={formatARS(order.total)}
-                    sub={surcharge > 0 ? t.planSurcharge(formatARS(surcharge)) : undefined}
-                  />
-                )}
-              </Section>
-            )}
-
-            {paid && online && (
-              <Section kicker={t.planKicker}>
-                <Block
-                  tone="night"
-                  label={
-                    order.installments > 1
-                      ? t.planLine(order.installments, formatARS(Math.round(order.total / order.installments))).toUpperCase()
-                      : t.planOne.toUpperCase()
-                  }
-                  value={formatARS(order.total)}
-                  sub={surcharge > 0 ? t.planSurcharge(formatARS(surcharge)) : undefined}
-                />
-              </Section>
-            )}
-
-            {paid && isPickup && order.pickupCode && (
-              <Section kicker={t.pickupKicker}>
-                <Block tone="pastel" label={t.pickupCode} value={order.pickupCode} />
-                <div className="mt-2 font-sans text-[12.5px] text-ink/55">
-                  {pickupLocal.address} · {pickupLocal.hours}
-                </div>
-              </Section>
-            )}
-
-            {!isPickup && (
-              <Section kicker={co.address}>
-                <div className="font-sans text-[14px] font-semibold leading-[1.5] text-ink">
-                  {order.deliveryAddress || co.shippingPending}
-                </div>
-              </Section>
-            )}
-
-            <Section kicker={t.summaryKicker} last>
-              <div className="flex flex-col gap-3">
-                {items.map((it) => (
-                  <div key={it.id} className="flex items-center gap-3">
-                    <div className="relative aspect-[4/3] w-[60px] flex-none overflow-hidden rounded-[10px] bg-cream-4">
-                      {it.image && (
-                        // eslint-disable-next-line @next/next/no-img-element -- Cloudinary transforma (img())
-                        <img
-                          src={img(it.image, { w: 140 })}
-                          alt=""
-                          className="absolute inset-1 block h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain mix-blend-multiply"
-                        />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1 font-display text-[14px] leading-[1.2]">
-                      {it.quantity}× {it.name}
-                    </div>
-                    <div className="whitespace-nowrap font-sans text-[13.5px] font-bold">
-                      {formatARS(it.unitPrice * it.quantity)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {(order.shippingCost > 0 || order.discount > 0 || surcharge > 0) && (
-                <div className="mt-4 flex flex-col gap-[7px] border-t border-ink/10 pt-4 font-sans text-[13.5px] text-ink/65">
-                  <Row label={co.subtotal} value={formatARS(order.subtotal)} />
-                  {order.shippingCost > 0 && (
-                    <Row label={co.shipping} value={formatARS(order.shippingCost)} />
-                  )}
-                  {order.discount > 0 && (
-                    <Row
-                      label={co.transferLine(runtime.transferDiscount)}
-                      value={`−${formatARS(order.discount)}`}
-                      accent
-                    />
-                  )}
-                  {surcharge > 0 && (
-                    <Row
-                      label={co.surchargeLine(
-                        order.installments,
-                        Math.round(
-                          (surcharge / (order.total - surcharge)) * 100,
-                        ),
-                      )}
-                      value={`+${formatARS(surcharge)}`}
-                    />
-                  )}
-                </div>
-              )}
-              <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-ink/10 pt-4">
-                <span className="font-sans text-[11px] font-bold tracking-[.22em] text-ink/50">
-                  {lexicon.commerce.checkout.total.toUpperCase()}
-                </span>
-                <span className="font-display text-[28px] font-extrabold tracking-normal">
-                  {formatARS(order.total)}
-                </span>
-              </div>
-            </Section>
-          </div>
-
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <a
-              href={whatsappLink(
-                runtime.whatsapp,
-                isTransfer && !paid ? t.waProofMsg(order.number) : t.waMsg(order.number),
-              )}
-              target="_blank"
-              rel="noreferrer"
-              className="min-w-[200px] flex-1 rounded-full bg-brand px-[26px] py-[15px] text-center font-sans text-[15px] font-bold text-night hover:bg-brand-hover min-[560px]:flex-none"
-            >
-              {isTransfer && !paid ? t.waProof : t.waWrite}
-            </a>
-            <Link
-              href={trackingHref}
-              className="box-border min-w-[200px] flex-1 rounded-full border-[1.5px] border-cream/30 px-[26px] py-[15px] text-center font-sans text-[15px] font-bold text-cream hover:border-brand hover:text-brand min-[560px]:flex-none"
-            >
-              {t.track}
-            </Link>
-          </div>
-        </div>
-      </section>
+      <Button href={viewOrderHref} className="max-md:w-full">
+        {C.viewOrder}
+      </Button>
+      <Button href="/" variant="secondary" className="max-md:w-full">
+        {C.continueShopping}
+      </Button>
     </>
   );
-}
 
-function Section({
-  kicker,
-  last,
-  children,
-}: {
-  kicker: string;
-  last?: boolean;
-  children: React.ReactNode;
-}) {
+  if (closed) {
+    mark = <SuccessMark tone="muted" symbol="✕" />;
+    title = order.status === "VENCIDO" ? B.closed.expiredTitle : B.closed.cancelledTitle;
+    subtitle = "";
+    text = order.status === "VENCIDO" ? B.closed.expired : B.closed.cancelled;
+    steps = null;
+    actions = (
+      <>
+        <Button href={paths.catalog()} className="max-md:w-full">
+          {B.closed.cta}
+        </Button>
+        <Button href={waUrl(runtime.whatsapp, fillTemplate(BUY.tracking.waMsg, { número: order.number }))} external variant="secondary" className="max-md:w-full">
+          {B.online.wa}
+        </Button>
+      </>
+    );
+  } else if (waitingOnline) {
+    mark = rejected ? <SuccessMark tone="muted" symbol="✕" /> : <SuccessMark tone="waiting" symbol="…" />;
+    title = fillTemplate(rejected ? B.online.rejectedTitle : B.online.pendingTitle, vars);
+    subtitle = rejected ? B.online.rejectedSubtitle : B.online.pendingSubtitle;
+    text = fillTemplate(rejected ? B.online.rejectedText : B.online.pendingText, vars);
+    steps[0] = { title: rejected ? B.online.stepRejected : B.online.step, description: gateway };
+    actions = (
+      <>
+        <Button href={`/checkout/pagar/${order.number}?e=${encodeURIComponent(contact)}`} prefetch={false} className="max-md:w-full">
+          {B.online.retry}
+        </Button>
+        <Button href={waUrl(runtime.whatsapp, fillTemplate(B.online.waMsg, { número: order.number }))} external variant="secondary" className="max-md:w-full">
+          {B.online.wa}
+        </Button>
+      </>
+    );
+  } else if (isTransfer && !paid) {
+    const received = !!order.transferReceiptUrl;
+    mark = <SuccessMark tone="waiting" symbol="$" />;
+    title = fillTemplate(B.transfer.title, vars);
+    subtitle = B.transfer.subtitle;
+    text = received ? B.transfer.textReceived : fillTemplate(B.transfer.text, vars);
+    steps[0] = {
+      title: B.transfer.step,
+      description: received
+        ? B.transfer.stepReceived
+        : fillTemplate(B.transfer.stepWaiting, { vence: expires ? fillTemplate(B.untilShort, { fecha: expires }) : "" }),
+    };
+  } else if (isCash && !paid) {
+    mark = <SuccessMark />;
+    title = fillTemplate(B.cash.title, vars);
+    subtitle = B.cash.subtitle;
+    text = fillTemplate(B.cash.text, vars);
+    steps[0] = { title: B.cash.step1.title, description: relativeStamp(order.createdAt) };
+    steps[3] = { title: B.cash.step4.title, description: B.cash.step4.text };
+  }
+  const done = stepsDone(timeline, isCash);
+
+  /* ── Resumen ── */
+  const payLabel =
+    online
+      ? `${gateway}${order.installments > 1 ? ` · ${order.installments} cuotas` : ""}`
+      : isTransfer && order.discount > 0
+        ? `Transferencia · ${runtime.transferDiscount}% off`
+        : (B.paymentLabels[method] ?? method);
+  const payPanel: ReactNode =
+    closed || paid ? null : isTransfer ? (
+      <TransferPanel
+        number={order.number}
+        contact={contact}
+        total={order.total}
+        discountPct={runtime.transferDiscount}
+        hasDiscount={order.discount > 0}
+        bank={bank}
+        whatsapp={runtime.whatsapp}
+        receiptSent={!!order.transferReceiptUrl}
+      />
+    ) : isCash ? (
+      <Panel as="section" surface="surface" padding="md" gap="md">
+            <Eyebrow tone="yellow" size="md" as="h2">
+              {B.cash.payTitle}
+            </Eyebrow>
+            <div className="flex items-end justify-between gap-4">
+              <Eyebrow size="sm">{B.cash.payAmount}</Eyebrow>
+              <Price amount={order.total} size="panel" tone="yellow" />
+            </div>
+            <KeyValueList items={[{ label: B.cash.payUntil, value: expires ?? B.cash.noExpiry }]} />
+          </Panel>
+    ) : null;
+
   return (
-    <div className={last ? "" : "mb-6 border-b border-ink/10 pb-6"}>
-      <div className="mb-3 font-sans text-[11px] font-bold tracking-[.26em] text-ink/50">
-        {kicker}
+    <div className="grid items-start gap-8 px-4 pt-8 pb-14 md:px-14 md:pt-16 md:pb-20 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-12">
+      {/* Columna izquierda */}
+      <div className="flex min-w-0 flex-col gap-6 md:gap-7">
+        {mark}
+        <div className="flex flex-col gap-[14px]">
+          <Mono size={14} uppercase className="max-md:text-[12px]">
+            {fillTemplate(C.eyebrow, { número: order.number, fecha: longDate(order.createdAt) })}
+          </Mono>
+          <Display size="confirm" className="break-words">
+            {title}
+            {subtitle && (
+              <>
+                <br />
+                <Highlight>{subtitle}</Highlight>
+              </>
+            )}
+          </Display>
+          <p className="m-0 max-w-[560px] text-[17px] leading-[1.5] text-text-2 md:text-[19px]">{text}</p>
+        </div>
+        {payPanel && <div className="lg:hidden">{payPanel}</div>}
+        {steps && <StepList steps={steps} done={done} />}
+        <div className="flex gap-3 max-md:flex-col">{actions}</div>
       </div>
-      {children}
-    </div>
-  );
-}
 
-function Row({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className={`flex justify-between gap-3 ${accent ? "font-semibold text-brand-deep" : ""}`}
-    >
-      <span>{label}</span>
-      <span className={accent ? "" : "font-semibold text-ink"}>{value}</span>
+      {/* Columna derecha */}
+      <div className="flex min-w-0 flex-col gap-4">
+        {payPanel && <div className="max-lg:hidden">{payPanel}</div>}
+
+
+        <Panel as="section" surface="paper" padding="lg" gap="lg">
+          <Eyebrow tone="ink" size="md" as="h2">
+            {C.summaryTitle}
+          </Eyebrow>
+          <ul className="m-0 flex list-none flex-col gap-[14px] p-0">
+            {items.map((it) => (
+              <OrderSummaryItem
+                key={it.id}
+                image={info.imageById[it.id] ?? null}
+                name={it.name}
+                meta={[it.variantLabel, `x${it.quantity}`].filter(Boolean).join(" · ")}
+                price={formatMoney(it.unitPrice * it.quantity)}
+              />
+            ))}
+          </ul>
+          <SummaryRows tone="paper">
+            {order.discount > 0 && (
+              <>
+                <SummaryRow tone="paper" label={B.subtotal} value={formatMoney(order.subtotal)} />
+                <SummaryRow
+                  tone="paper"
+                  label={fillTemplate(B.discount, { off: runtime.transferDiscount })}
+                  value={`− ${formatMoney(order.discount)}`}
+                  variant="discount"
+                />
+              </>
+            )}
+            <SummaryRow tone="paper" label={C.payment} value={payLabel} />
+            <SummaryTotal tone="paper" label={C.total} amount={order.total} />
+          </SummaryRows>
+        </Panel>
+
+        <Panel as="section" surface="surface" padding="md" gap="sm">
+          <Eyebrow tone="yellow" size="md" as="h2">
+            {C.pickupTitle}
+          </Eyebrow>
+          <p className="m-0 text-[20px] font-extrabold">{C.pickupPlace}</p>
+          <p className="m-0 text-[15px] leading-[1.5] text-text-2">
+            {local?.address || runtime.address}
+            <br />
+            {local?.hours || runtime.hours}
+          </p>
+          <p className="m-0 text-[15px] leading-[1.5] text-text-2">{C.pickupNote}</p>
+          {order.pickupCode && !closed && (
+            <p className="m-0 flex flex-wrap items-baseline gap-x-2 text-[13px] text-text-3">
+              {B.pickupCode}
+              <Mono size={14} tone="paper">
+                {order.pickupCode}
+              </Mono>
+            </p>
+          )}
+        </Panel>
+      </div>
     </div>
   );
 }
