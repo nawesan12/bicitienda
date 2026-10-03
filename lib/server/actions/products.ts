@@ -213,19 +213,45 @@ async function uniqueProductSlug(db: Db, name: string): Promise<string> {
 }
 
 /** "+ Nuevo vehículo": nace vacío, sin stock y marcado custom (eliminable). */
+/**
+ * Categoría por defecto de un producto nuevo: la primera HOJA (sin
+ * subcategorías) en el orden del árbol — `order` del padre, después el
+ * propio, después el slug —, así es determinista aunque haya empates de
+ * `order` entre niveles ("bicicletas" y "mtb") y nunca cae en una categoría
+ * que solo agrupa. Con el seed: "mtb".
+ */
+function defaultCategory(
+  cats: { slug: string; parentSlug: string | null; order: number }[],
+): string | undefined {
+  const bySlug = new Map(cats.map((c) => [c.slug, c]));
+  const parents = new Set(cats.map((c) => c.parentSlug).filter(Boolean));
+  const key = (c: (typeof cats)[number]) => {
+    const parent = c.parentSlug ? bySlug.get(c.parentSlug) : undefined;
+    return parent ? [parent.order, c.order] : [c.order, -1];
+  };
+  const pool = cats.filter((c) => !parents.has(c.slug));
+  return [...(pool.length ? pool : cats)].sort((a, b) => {
+    const [a1, a2] = key(a);
+    const [b1, b2] = key(b);
+    return a1 - b1 || a2 - b2 || a.slug.localeCompare(b.slug);
+  })[0]?.slug;
+}
+
 export async function createProduct(
   category: unknown,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   await requireAdmin();
   const db = await getDb();
   const cats = await db
-    .select({ slug: schema.categories.slug })
-    .from(schema.categories)
-    .orderBy(schema.categories.order);
+    .select({
+      slug: schema.categories.slug,
+      parentSlug: schema.categories.parentSlug,
+      order: schema.categories.order,
+    })
+    .from(schema.categories);
   const wanted = z.string().max(60).safeParse(category);
   const cat =
-    cats.find((c) => wanted.success && c.slug === wanted.data)?.slug ?? cats[0]?.slug;
-  if (!cat) return { ok: false, error: "Primero creá una categoría." };
+    cats.find((c) => wanted.success && c.slug === wanted.data)?.slug ?? defaultCategory(cats);  if (!cat) return { ok: false, error: "Primero creá una categoría." };
 
   const [brand] = await db
     .select({ id: schema.brands.id })

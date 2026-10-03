@@ -2,6 +2,7 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { normalizeArPhone } from "@/lib/phone";
 import { store } from "@/lib/config";
 import { getDb, schema } from "@/lib/server/db";
+import { withSnapshotName } from "@/lib/server/customers";
 import { expireStaleOrders } from "@/lib/server/orders";
 import type { OrderEvent, OrderStatus } from "@/lib/types";
 
@@ -39,7 +40,7 @@ async function loadFull(order: OrderRow): Promise<FullOrder | null> {
       .where(eq(schema.payments.orderId, order.id)),
   ]);
   if (!customer) return null;
-  return { order, items, customer, payments: pays };
+  return { order, items, customer: withSnapshotName(customer, order.customerName), payments: pays };
 }
 
 export async function getOrderById(id: string): Promise<FullOrder | null> {

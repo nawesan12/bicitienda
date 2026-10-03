@@ -182,7 +182,10 @@ export interface ImportProductPlan {
 
 export interface ImportPreview {
   ok: boolean;
+  /** Filas de datos de la planilla (sin encabezado ni filas vacías), válidas o no. */
   rows: number;
+  /** De esas, las que pasaron la validación por fila. */
+  validRows?: number;
   errors: ImportIssue[];
   products: ImportProductPlan[];
   summary: {
@@ -263,6 +266,7 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
     return { preview: empty, parsed };
   }
 
+  let dataRows = 0;
   data.forEach((cells, i) => {
     const rowNum = i + 2;
     if (cells.every((c) => !c || !c.trim())) return;
@@ -277,12 +281,16 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
         ),
       ),
     );
+    dataRows++;
+    // Todos los errores de la fila juntos (no solo el primero): los de
+    // formato (zod) y los de precio, stock, si/no, estado y fotos.
+    let bad = false;
     if (!base.success) {
+      bad = true;
       for (const issue of base.error.issues)
         errors.push({ row: rowNum, field: String(issue.path[0] ?? ""), message: issue.message });
-      return;
     }
-    const b = base.data;
+    const b = base.success ? base.data : null;
     const price = parseMoney(get("precio"));
     const oldPrice = parseMoney(get("precio_lista"));
     const stockRaw = get("stock").trim();
@@ -295,12 +303,11 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
       : statusRaw === "publicado" || statusRaw === "borrador"
         ? statusRaw
         : "invalid";
-    const photos = b.fotos
+    const photos = get("fotos")
       .split(/[|\s]+/)
       .map((u) => u.trim())
       .filter(Boolean);
 
-    let bad = false;
     const err = (field: Column, message: string) => {
       errors.push({ row: rowNum, field, message });
       bad = true;
@@ -312,7 +319,7 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
     if (hideWhenOut === "invalid") err("ocultar_sin_stock", "Usá si o no.");
     if (status === "invalid") err("estado", "Usá publicado o borrador.");
     if (photos.some((u) => !/^https?:\/\/\S+$/.test(u))) err("fotos", "Las fotos tienen que ser URLs (separadas por |).");
-    if (bad) return;
+    if (bad || !b) return;
 
     parsed.push({
       row: rowNum,
@@ -430,7 +437,14 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
   errors.sort((a, b) => a.row - b.row);
   return {
     parsed,
-    preview: { ok: errors.length === 0, rows: parsed.length, errors, products: plans, summary },
+    preview: {
+      ok: errors.length === 0,
+      rows: dataRows,
+      validRows: parsed.length,
+      errors,
+      products: plans,
+      summary,
+    },
   };
 }
 

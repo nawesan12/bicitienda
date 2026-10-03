@@ -78,6 +78,13 @@
       "when": 1791000757361,
       "tag": "0010_transfer_datos",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791002648138,
+      "tag": "0011_cuotas_nombre_pedido",
+      "breakpoints": true
     }
   ]
 }

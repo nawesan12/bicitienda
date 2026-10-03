@@ -121,7 +121,7 @@ export const WHATSAPP_TEMPLATES: DemoWhatsAppTemplate[] = [
     key: "pedido_listo",
     name: "Pedido listo",
     when: "Al marcarlo listo",
-    body: "¡{nombre}, tu {producto} ya está armada y lista! Pasá a buscarla con tu DNI y el pedido {número}.",
+    body: "¡{nombre}, tu pedido #{número} ya está listo para retirar! Pasá a buscarlo con tu DNI.",
   },
 ];
 

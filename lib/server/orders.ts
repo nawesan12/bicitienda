@@ -383,6 +383,7 @@ export async function createOrder(
         number,
         status: "PENDIENTE_PAGO",
         customerId: customer.id,
+        customerName: name,
         accountId: input.accountId ?? null,
         deliveryMethod: input.deliveryMethod,
         deliveryAddress: input.deliveryAddress?.trim() || null,
@@ -480,6 +481,8 @@ export interface ManualOrderLine {
  */
 export async function createManualOrder(input: {
   customerId: string;
+  /** Nombre a guardar en el pedido (el del presupuesto); default: el de la ficha. */
+  customerName?: string | null;
   accountId?: string | null;
   paymentMethod: "transferencia" | "efectivo";
   lines: ManualOrderLine[];
@@ -524,6 +527,7 @@ export async function createManualOrder(input: {
       number,
       status: "PENDIENTE_PAGO",
       customerId: customer.id,
+      customerName: input.customerName?.trim() || customer.name,
       accountId: input.accountId ?? customer.accountId ?? null,
       deliveryMethod: "retiro",
       deliveryNotes: input.note?.trim() || null,
@@ -536,7 +540,7 @@ export async function createManualOrder(input: {
       paidAmount: 0,
       balanceDue: total,
       installments: 1,
-      pickupCode: pickupCodeFor(number, customer.name),
+      pickupCode: pickupCodeFor(number, input.customerName?.trim() || customer.name),
       pickupLocationId: location.id,
       expiresAt: null,
       quoteId: input.quoteId ?? null,

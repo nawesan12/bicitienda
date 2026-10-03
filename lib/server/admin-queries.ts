@@ -1,5 +1,6 @@
 import { and, asc, count, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import { store } from "@/lib/config";
+import { orderInstallments } from "@/lib/order-flow";
 import { addDays, localToUtc, toLocalParts } from "@/lib/zoned-time";
 import { products as seedProducts } from "@/lib/data/catalog";
 import { getDb, schema } from "@/lib/server/db";
@@ -472,7 +473,7 @@ export async function getAdminOrders(): Promise<AdminOrderSummary[]> {
     id: order.id,
     number: order.number,
     status: order.status,
-    customerName,
+    customerName: order.customerName?.trim() || customerName,
     itemsLabel: (byOrder.get(order.id) ?? []).join(" · "),
     total: order.total,
     balanceDue: order.balanceDue,
@@ -480,7 +481,7 @@ export async function getAdminOrders(): Promise<AdminOrderSummary[]> {
     expiresAt: order.expiresAt,
     paymentMethod: order.paymentMethod,
     deliveryMethod: order.deliveryMethod,
-    installments: order.installments,
+    installments: orderInstallments(order),
   }));
 }
 

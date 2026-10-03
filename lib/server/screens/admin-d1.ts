@@ -1,7 +1,7 @@
 import { and, count, desc, eq, gte, lt } from "drizzle-orm";
 import type { OrderPillStatus } from "@/components/bt/pill";
 import { store } from "@/lib/config";
-import { canCancel, nextTransition, orderStage, progressDone } from "@/lib/order-flow";
+import { canCancel, nextTransition, orderInstallments, orderStage, progressDone } from "@/lib/order-flow";
 import { formatArPhone } from "@/lib/phone";
 import { closedQuoteNote, isQuoteOpen, nextQuoteTransition, QUOTE_KIND_LABELS } from "@/lib/quote-flow";
 import { getAdminOrder } from "@/lib/server/admin-queries";
@@ -122,16 +122,23 @@ export function orderPillStatus(o: { status: OrderStatus; paymentMethod: Payment
 }
 
 /** "Transferencia · 10% off" · "Mercado Pago · 6 cuotas" · "Efectivo en el local". */
-export function paymentText(o: { paymentMethod: PaymentMethodId; installments: number; discount: number }): string {
+export function paymentText(o: {
+  paymentMethod: PaymentMethodId;
+  installments: number;
+  /** Cuotas reportadas por la pasarela (ver orderInstallments). */
+  paidInstallments?: number | null;
+  discount: number;
+}): string {
+  const n = orderInstallments(o);
   switch (o.paymentMethod) {
     case "transferencia":
       return o.discount > 0 ? `Transferencia · ${store.transferDiscount}% off` : "Transferencia";
     case "efectivo":
       return "Efectivo en el local";
     case "mercadopago":
-      return `Mercado Pago · ${o.installments > 1 ? `${o.installments} cuotas` : "1 pago"}`;
+      return `Mercado Pago · ${n > 1 ? `${n} cuotas` : "1 pago"}`;
     case "payway":
-      return `Tarjeta · ${o.installments > 1 ? `${o.installments} cuotas` : "1 pago"}`;
+      return `Tarjeta · ${n > 1 ? `${n} cuotas` : "1 pago"}`;
     default:
       return o.paymentMethod;
   }
@@ -191,7 +198,7 @@ async function loadOrderRows(): Promise<OrderRow[]> {
     number: order.number,
     status: order.status,
     pill: orderPillStatus(order),
-    customerName: name,
+    customerName: order.customerName?.trim() || name,
     phone,
     itemsLabel: (byOrder.get(order.id) ?? []).join(" · "),
     total: order.total,

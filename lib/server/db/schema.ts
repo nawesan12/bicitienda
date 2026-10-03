@@ -411,6 +411,14 @@ export const orders = pgTable("orders", {
   customerId: uuid("customer_id")
     .notNull()
     .references(() => customers.id),
+  /**
+   * Nombre que cargó el cliente en ESTE checkout. La ficha del CRM es una
+   * por WhatsApp y su nombre cambia con el último pedido/turno; el pedido
+   * conserva el suyo. null en pedidos previos a 0011 (usar el de la ficha):
+   * las lecturas ya lo resuelven (ver lib/server/customers.ts →
+   * withSnapshotName).
+   */
+  customerName: text("customer_name"),
   deliveryMethod: text("delivery_method").$type<DeliveryMethodId>().notNull(),
   deliveryAddress: text("delivery_address"),
   deliveryNotes: text("delivery_notes"),
@@ -430,6 +438,14 @@ export const orders = pgTable("orders", {
   providerCheckoutId: text("provider_checkout_id"),
   /** Cuotas elegidas al pagar con tarjeta (1, 3 o 6). El total ya incluye el recargo. */
   installments: integer("installments").notNull().default(1),
+  /**
+   * Cuotas con las que pagó de verdad, según la pasarela (Mercado Pago:
+   * `installments` de fetchPayment; el cliente las elige en Checkout Pro y
+   * pueden diferir de `installments`). null = sin dato (pago manual,
+   * sandbox o pedido viejo). Para mostrar: `orderInstallments(order)` de
+   * lib/order-flow.ts → "Mercado Pago · 6 cuotas".
+   */
+  paidInstallments: integer("paid_installments"),
   pickupCode: text("pickup_code"),
   /** Sucursal elegida para el retiro. null en los envíos. */
   pickupLocationId: text("pickup_location_id").references(() => locations.id),
@@ -517,6 +533,8 @@ export const appointments = pgTable(
     customerId: uuid("customer_id")
       .notNull()
       .references(() => customers.id),
+    /** Nombre cargado al reservar (ver orders.customerName). */
+    customerName: text("customer_name"),
     accountId: uuid("account_id").references(() => customerAccounts.id),
     serviceId: text("service_id")
       .notNull()
@@ -594,6 +612,8 @@ export const quoteRequests = pgTable(
     customerId: uuid("customer_id")
       .notNull()
       .references(() => customers.id),
+    /** Nombre cargado al pedir el presupuesto (ver orders.customerName). */
+    customerName: text("customer_name"),
     accountId: uuid("account_id").references(() => customerAccounts.id),
     status: text("status").$type<QuoteStatus>().notNull().default("nuevo"),
     /** Demora de entrega ("30 a 45 días", "En stock"). */

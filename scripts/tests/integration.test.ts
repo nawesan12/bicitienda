@@ -308,7 +308,8 @@ async function main() {
     assert.deepEqual(await payments.applyPaymentResult(pay), { ok: true, already: true });
     o = await order(o.id);
     assert.equal(o.status, "PAGADO");
-    assert.equal(o.installments, 6);
+    assert.equal(o.paidInstallments, 6, "cuotas reales del pago");
+    assert.equal(flow.orderInstallments(o), 6);
     assert.equal(o.expiresAt, null);
   });
 
@@ -639,7 +640,31 @@ async function main() {
     assert.match(html, /BiciTienda MDQ SRL/);
     assert.match(html, /Banco Nación/);
     assert.match(html, /#comprobante/, "receiptUrl a la sección del comprobante");
-    assert.doesNotMatch(html, /localhost/, "los links usan la URL pública");
+    // Fuera de producción los links van al dev server (se siguen desde
+    // .data/outbox); en producción nunca localhost.
+    assert.match(html, /http:\/\/localhost:3100\/seguimiento\//, "links al dev server en desarrollo");
+    {
+      const { runtimeSiteUrl } = await import("@/lib/site");
+      const env = process.env as Record<string, string | undefined>;
+      const prev = { node: env.NODE_ENV, site: env.NEXT_PUBLIC_SITE_URL, dev: env.DEV_SITE_URL };
+      try {
+        env.NEXT_PUBLIC_SITE_URL = "";
+        env.DEV_SITE_URL = "http://localhost:4000";
+        assert.equal(runtimeSiteUrl(), "http://localhost:4000");
+        env.NODE_ENV = "production";
+        assert.equal(runtimeSiteUrl(), store.siteUrl, "producción sin NEXT_PUBLIC_SITE_URL: la pública");
+        assert.doesNotMatch(runtimeSiteUrl(), /localhost/);
+        env.NEXT_PUBLIC_SITE_URL = "https://otra.example/";
+        assert.equal(runtimeSiteUrl(), "https://otra.example");
+      } finally {
+        env.NODE_ENV = prev.node;
+        env.NEXT_PUBLIC_SITE_URL = prev.site;
+        env.DEV_SITE_URL = prev.dev;
+        if (prev.site === undefined) delete env.NEXT_PUBLIC_SITE_URL;
+        if (prev.dev === undefined) delete env.DEV_SITE_URL;
+        if (prev.node === undefined) delete env.NODE_ENV;
+      }
+    }
     const text = outboxFile(`${n}-confirmacion.txt`);
     assert.match(text, /0000003100012345678901/);
     assert.doesNotMatch(text, /<[a-z]/i, "texto plano sin HTML");
@@ -673,7 +698,7 @@ async function main() {
     const mv = outboxFile(`turno-${moved.number}.html`);
     assert.match(mv, /Turno reprogramado/);
     assert.match(mv, /10:00/, "muestra el horario anterior");
-    assert.doesNotMatch(mv, /localhost/);
+    assert.match(mv, /http:\/\/localhost:3100\/turnos\//, "link de gestión al dev server en desarrollo");
     await appts.cancelAppointment(moved.id, "admin", { reason: "feriado, el local está cerrado." });
     const cx = outboxFile(`turno-${moved.number}-cancelado.html`);
     assert.match(cx, /feriado/);
@@ -701,7 +726,7 @@ async function main() {
     const r = await checkout({ name: "Diego Sosa", phone: "2235550190" });
     const o = await orderByNumber((r as any).number);
     const msg = await waS.orderReadyWhatsApp(o.id);
-    assert.match(msg!.text, /^¡Diego, tu MTB rodado 29 ya está armada y lista!.*BT-\d+\.$/);
+    assert.equal(msg!.text, `¡Diego, tu pedido #${o.number} ya está listo para retirar! Pasá a buscarlo con tu DNI.`);
     await waS.saveWhatsAppTemplate("pedido_listo", "Listo {número}");
     assert.equal((await waS.orderReadyWhatsApp(o.id))!.text, `Listo ${o.number}`);
     await waS.resetWhatsAppTemplate("pedido_listo");
@@ -719,7 +744,7 @@ async function main() {
     ].join("\n");
     const pv = await importer.previewProductImport(Buffer.from(bad));
     assert.equal(pv.ok, false);
-    const rows = pv.errors.map((e) => e.row).sort();
+    const rows = [...new Set(pv.errors.map((e) => e.row))].sort();
     assert.deepEqual(rows, [3, 4, 5]);
     const productsBefore = (await db.select().from(schema.products)).length;
     const res = await importer.commitProductImport(Buffer.from(bad));
@@ -771,6 +796,127 @@ async function main() {
     assert.equal(rem.price, 42900);
   });
 
+  /* ── Cierre Ola 1 · core ──────────────────────────────────── */
+  test("nombre del checkout: el pedido/turno guarda el suyo; la ficha se actualiza", async () => {
+    const { getOrderById } = await import("@/lib/server/order-queries");
+    const ph = "2235550401";
+    const r1 = await checkout({ name: "Laura Gómez", phone: ph, email: "laura@example.com" });
+    assert.ok(r1.ok, JSON.stringify(r1));
+    const o1 = await orderByNumber((r1 as any).number);
+    assert.equal(o1.customerName, "Laura Gómez");
+    // Mismo WhatsApp, otro nombre y otro email (p. ej. la pareja).
+    const r2 = await checkout({ name: "Martín Gómez", phone: ph, email: "martin@example.com" });
+    const o2 = await orderByNumber((r2 as any).number);
+    assert.equal(o2.customerId, o1.customerId, "una ficha por WhatsApp");
+    assert.equal((await getOrderById(o1.id))!.customer.name, "Laura Gómez", "el pedido viejo no cambia de nombre");
+    assert.equal((await getOrderById(o2.id))!.customer.name, "Martín Gómez");
+    const [ficha] = await db.select().from(schema.customers).where(eq(schema.customers.id, o1.customerId));
+    assert.equal(ficha.name, "Martín Gómez", "sin cuenta: manda el último dato");
+    assert.equal(ficha.email, "martin@example.com", "email nuevo actualiza");
+    // Sin email no pisa el que tenía.
+    await checkout({ name: "Martín Gómez", phone: ph, email: "" });
+    const [ficha2] = await db.select().from(schema.customers).where(eq(schema.customers.id, o1.customerId));
+    assert.equal(ficha2.email, "martin@example.com");
+    // Turno con el mismo WhatsApp: guarda su nombre y la vista lo usa.
+    const a = await appts.createAppointment({ serviceId: "asesoramiento", date: nextWeekday(0), time: "12:30", name: "Laura G.", phone: ph, source: "manual" });
+    assert.equal(a.customerName, "Laura G.");
+    assert.equal((await appts.getAppointmentView(a.id))!.customer.name, "Laura G.");
+    assert.equal((await getOrderById(o2.id))!.customer.name, "Martín Gómez");
+    // Con cuenta vinculada: la cuenta manda nombre y email de la ficha.
+    const reg = await accountActions.registerAccount({ name: "Carla Paz", phone: "2235550402", email: "carla@example.com", password: "clave-segura-9" });
+    assert.ok(reg.ok, JSON.stringify(reg));
+    const r3 = await checkout({ name: "Regalo para Carla", phone: "2235550402", email: "otro@example.com" });
+    const o3 = await orderByNumber((r3 as any).number);
+    const [carla] = await db.select().from(schema.customers).where(eq(schema.customers.id, o3.customerId));
+    assert.equal(carla.name, "Carla Paz");
+    assert.equal(carla.email, "carla@example.com");
+    assert.equal((await getOrderById(o3.id))!.customer.name, "Regalo para Carla");
+    for (const o of [o1, o2, o3]) await orders.cancelOrder(o.id);
+    const rest = await db.select().from(schema.orders).where(and(eq(schema.orders.customerId, o1.customerId), eq(schema.orders.status, "PENDIENTE_PAGO")));
+    for (const o of rest) await orders.cancelOrder(o.id);
+    await appts.cancelAppointment(a.id, "admin");
+  });
+
+  test("cuotas reales de Mercado Pago: paidInstallments y 'Mercado Pago · 6 cuotas'", async () => {
+    const { paymentText } = await import("@/lib/server/screens/admin-d1");
+    const r = await checkout({ name: "Pablo Ruiz", phone: "2235550403" });
+    const o = await orderByNumber((r as any).number);
+    // El checkout con MP depende de features.payments.mp: se fuerza el medio.
+    await db.update(schema.orders).set({ paymentMethod: "mercadopago" }).where(eq(schema.orders.id, o.id));
+    const pay = await payments.applyPaymentResult({
+      provider: "mp",
+      providerPaymentId: `mp-test-${o.number}`,
+      status: "approved",
+      amount: o.total,
+      orderNumber: o.number,
+      installments: 6,
+    });
+    assert.ok(pay.ok);
+    const after = await order(o.id);
+    assert.equal(after.status, "PAGADO");
+    assert.equal(after.paidInstallments, 6);
+    assert.equal(after.installments, o.installments, "no pisa las cuotas del checkout (base del total)");
+    assert.equal(flow.orderInstallments(after), 6);
+    assert.equal(paymentText(after), "Mercado Pago · 6 cuotas");
+    assert.equal(flow.orderInstallments({ installments: 3, paidInstallments: null }), 3);
+    // Reintento del webhook: idempotente.
+    const again = await payments.applyPaymentResult({
+      provider: "mp", providerPaymentId: `mp-test-${o.number}`, status: "approved", amount: o.total, orderNumber: o.number, installments: 1,
+    });
+    assert.ok(again.already);
+    assert.equal((await order(o.id)).paidInstallments, 6);
+    await orders.cancelOrder(o.id);
+  });
+
+  test("importación: preview.rows cuenta todas las filas y junta todos los errores de una fila", async () => {
+    const two = ["sku_producto;nombre;categoria;precio;stock", "PIN-1;Pinza;mtb;1000;1", "PIN-2;Pinza 2;mtb;2000;2"].join("\n");
+    const ok2 = await importer.previewProductImport(Buffer.from(two));
+    assert.ok(ok2.ok, JSON.stringify(ok2.errors));
+    assert.equal(ok2.rows, 2);
+    assert.equal(ok2.validRows, 2);
+    // Fila 3 con tres errores: SKU, precio y stock. Las vacías no cuentan.
+    const bad = ["sku_producto;nombre;categoria;precio;stock;estado", "PIN-1;Pinza;mtb;1000;1;", ";;;;;", "X;Pinza 2;mtb;abc;-3;vendido"].join("\n");
+    const pv = await importer.previewProductImport(Buffer.from(bad));
+    assert.equal(pv.ok, false);
+    assert.equal(pv.rows, 2);
+    assert.equal(pv.validRows, 1);
+    const fields = pv.errors.filter((e) => e.row === 4).map((e) => e.field).sort();
+    assert.deepEqual(fields, ["estado", "precio", "sku_producto", "stock"]);
+    // XLSX con una fila vacía autocerrada en el medio (<row r="3"/>).
+    const xlsx = buildXlsx([
+      ["sku_producto", "nombre", "categoria", "precio"],
+      ["PIN-1", "Pinza", "mtb", "1000"],
+      [],
+      ["PIN-2", "Pinza 2", "mtb", "2000"],
+    ]);
+    const px = await importer.previewProductImport(xlsx);
+    assert.ok(px.ok, JSON.stringify(px.errors));
+    assert.equal(px.rows, 2);
+    assert.deepEqual(px.products.map((p) => p.sku).sort(), ["PIN-1", "PIN-2"]);
+  });
+
+  test("createProduct(null): primera categoría hoja, determinista", async () => {
+    const productActions = await import("@/lib/server/actions/products");
+    // Empate de `order` entre un padre y su hija (como bicicletas/mtb).
+    const cats = await db.select().from(schema.categories);
+    const parent = cats.find((c) => cats.some((x) => x.parentSlug === c.slug))!;
+    const res: any = await asAdmin(() => productActions.createProduct(null));
+    assert.ok(res.ok, JSON.stringify(res));
+    const [p] = await db.select().from(schema.products).where(eq(schema.products.id, res.id));
+    const chosen = cats.find((c) => c.slug === p.category)!;
+    assert.ok(!cats.some((c) => c.parentSlug === chosen.slug), `"${chosen.slug}" es hoja`);
+    assert.notEqual(chosen.slug, parent.slug);
+    const res2: any = await asAdmin(() => productActions.createProduct(undefined));
+    const [p2] = await db.select().from(schema.products).where(eq(schema.products.id, res2.id));
+    assert.equal(p2.category, p.category, "siempre la misma");
+    // Con la categoría pedida, esa.
+    const res3: any = await asAdmin(() => productActions.createProduct(parent.slug));
+    const [p3] = await db.select().from(schema.products).where(eq(schema.products.id, res3.id));
+    assert.equal(p3.category, parent.slug);
+    for (const id of [res.id, res2.id, res3.id])
+      await db.update(schema.products).set({ hidden: true }).where(eq(schema.products.id, id));
+  });
+
   /* ── Correr ───────────────────────────────────────────────── */
   let failed = 0;
   for (const s of suites) {
@@ -796,7 +942,7 @@ function buildXlsx(rows: string[][]): Buffer {
   const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rows
     .map(
       (r, ri) =>
-        `<row r="${ri + 1}">${r
+        !r.length ? `<row r="${ri + 1}" spans="1:4"/>` : `<row r="${ri + 1}">${r
           .map((v, ci) =>
             v === "" ? "" : /^\d+$/.test(v) ? `<c r="${col(ci)}${ri + 1}"><v>${v}</v></c>` : `<c r="${col(ci)}${ri + 1}" t="inlineStr"><is><t>${esc(v)}</t></is></c>`,
           )

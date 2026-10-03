@@ -1,11 +1,13 @@
 import { eq } from "drizzle-orm";
 import type { ReactElement } from "react";
 import { deliveryMethods, store } from "@/lib/config";
+import { orderInstallments } from "@/lib/order-flow";
 import { paths } from "@/lib/paths";
 import { formatARS, zonedParts } from "@/lib/format";
+import { withSnapshotName } from "@/lib/server/customers";
 import { getDb, schema } from "@/lib/server/db";
 import { getStore, type RuntimeStore } from "@/lib/server/queries";
-import { SITE_URL } from "@/lib/site";
+import { runtimeSiteUrl } from "@/lib/site";
 
 /**
  * Envío de emails transaccionales con modo simulado:
@@ -19,8 +21,10 @@ import { SITE_URL } from "@/lib/site";
  *     key no se manda nada.
  *   - `features.emails: false` → la tienda no manda mails (no-op).
  *
- * Los links y el logo usan la URL pública (`SITE_URL`: NEXT_PUBLIC_SITE_URL
- * o `store.siteUrl`), nunca localhost: un mail se abre fuera de la máquina.
+ * Los links usan `runtimeSiteUrl()` (lib/site.ts): NEXT_PUBLIC_SITE_URL o
+ * `store.siteUrl` en producción (nunca localhost), y el dev server
+ * (`http://localhost:3100` o DEV_SITE_URL) en desarrollo, para poder
+ * seguirlos desde .data/outbox. El logo siempre es la URL pública.
  * Ningún envío tira: un mail caído no voltea un pedido, turno ni presupuesto.
  */
 
@@ -104,7 +108,7 @@ function footerOf(runtime: RuntimeStore, local: { address: string; hours: string
 
 /** Seguimiento público del pedido (con el email para entrar sin cuenta). */
 export function orderTrackingUrl(number: string, email: string): string {
-  return `${SITE_URL}${paths.tracking(number)}?e=${encodeURIComponent(email)}`;
+  return `${runtimeSiteUrl()}${paths.tracking(number)}?e=${encodeURIComponent(email)}`;
 }
 
 /**
@@ -117,7 +121,7 @@ export function orderReceiptUrl(number: string, email: string): string {
 
 /** Link de gestión del turno (también sin cuenta), con la URL pública. */
 function appointmentManageUrl(number: string, token: string): string {
-  return `${SITE_URL}${paths.appointments()}/${number}?t=${encodeURIComponent(token)}`;
+  return `${runtimeSiteUrl()}${paths.appointments()}/${number}?t=${encodeURIComponent(token)}`;
 }
 
 function expiresLabel(expiresAt: Date | null): string | null {
@@ -144,7 +148,7 @@ export async function sendBackInStockEmail(
         brandName: runtime.brandName,
         productName: product.name,
         price: runtime.showPrices ? product.price : null,
-        productUrl: `${SITE_URL}${paths.catalog(product.slug)}`,
+        productUrl: `${runtimeSiteUrl()}${paths.catalog(product.slug)}`,
         whatsapp: runtime.whatsapp,
         footer: footerOf(runtime, local),
         transferDiscount: runtime.transferDiscount,
@@ -167,10 +171,11 @@ export async function sendOrderEmail(
       .from(schema.orders)
       .where(eq(schema.orders.id, orderId));
     if (!order) return;
-    const [customer] = await db
+    const [ficha] = await db
       .select()
       .from(schema.customers)
       .where(eq(schema.customers.id, order.customerId));
+    const customer = ficha && withSnapshotName(ficha, order.customerName);
     // Sin email no hay a quién mandarle nada (todo sigue por WhatsApp).
     if (!customer?.email) return;
     const rows = await db
@@ -215,7 +220,7 @@ export async function sendOrderEmail(
         items,
         subtotal: order.subtotal,
         discount: order.discount,
-        installments: order.installments,
+        installments: orderInstallments(order),
         financingSurcharge: Math.max(
           0,
           order.total - (order.subtotal - order.discount + order.shippingCost),
@@ -269,7 +274,7 @@ export async function sendOrderEmail(
           order.paidAmount > 0
             ? `Ya habías pagado ${formatARS(order.paidAmount)}: te lo devolvemos por el mismo medio. Te escribimos por WhatsApp para coordinarlo.`
             : null,
-        shopUrl: `${SITE_URL}${paths.catalog()}`,
+        shopUrl: `${runtimeSiteUrl()}${paths.catalog()}`,
         whatsapp: runtime.whatsapp,
         footer,
       });
@@ -327,7 +332,7 @@ export async function sendPasswordResetEmail(opts: {
       el: PasswordResetEmail({
         brandName: runtime.brandName,
         customerName: opts.name,
-        resetUrl: `${SITE_URL}${paths.recover()}?token=${encodeURIComponent(opts.token)}`,
+        resetUrl: `${runtimeSiteUrl()}${paths.recover()}?token=${encodeURIComponent(opts.token)}`,
         validMinutes: opts.validMinutes,
         footer: footerOf(runtime, local),
       }),
@@ -407,7 +412,7 @@ export async function sendAppointmentCancelledEmail(
         time: view.time,
         by: opts.by,
         reason: opts.reason?.trim() || null,
-        bookUrl: `${SITE_URL}${paths.appointments()}`,
+        bookUrl: `${runtimeSiteUrl()}${paths.appointments()}`,
         whatsapp: runtime.whatsapp,
         footer: footerOf(runtime, local),
       }),

@@ -120,11 +120,14 @@ export function readXlsxRows(buf: Buffer): string[][] {
   if (sst) for (const m of sst.matchAll(/<si>([\s\S]*?)<\/si>/g)) shared.push(textOf(m[1]));
 
   const rows: string[][] = [];
-  for (const rm of sheet.matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>|<row\b([^>]*)\/>/g)) {
-    const attrs = rm[1] ?? rm[3] ?? "";
+  // La fila vacía autocerrada (`<row r="2" spans="1:3"/>`) va PRIMERO: si
+  // no, la primera alternativa la toma como apertura y se come la fila
+  // siguiente hasta su `</row>`.
+  for (const rm of sheet.matchAll(/<row\b([^>]*?)\/>|<row\b([^>]*)>([\s\S]*?)<\/row>/g)) {
+    const attrs = rm[1] ?? rm[2] ?? "";
     const rowNum = Number(/\br="(\d+)"/.exec(attrs)?.[1] ?? rows.length + 1);
     const cells: string[] = [];
-    const body = rm[2] ?? "";
+    const body = rm[3] ?? "";
     for (const cm of body.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const cAttrs = cm[1];
       const inner = cm[2] ?? "";

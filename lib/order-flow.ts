@@ -157,3 +157,18 @@ export function progressDone(o: OrderLike): number {
       return 0;
   }
 }
+
+/* ── Cuotas ───────────────────────────────────────────────── */
+
+/**
+ * Cuotas a mostrar de un pedido: las que reportó la pasarela al pagar
+ * (`paidInstallments`, Mercado Pago las elige el cliente en Checkout Pro) o,
+ * sin ese dato, las elegidas en el checkout (`installments`).
+ *
+ *     `Mercado Pago · ${n > 1 ? `${n} cuotas` : "1 pago"}`  // n = orderInstallments(order)
+ *
+ * Ver también `paymentText` de lib/server/screens/admin-d1.ts.
+ */
+export function orderInstallments(o: { installments: number; paidInstallments?: number | null }): number {
+  return o.paidInstallments && o.paidInstallments > 0 ? o.paidInstallments : o.installments;
+}

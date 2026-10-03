@@ -3,7 +3,7 @@ import { formatARS } from "@/lib/format";
 import { normalizeArPhone } from "@/lib/phone";
 import { closedQuoteNote, nextQuoteTransition, OPEN_QUOTE_STATUSES } from "@/lib/quote-flow";
 import { COUNTERS, nextCounter } from "@/lib/server/counters";
-import { upsertCustomer, type CustomerRow } from "@/lib/server/customers";
+import { upsertCustomer, withSnapshotName, type CustomerRow } from "@/lib/server/customers";
 import { getDb, schema, type Db } from "@/lib/server/db";
 import { sendQuoteReceivedEmail, sendQuoteSentEmail } from "@/lib/server/mail";
 import { createManualOrder } from "@/lib/server/orders";
@@ -70,6 +70,7 @@ export async function createQuoteRequest(input: {
       budget: (input.budget ?? "").trim().slice(0, 100),
       photos: (input.photos ?? []).slice(0, 6),
       customerId: customer.id,
+      customerName: input.name.trim(),
       accountId: input.accountId ?? customer.accountId ?? null,
       status: "nuevo",
     })
@@ -194,6 +195,7 @@ export async function advanceQuote(
   try {
     result = await createManualOrder({
     customerId: customer.id,
+    customerName: customer.name,
     accountId: quote.accountId,
     paymentMethod: opts.paymentMethod ?? "transferencia",
     quoteId: quote.id,
@@ -274,7 +276,7 @@ async function hydrate(db: Db, quotes: QuoteRow[]): Promise<FullQuote[]> {
     const customer = cBy.get(quote.customerId);
     if (!customer) return [];
     const own = lines.filter((l) => l.quoteId === quote.id);
-    return [{ quote, lines: own, customer, total: own.reduce((s, l) => s + l.price * l.quantity, 0) }];
+    return [{ quote, lines: own, customer: withSnapshotName(customer, quote.customerName), total: own.reduce((s, l) => s + l.price * l.quantity, 0) }];
   });
 }
 

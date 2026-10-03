@@ -11,7 +11,7 @@ import {
   type SlotState,
 } from "@/lib/schedule";
 import { COUNTERS, nextCounter } from "@/lib/server/counters";
-import { upsertCustomer, type CustomerRow } from "@/lib/server/customers";
+import { upsertCustomer, withSnapshotName, type CustomerRow } from "@/lib/server/customers";
 import { getDb, schema, type Db } from "@/lib/server/db";
 import { runtimeSiteUrl } from "@/lib/site";
 import type { AppointmentSource, AppointmentStatus } from "@/lib/types";
@@ -273,6 +273,7 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
       .values({
         number,
         customerId: customer.id,
+        customerName: name,
         accountId: input.accountId ?? customer.accountId ?? null,
         serviceId: service.id,
         productSlug,
@@ -419,6 +420,7 @@ export async function rescheduleAppointment(
       .values({
         number,
         customerId: old.customerId,
+        customerName: old.customerName,
         accountId: old.accountId,
         serviceId: old.serviceId,
         productSlug: old.productSlug,
@@ -551,7 +553,7 @@ async function toViews(db: Db, rows: AppointmentRow[]): Promise<AppointmentView[
     return [
       {
         appointment: a,
-        customer,
+        customer: withSnapshotName(customer, a.customerName),
         service,
         productName,
         variantLabel: vLabel,

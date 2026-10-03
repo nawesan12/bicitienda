@@ -31,7 +31,9 @@ export interface PaymentResult {
   orderNumber: string;
   /**
    * Cuotas reales con las que pagó (MP las elige el cliente en Checkout
-   * Pro). Si viene, se guarda en el pedido.
+   * Pro). Si viene, se guarda en `orders.paidInstallments` (no pisa
+   * `installments`, que es lo elegido en el checkout y con lo que se
+   * calculó el total).
    */
   installments?: number;
 }
@@ -114,7 +116,7 @@ export async function applyPaymentResult(
         balanceDue: balance,
         expiresAt: null,
         ...(result.installments && result.installments > 0
-          ? { installments: Math.trunc(result.installments) }
+          ? { paidInstallments: Math.trunc(result.installments) }
           : {}),
       })
       .where(and(eq(schema.orders.id, order.id), eq(schema.orders.status, "PENDIENTE_PAGO")))
@@ -196,7 +198,7 @@ async function reviveExpiredOrder(order: OrderRow, result: PaymentResult): Promi
       balanceDue: Math.max(0, order.total - paid),
       expiresAt: null,
       ...(result.installments && result.installments > 0
-        ? { installments: Math.trunc(result.installments) }
+        ? { paidInstallments: Math.trunc(result.installments) }
         : {}),
     })
     .where(and(eq(schema.orders.id, order.id), eq(schema.orders.status, "VENCIDO")))
