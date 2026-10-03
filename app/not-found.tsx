@@ -1,43 +1,49 @@
-import Link from "next/link";
+import { Button, buttonClasses } from "@/components/bt/button";
+import { Display, Eyebrow, Highlight } from "@/components/bt/typography";
 import { StoreFrame } from "@/components/store/store-frame";
 import { WaLink } from "@/components/store/wa-link";
+import { WHATSAPP_PENDING } from "@/lib/config";
 import { paths } from "@/lib/paths";
 import { getStore } from "@/lib/server/queries";
 import { lexicon } from "@/lib/data/content";
 import { wa } from "@/lib/whatsapp";
 
+const T = lexicon.notFound;
+
+/**
+ * 404 de todo el sitio (sin diseño en el handoff): el chrome de la tienda
+ * y un bloque con la misma jerarquía que el seguimiento (eyebrow amarillo,
+ * Display de página y texto secundario), con el catálogo como acción
+ * principal y WhatsApp como secundaria (oculta mientras el número sea el
+ * provisorio, como en el footer).
+ */
 export default async function NotFound() {
   const runtime = await getStore();
   return (
     <StoreFrame>
-      <section className="bg-cream px-[clamp(16px,4vw,40px)] py-[110px]">
-        <div className="mx-auto max-w-[1280px] text-center">
-          <div className="font-sans text-xs font-bold tracking-[.26em] text-brand-deep">
-            ERROR 404
-          </div>
-          <h1 className="font-display mx-auto mb-0 mt-[14px] max-w-[16ch] text-balance text-[clamp(38px,5vw,64px)] leading-[1.02]">
-            {lexicon.notFound.titleTop}
-            <br />
-            <span className="stroke-title">{lexicon.notFound.titleAccent}</span>
-          </h1>
-          <p className="mx-auto mt-[18px] max-w-[46ch] font-sans text-[15px] leading-relaxed text-ink/60">
-            {lexicon.notFound.body}
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link
-              href={paths.catalog()}
-              className="rounded-full bg-ink px-[26px] py-[14px] font-sans text-[14px] font-bold text-cream hover:bg-brand hover:text-night"
-            >
-              {lexicon.notFound.cta}
-            </Link>
-            <WaLink
-              whatsapp={runtime.whatsapp}
-              {...wa.general()}
-              message={lexicon.notFound.waMessage}
-              className="box-border rounded-full border-[1.5px] border-brand px-[26px] py-[14px] font-sans text-[14px] font-bold text-brand-deep hover:bg-brand hover:text-night"
-            >
-              {lexicon.notFound.waCta}
-            </WaLink>
+      <section className="px-4 pt-14 pb-20 md:px-14 md:pt-24 md:pb-28">
+        <div className="flex max-w-[760px] flex-col gap-[14px]">
+          <Eyebrow tone="yellow" size="lg">
+            Error 404
+          </Eyebrow>
+          <Display size="page" as="h1">
+            {T.titleTop} <Highlight>{T.titleAccent}</Highlight>
+          </Display>
+          <p className="m-0 max-w-[560px] text-[17px] leading-[1.5] text-text-2 md:text-[19px]">{T.body}</p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <Button href={paths.catalog()} size="lg">
+              {T.cta}
+            </Button>
+            {runtime.whatsapp !== WHATSAPP_PENDING && (
+              <WaLink
+                whatsapp={runtime.whatsapp}
+                {...wa.general()}
+                message={T.waMessage}
+                className={buttonClasses({ variant: "secondary", size: "lg" })}
+              >
+                {T.waCta}
+              </WaLink>
+            )}
           </div>
         </div>
       </section>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminTopBar, BackLink, Button, Display, Panel, Pill, SegmentedControl } from "@/components/bt";
 import { Legend, WeekAgenda, WeekNav, type WeekAgendaGroup } from "./agenda";
@@ -155,9 +156,9 @@ export default async function AdminTurnosPage({ searchParams }: { searchParams: 
         { label: "Bloqueado", swatch: "blocked" },
       ]}
       note={
-        <a href="/admin/ajustes" className="hover:text-paper">
+        <Link href="/admin/ajustes" className="hover:text-paper">
           Horarios desde Ajustes → Turnos
-        </a>
+        </Link>
       }
     />
   );
