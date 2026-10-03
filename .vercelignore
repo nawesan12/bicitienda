@@ -1,0 +1,11 @@
+# No subir a Vercel: secretos locales, base PGlite, handoff y tooling de agentes
+.env*
+!.env.example
+.data
+.next
+node_modules
+design_handoff_bicitienda_mdq
+.claude
+.agents
+skills-lock.json
+tsconfig.tsbuildinfo

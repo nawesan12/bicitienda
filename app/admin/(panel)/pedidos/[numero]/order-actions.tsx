@@ -225,7 +225,7 @@ export function OrderActions({
                 icon: "✕",
                 title: "Cancelar el pedido",
                 message:
-                  "Si la reserva seguía activa, el stock vuelve al catálogo. Esta acción no se deshace.",
+                  "Si el pedido todavía no se retiró ni se entregó, el stock vuelve al catálogo. Esta acción no se deshace.",
                 label: "Sí, cancelar",
                 destructive: true,
               });

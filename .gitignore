@@ -24,3 +24,7 @@ npm-debug.log*
 
 # worktrees de agentes
 .claude/
+
+# tooling de agentes
+.agents/
+skills-lock.json

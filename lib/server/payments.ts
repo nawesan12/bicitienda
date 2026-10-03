@@ -1,5 +1,7 @@
 import { and, eq } from "drizzle-orm";
+import { formatARS } from "@/lib/format";
 import { getDb, schema } from "@/lib/server/db";
+import { insertLead } from "@/lib/server/leads";
 import { sendOrderEmail } from "@/lib/server/mail";
 import { appendEvent, makeEvent, reserveAtLocation } from "@/lib/server/orders";
 import { getActiveLocations } from "@/lib/server/queries";
@@ -127,6 +129,23 @@ export async function applyPaymentResult(
       ),
     );
     await sendOrderEmail(order.id, "confirmacion");
+  } else if (order.status === "CANCELADO") {
+    // Pago aprobado DESPUÉS de que el pedido se canceló (webhook tardío, o
+    // el cliente pagó con la pasarela abierta). El pago queda registrado
+    // (arriba) pero el pedido NO se reactiva solo: su stock ya volvió al
+    // catálogo y re-reservarlo automáticamente podría pisar otra venta.
+    // Queda para revisión manual, con evento en la timeline y aviso en
+    // Consultas. (Un pedido VENCIDO sí se reactiva arriba si hay stock.)
+    const via = PROVIDER_LABEL[result.provider];
+    await appendEvent(
+      order.id,
+      makeEvent("PAGO", `Pago con ${via} acreditado con el pedido cancelado — revisar: re-reservar o reembolsar`),
+    );
+    await insertLead({
+      type: "pedido",
+      label: `Pago tardío — pedido ${order.number}`,
+      detail: `${via} acreditó ${formatARS(result.amount)} con el pedido cancelado: revisar stock y reactivar o reembolsar.`,
+    }).catch((err) => console.error("[pagos] aviso de pago tardío:", err));
   }
 
   return { ok: true };

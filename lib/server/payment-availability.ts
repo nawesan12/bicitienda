@@ -15,8 +15,14 @@ export function isGatewayConfigured(method: PaymentMethodId): boolean {
   return false;
 }
 
-/** El sandbox local de la pasarela está permitido (nunca en producción). */
+/**
+ * El sandbox local de la pasarela está permitido (nunca en producción).
+ * PAYMENT_SANDBOX=1 solo sirve para probar un build LOCAL: en un deploy de
+ * producción de Vercel (VERCEL_ENV=production) no abre el sandbox aunque
+ * la variable haya quedado cargada por error.
+ */
 export function isPaymentSandboxAllowed(): boolean {
+  if (process.env.VERCEL_ENV === "production") return false;
   return process.env.NODE_ENV !== "production" || process.env.PAYMENT_SANDBOX === "1";
 }
 
