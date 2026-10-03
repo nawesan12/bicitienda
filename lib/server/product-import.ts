@@ -760,6 +760,11 @@ function importQueries(q: Db, w: ImportWrites): BatchItem<"pg">[] {
   for (const part of chunks(w.products)) out.push(q.insert(schema.products).values(part));
   for (const u of w.productUpdates) out.push(q.update(schema.products).set(u.set).where(eq(schema.products.id, u.id)));
   // Primero las ediciones (pueden liberar un SKU que toma una variante nueva).
+  // Los SKUs que cambian pasan antes por uno temporal: así una rotación
+  // dentro de la planilla no choca con el índice único según el orden.
+  for (const u of w.variantUpdates)
+    if (u.set.sku)
+      out.push(q.update(schema.productVariants).set({ sku: `~${u.id}` }).where(eq(schema.productVariants.id, u.id)));
   for (const u of w.variantUpdates)
     out.push(q.update(schema.productVariants).set(u.set).where(eq(schema.productVariants.id, u.id)));
   for (const part of chunks(w.variants)) out.push(q.insert(schema.productVariants).values(part));
