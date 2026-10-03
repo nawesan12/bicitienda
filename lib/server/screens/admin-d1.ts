@@ -325,9 +325,13 @@ export interface TodayAppointment {
   id: string;
   time: string;
   name: string;
+  /** Nombre del servicio ("Reparación", "Asesoramiento"…). */
   service: string;
+  kind: AgendaService;
   detail: string;
   status: TodayStatus;
+  /** wa.me al cliente (chat directo, sin plantilla). */
+  whatsappUrl: string;
 }
 
 function apptDetail(v: AppointmentView): string {
@@ -368,9 +372,18 @@ export async function getResumen() {
     time: v.time,
     name: v.customer.name,
     service: v.service.name,
+    kind: serviceKind(v.service.id),
     detail: apptDetail(v),
     status: todayStatus(v, minutes),
+    whatsappUrl: customerWhatsApp(
+      v.customer.phone,
+      serviceKind(v.service.id) === "reparacion"
+        ? `¡Hola ${v.customer.name.split(" ")[0]}! Te escribimos de ${store.brandName} por tu turno de taller de hoy a las ${v.time}.`
+        : undefined,
+    ),
   }));
+  // Taller: lo que más deja; va destacado arriba en el Resumen.
+  const repairs = today.filter((a) => a.kind === "reparacion");
   const actionable: OrderStatus[] = ["PENDIENTE_PAGO", "SEÑADO", "PAGADO", "EN_PREPARACION", "LISTO_RETIRO"];
   return {
     now,
@@ -381,8 +394,11 @@ export async function getResumen() {
       readyForPickup: ready[0]?.n ?? 0,
       appointmentsToday: today.filter((a) => a.status !== "no_vino").length,
       transfersToValidate: transfers[0]?.n ?? 0,
+      /** Reparaciones de hoy que siguen en pie (sin "No vino"). */
+      repairsToday: repairs.filter((a) => a.status !== "no_vino").length,
     },
     today,
+    repairs,
     orders: rows.filter((r) => actionable.includes(r.status)),
   };
 }
@@ -430,7 +446,7 @@ export interface AgendaData {
   appointments: AgendaAppointment[];
   blocks: { id: number; date: string; from: string; to: string; reason: string; allDay: boolean }[];
   slotMinutes: number;
-  services: { id: string; name: string; allowsProduct: boolean }[];
+  services: { id: string; name: string }[];
 }
 
 function serviceKind(id: string): AgendaService {
@@ -536,9 +552,7 @@ export async function getAgendaWeek(monday: string): Promise<AgendaData> {
     blocks: blockRows.map(({ id, date, from, to, reason, allDay }) => ({ id, date, from, to, reason, allDay })),
     slotMinutes: step,
     // Turno manual: solo servicios activos (la "prueba" vieja queda inactiva).
-    services: services
-      .filter((s) => s.active)
-      .map((s) => ({ id: s.id, name: s.name, allowsProduct: s.allowsProduct })),
+    services: services.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name })),
   };
 }
 
