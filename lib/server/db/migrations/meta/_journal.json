@@ -92,6 +92,13 @@
       "when": 1791048373021,
       "tag": "0012_taller",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791067452868,
+      "tag": "0013_indices_admin",
+      "breakpoints": true
     }
   ]
 }

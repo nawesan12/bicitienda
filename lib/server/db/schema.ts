@@ -199,7 +199,12 @@ export const stockMovements = pgTable("stock_movements", {
    */
   actor: text("actor"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // Tab "Movimientos" del editor (por producto, más recientes primero).
+  index("stock_movements_product_idx").on(t.productSlug, t.createdAt),
+  // Devolver el stock de un pedido (cancelación / vencimiento).
+  index("stock_movements_order_idx").on(t.orderId),
+]);
 
 /* ── Contenido editable ───────────────────────────────────── */
 
@@ -322,7 +327,7 @@ export const leads = pgTable(
     detail: text("detail").notNull().default(""),
     status: text("status").$type<LeadStatus>().notNull().default("nueva"),
   },
-  (t) => [index("leads_ts_idx").on(t.ts)],
+  (t) => [index("leads_ts_idx").on(t.ts), index("leads_status_idx").on(t.status)],
 );
 
 export const newsletterSubscribers = pgTable("newsletter_subscribers", {
@@ -462,7 +467,13 @@ export const orders = pgTable("orders", {
   accountId: uuid("account_id").references(() => customerAccounts.id),
   /** Presupuesto del que salió el pedido ("Crear pedido"). */
   quoteId: uuid("quote_id"),
-});
+}, (t) => [
+  // Tablero, Resumen, badges y el barrido de reservas vencidas.
+  index("orders_status_idx").on(t.status),
+  index("orders_created_idx").on(t.createdAt),
+  // Ficha del cliente (CRM) y agregados por cliente.
+  index("orders_customer_idx").on(t.customerId),
+]);
 
 export const orderItems = pgTable("order_items", {
   id: serial("id").primaryKey(),
@@ -479,7 +490,7 @@ export const orderItems = pgTable("order_items", {
   quantity: integer("quantity").notNull(),
   /** Precio unitario congelado al momento de la compra. */
   unitPrice: integer("unit_price").notNull(),
-});
+}, (t) => [index("order_items_order_idx").on(t.orderId)]);
 
 export const payments = pgTable("payments", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -497,7 +508,7 @@ export const payments = pgTable("payments", {
     .$type<"pending" | "approved" | "rejected">()
     .notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [index("payments_order_idx").on(t.orderId)]);
 
 /**
  * Contadores atómicos (números de pedido). `UPDATE … value = value + 1
@@ -623,7 +634,10 @@ export const quoteRequests = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("quote_requests_created_idx").on(t.createdAt)],
+  (t) => [
+    index("quote_requests_created_idx").on(t.createdAt),
+    index("quote_requests_customer_idx").on(t.customerId),
+  ],
 );
 
 /** Ítems de la cotización (libres o del catálogo). */
@@ -639,7 +653,7 @@ export const quoteLines = pgTable("quote_lines", {
   productSlug: text("product_slug"),
   variantId: text("variant_id"),
   order: integer("order").notNull().default(0),
-});
+}, (t) => [index("quote_lines_quote_idx").on(t.quoteId)]);
 
 /* ── WhatsApp ─────────────────────────────────────────────── */
 
