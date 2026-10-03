@@ -18,9 +18,10 @@ import {
 
 /**
  * Presupuestos (5a/5b del handoff): "recibimos tu pedido de presupuesto"
- * y "te pasamos el presupuesto" (cotizado). Hoy la cotización sale por
- * WhatsApp (quoteWhatsAppUrl en lib/server/quotes.ts); estos mails quedan
- * listos para cablear en lib/server/mail.ts cuando el cliente dejó email.
+ * y "te pasamos el presupuesto" (cotizado). La cotización sale por
+ * WhatsApp (quoteWhatsAppUrl en lib/server/quotes.ts) y, si el cliente
+ * dejó email, también por mail (sendQuoteReceivedEmail/sendQuoteSentEmail
+ * en lib/server/mail.ts).
  */
 
 export interface QuoteReceivedData {

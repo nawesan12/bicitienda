@@ -16,8 +16,8 @@ import {
 /**
  * Pedido cancelado (desde el admin) o vencido (la reserva de transferencia
  * o efectivo pasó sin pago; ver expireStaleOrders en lib/server/orders.ts).
- * Todavía no lo manda el core: queda listo para cablear en
- * lib/server/mail.ts (OrderEmailKind "cancelado" | "vencido").
+ * Lo manda sendOrderEmail (lib/server/mail.ts) con OrderEmailKind
+ * "cancelado" (cancelOrder) o "vencido" (expireStaleOrders).
  */
 export interface OrderCancelledData {
   brandName: string;

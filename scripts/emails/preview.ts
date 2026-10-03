@@ -134,7 +134,7 @@ async function main() {
     },
     {
       id: "pedido-vencido",
-      title: "Reserva vencida (sin cablear en el core)",
+      title: "Reserva vencida",
       subject: `Tu reserva BT-10483 venció — ${brandName}`,
       el: OrderCancelledEmail({
         brandName,
@@ -150,7 +150,7 @@ async function main() {
     },
     {
       id: "pedido-cancelado",
-      title: "Pedido cancelado (sin cablear en el core)",
+      title: "Pedido cancelado",
       subject: `Pedido BT-10483 cancelado — ${brandName}`,
       el: OrderCancelledEmail({
         brandName,
@@ -218,7 +218,7 @@ async function main() {
     },
     {
       id: "turno-cancelado",
-      title: "Turno cancelado (sin cablear en el core)",
+      title: "Turno cancelado",
       subject: `Turno T-0412 cancelado — ${brandName}`,
       el: AppointmentCancelledEmail({
         brandName,
@@ -236,7 +236,7 @@ async function main() {
     },
     {
       id: "presupuesto-recibido",
-      title: "Presupuesto recibido (sin cablear en el core)",
+      title: "Presupuesto recibido",
       subject: `Recibimos tu pedido de presupuesto P-0214 — ${brandName}`,
       el: QuoteReceivedEmail({
         brandName,
@@ -252,7 +252,7 @@ async function main() {
     },
     {
       id: "presupuesto-cotizado",
-      title: "Presupuesto cotizado (sin cablear en el core)",
+      title: "Presupuesto cotizado",
       subject: `Tu presupuesto P-0214 — ${brandName}`,
       el: QuoteSentEmail({
         brandName,

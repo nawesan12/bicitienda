@@ -1,9 +1,8 @@
 import type { ReactElement } from "react";
 
 /**
- * HTML + texto plano de un mail. `deliver()` (lib/server/mail.ts) hoy
- * manda solo `html`; para sumar la alternativa en texto, pasarle `text`
- * a Resend (campo `text` del POST /emails).
+ * HTML + texto plano de un mail. `deliver()` (lib/server/mail.ts) manda
+ * los dos a Resend (`html` y `text` del POST /emails).
  *
  * El texto sale del mismo HTML (html-to-text vía @react-email/render):
  * sin el preheader oculto y con los links de los botones a la vista.

@@ -58,11 +58,13 @@ export async function adminMarkAttendance(id: unknown, attended: unknown): Promi
   return run(() => markAttendance(p.data.id, p.data.attended));
 }
 
-export async function adminCancelAppointment(id: unknown): Promise<AdminAppointmentResult> {
+/** Cancela desde el admin; `reason` (opcional) va en el mail al cliente. */
+export async function adminCancelAppointment(id: unknown, reason?: unknown): Promise<AdminAppointmentResult> {
   await requireAdmin();
   const p = idSchema.safeParse(id);
   if (!p.success) return { ok: false, error: "Turno inválido." };
-  return run(() => cancelAppointment(p.data, "admin"));
+  const r = z.string().trim().max(200).optional().safeParse(reason ?? undefined);
+  return run(() => cancelAppointment(p.data, "admin", { reason: r.success ? r.data : null }));
 }
 
 const slotSchema = z.object({

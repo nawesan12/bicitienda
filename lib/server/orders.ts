@@ -445,7 +445,7 @@ export async function createOrder(
       // La pasarela no respondió: el pedido no puede quedar reservando
       // stock sin forma de pagarse. Se cancela (devuelve el stock).
       console.error("[checkout] no se pudo iniciar el pago:", err);
-      await cancelOrder(order.id);
+      await cancelOrder(order.id, { notify: false });
       return {
         ok: false,
         error:
@@ -649,8 +649,13 @@ export async function advanceOrder(
  * Cancela un pedido (admin, o la pasarela que no respondió). Devuelve el
  * stock exactamente donde se descontó, desde cualquier estado abierto
  * (no retirado). La devolución de dinero, si hubo pago, es manual.
+ * Le avisa al cliente por mail salvo `notify: false` (la pasarela que no
+ * respondió: el checkout ya le muestra el error).
  */
-export async function cancelOrder(orderId: string): Promise<boolean> {
+export async function cancelOrder(
+  orderId: string,
+  opts: { notify?: boolean } = {},
+): Promise<boolean> {
   const db = await getDb();
   const [order] = await db
     .select()
@@ -666,6 +671,7 @@ export async function cancelOrder(orderId: string): Promise<boolean> {
   await revertOrderMovements(db, orderId, "cancelacion");
   await appendEvent(orderId, makeEvent("CONFIRMADO", "Pedido cancelado"));
   invalidatePublic("catalog", { from: "any" });
+  if (opts.notify !== false) await sendOrderEmail(orderId, "cancelado");
   return true;
 }
 
@@ -689,6 +695,7 @@ export async function expireStaleOrders(): Promise<number> {
   for (const order of stale) {
     await revertOrderMovements(db, order.id, "vencimiento");
     await appendEvent(order.id, makeEvent("CONFIRMADO", "Reserva vencida sin pago"));
+    await sendOrderEmail(order.id, "vencido");
   }
   if (stale.length) invalidatePublic("catalog", { from: "any" });
   return stale.length;

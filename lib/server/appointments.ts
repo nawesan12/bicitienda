@@ -350,7 +350,13 @@ export type Actor = "cliente" | "admin";
 export async function cancelAppointment(
   id: string,
   by: Actor,
-  opts: { now?: Date } = {},
+  opts: {
+    now?: Date;
+    /** Motivo que va en el mail cuando cancela el local (feriado, bloqueo…). */
+    reason?: string | null;
+    /** false = sin mail de cancelación. */
+    notify?: boolean;
+  } = {},
 ): Promise<AppointmentRow> {
   const db = await getDb();
   const current = await getRow(db, id);
@@ -362,6 +368,13 @@ export async function cancelAppointment(
   const row = await transition(db, id, ACTIVE_APPOINTMENT_STATUSES, { status: "cancelado" });
   if (!row) throw new AppointmentError("El turno ya está cerrado.", "STATE");
   await releaseSlot(db, row.startsAt);
+  if (opts.notify !== false) {
+    const { sendAppointmentCancelledEmail } = await import("@/lib/server/mail");
+    await sendAppointmentCancelledEmail(id, {
+      by: by === "admin" ? "local" : "cliente",
+      reason: opts.reason,
+    });
+  }
   return row;
 }
 

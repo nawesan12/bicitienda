@@ -5,6 +5,7 @@ import { closedQuoteNote, nextQuoteTransition, OPEN_QUOTE_STATUSES } from "@/lib
 import { COUNTERS, nextCounter } from "@/lib/server/counters";
 import { upsertCustomer, type CustomerRow } from "@/lib/server/customers";
 import { getDb, schema, type Db } from "@/lib/server/db";
+import { sendQuoteReceivedEmail, sendQuoteSentEmail } from "@/lib/server/mail";
 import { createManualOrder } from "@/lib/server/orders";
 import type { QuoteKind, QuoteStatus } from "@/lib/types";
 import { variantLabel } from "@/lib/variants";
@@ -73,6 +74,7 @@ export async function createQuoteRequest(input: {
       status: "nuevo",
     })
     .returning();
+  await sendQuoteReceivedEmail(row.id);
   return row;
 }
 
@@ -169,6 +171,8 @@ export async function advanceQuote(
   if (t.to === "cotizado") {
     const row = await claim(db, id, t.from, t.to);
     if (!row) return { ok: false, error: "El presupuesto cambió. Recargá la página." };
+    // Además del WhatsApp, el mail con la cotización (si dejó email).
+    await sendQuoteSentEmail(id);
     return { ok: true, status: t.to, whatsappUrl: quoteWhatsAppUrl(full) };
   }
   if (t.to === "aceptado") {
@@ -315,6 +319,11 @@ export async function getQuotesForCustomer(customerId: string): Promise<FullQuot
 }
 
 /* ── WhatsApp ─────────────────────────────────────────────── */
+
+/** "8 oct" (para el mail y el WhatsApp de la cotización). */
+export function quoteValidLabel(date: string | null): string | null {
+  return validLabel(date);
+}
 
 function validLabel(date: string | null): string | null {
   if (!date) return null;

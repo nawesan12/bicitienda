@@ -62,7 +62,7 @@ export interface OrderEmailData {
   deliveryLabel: string;
   pickupCode: string | null;
   transferAlias: string;
-  /** Datos bancarios completos (opcionales: hoy settings solo tiene alias). */
+  /** Datos bancarios (settings.transferCbu/Holder/Bank; null = no se muestran). */
   transferCbu?: string | null;
   transferHolder?: string | null;
   transferBank?: string | null;

@@ -579,6 +579,119 @@ async function main() {
     assert.equal(await quotes.rejectQuote(q2.id), true);
   });
 
+  /* ── Ajustes de pago (Ola 1 · G) ──────────────────────────── */
+  const asAdmin = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    const { createSessionToken, sessionSecret, ADMIN_COOKIE } = await import("@/lib/server/admin-session");
+    cookies.set(ADMIN_COOKIE, (await createSessionToken(sessionSecret()!)).token);
+    try {
+      return await fn();
+    } finally {
+      cookies.delete(ADMIN_COOKIE);
+    }
+  };
+  const outboxFile = (name: string) => readFileSync(path.join(TMP, ".data/outbox", name), "utf8");
+  const outboxHas = (name: string) => readdirSync(path.join(TMP, ".data/outbox")).includes(name);
+
+  test("ajustes: CBU/titular/banco, efectivo y cuotas por patchSettings", async () => {
+    const settingsActions = await import("@/lib/server/actions/settings");
+    const { getStore } = await import("@/lib/server/queries");
+    const { paymentOptions } = await import("@/lib/server/checkout-options");
+    // Seed: placeholders "[… a confirmar]".
+    let rt = await getStore();
+    assert.equal(rt.transferCbu, "[CBU a confirmar]");
+    assert.equal(rt.transferHolder, "[Titular a confirmar]");
+    assert.equal(rt.transferBank, "[Banco a confirmar]");
+    // Sin sesión de admin no guarda.
+    await assert.rejects(settingsActions.patchSettings({ transferBank: "X" }));
+    await asAdmin(async () => {
+      const ok = await settingsActions.patchSettings({
+        transferCbu: "0000003100 0123-4567 8901",
+        transferHolder: "  BiciTienda MDQ SRL ",
+        transferBank: "Banco Nación",
+        maxInstallments: 3,
+      });
+      assert.deepEqual(ok, { ok: true });
+      assert.equal((await settingsActions.patchSettings({ transferCbu: "123" })).ok, false, "CBU corto");
+      assert.equal((await settingsActions.patchSettings({ maxInstallments: 0 })).ok, false, "cuotas ≥ 1");
+      assert.equal((await settingsActions.patchSettings({ cashEnabled: "no" })).ok, false);
+      assert.deepEqual(await settingsActions.patchSettings({ cashEnabled: false }), { ok: true });
+    });
+    rt = await getStore();
+    assert.equal(rt.transferCbu, "0000003100012345678901", "sin espacios ni guiones");
+    assert.equal(rt.transferHolder, "BiciTienda MDQ SRL");
+    assert.equal(rt.transferBank, "Banco Nación");
+    assert.equal(rt.maxInstallments, 3);
+    assert.equal(rt.cashEnabled, false);
+    const opts = paymentOptions(rt);
+    assert.ok(!opts.some((o) => o.id === "efectivo"), "efectivo apagado no se ofrece");
+    assert.match(opts.find((o) => o.id === "mercadopago")!.note, /Hasta 3 cuotas/);
+    assert.equal((await checkout({ paymentMethod: "efectivo" })).ok, false, "efectivo apagado no se acepta");
+    await asAdmin(() => settingsActions.patchSettings({ cashEnabled: true, maxInstallments: 6 }));
+    assert.equal((await getStore()).cashEnabled, true);
+  });
+
+  test("mails: transferencia con datos bancarios y texto plano, cancelado, vencido", async () => {
+    const r = await checkout({ email: "datos@example.com", phone: "2235550170" });
+    assert.ok(r.ok);
+    const n = (r as any).number as string;
+    const html = outboxFile(`${n}-confirmacion.html`);
+    assert.match(html, /0000003100012345678901/, "CBU desde Ajustes");
+    assert.match(html, /BiciTienda MDQ SRL/);
+    assert.match(html, /Banco Nación/);
+    assert.match(html, /#comprobante/, "receiptUrl a la sección del comprobante");
+    assert.doesNotMatch(html, /localhost/, "los links usan la URL pública");
+    const text = outboxFile(`${n}-confirmacion.txt`);
+    assert.match(text, /0000003100012345678901/);
+    assert.doesNotMatch(text, /<[a-z]/i, "texto plano sin HTML");
+    // Variante aparte del nombre (talle en su propia línea).
+    assert.match(html, /Talle M|M · Negro/);
+    // Placeholder "[… a confirmar]": no se muestra.
+    await db.update(schema.settings).set({ transferBank: "[Banco a confirmar]" });
+    const r2 = await checkout({ email: "datos2@example.com", phone: "2235550171" });
+    assert.doesNotMatch(outboxFile(`${(r2 as any).number}-confirmacion.html`), /Banco a confirmar/);
+    await db.update(schema.settings).set({ transferBank: "Banco Nación" });
+    // Cancelado desde el admin → mail; vencido → mail.
+    const o2 = await orderByNumber((r2 as any).number);
+    assert.equal(await orders.cancelOrder(o2.id), true);
+    assert.match(outboxFile(`${o2.number}-cancelado.html`), /cancelad/i);
+    const r3 = await checkout({ email: "vence@example.com", phone: "2235550172" });
+    const o3 = await orderByNumber((r3 as any).number);
+    await db.update(schema.orders).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(schema.orders.id, o3.id));
+    await orders.expireStaleOrders();
+    assert.ok(outboxHas(`${o3.number}-vencido.html`), "mail de reserva vencida");
+    // Listo para retirar en efectivo: lo que falta pagar.
+    const r4 = await checkout({ email: "listo@example.com", phone: "2235550173", paymentMethod: "efectivo" });
+    const { sendOrderEmail } = await import("@/lib/server/mail");
+    await sendOrderEmail((await orderByNumber((r4 as any).number)).id, "listo");
+    assert.match(outboxFile(`${(r4 as any).number}-listo.txt`), /\$\s?[\d.]+/);
+  });
+
+  test("mails: turno reprogramado y cancelado por el local; presupuesto recibido y cotizado", async () => {
+    const thu = nextWeekday(4);
+    const a = await appts.createAppointment({ serviceId: "asesoramiento", date: thu, time: "10:00", name: "Pía Ruiz", phone: "2235550174", email: "pia@example.com", source: "web" });
+    const moved = await appts.rescheduleAppointment(a.id, { date: thu, time: "11:30" }, "admin");
+    const mv = outboxFile(`turno-${moved.number}.html`);
+    assert.match(mv, /Turno reprogramado/);
+    assert.match(mv, /10:00/, "muestra el horario anterior");
+    assert.doesNotMatch(mv, /localhost/);
+    await appts.cancelAppointment(moved.id, "admin", { reason: "feriado, el local está cerrado." });
+    const cx = outboxFile(`turno-${moved.number}-cancelado.html`);
+    assert.match(cx, /feriado/);
+    assert.ok(outboxHas(`turno-${moved.number}-cancelado.txt`));
+
+    const q = await quotes.createQuoteRequest({ kind: "imp", detail: "Rodillo smart para Zwift, eje pasante 12 mm.", name: "Carla Méndez", phone: "2235550175", email: "carla@example.com" });
+    assert.match(outboxFile(`presupuesto-${q.number}-recibido.html`), /Producto importado/);
+    await quotes.setQuoteLines(q.id, [{ name: "Rodillo smart directo 12 mm", price: 629900 }]);
+    await quotes.updateQuote(q.id, { eta: "30 a 45 días", validUntil: "2026-10-08" });
+    assert.ok((await quotes.advanceQuote(q.id)).ok);
+    const sent = outboxFile(`presupuesto-${q.number}-cotizado.html`);
+    assert.match(sent, /629\.900/);
+    assert.match(sent, /8 oct/);
+    // Sin email: no se manda nada (ni falla).
+    const q2 = await quotes.createQuoteRequest({ kind: "rep", detail: "Pastillas de freno para Shimano MT200", name: "Sin Mail", phone: "2235550176" });
+    assert.ok(!outboxHas(`presupuesto-${q2.number}-recibido.html`));
+  });
+
   /* ── Plantillas de WhatsApp ───────────────────────────────── */
   test("plantillas de WhatsApp: render y pedido listo", async () => {
     assert.equal(

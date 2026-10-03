@@ -1,9 +1,9 @@
 import { Actions, Button, DataRows, EmailShell, Eyebrow, firstName, P, Panel, Pill, Title, waLink } from "./components";
 
 /**
- * Turno cancelado (por el cliente desde el link o por el local). Todavía
- * no lo manda el core: queda listo para cablear en lib/server/mail.ts
- * junto a cancelAppointment (lib/server/appointments.ts).
+ * Turno cancelado (por el cliente desde el link o por el local). Lo manda
+ * sendAppointmentCancelledEmail (lib/server/mail.ts) desde
+ * cancelAppointment (lib/server/appointments.ts).
  */
 export interface AppointmentCancelledData {
   brandName: string;

@@ -1,6 +1,6 @@
 import { Body, Head, Html, Preview } from "@react-email/components";
 import { store } from "@/lib/config";
-import { runtimeSiteUrl } from "@/lib/site";
+import { SITE_URL as PUBLIC_SITE_URL } from "@/lib/site";
 
 /**
  * Piezas compartidas de los mails de BiciTienda MDQ, con el lenguaje del
@@ -19,9 +19,10 @@ import { runtimeSiteUrl } from "@/lib/site";
  *    toque; si un cliente igual invierte colores (Gmail iOS, Outlook.com),
  *    todo sigue siendo "texto claro sobre oscuro" o al revés, nunca gris
  *    sobre gris: no hay textos de bajo contraste ni info en imágenes.
- *  - Las URLs de imágenes son absolutas (runtimeSiteUrl()).
+ *  - Las URLs de imágenes y links son absolutas y PÚBLICAS (NEXT_PUBLIC_SITE_URL
+ *    o store.siteUrl), nunca localhost: el mail se abre fuera de la máquina.
  */
-export const SITE_URL = runtimeSiteUrl();
+export const SITE_URL = PUBLIC_SITE_URL;
 
 /** Logo del cliente (badge amarillo redondo, se lee sobre negro y sobre blanco). */
 export const LOGO_URL = `${SITE_URL}/brand/logo-bicitiendamdq-320.png`;
