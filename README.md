@@ -207,7 +207,7 @@ Hoy figuran como "[… a confirmar]" en la web y en el admin.
 
 ## Estado y pendientes (2026-10-03)
 
-En producción, vacía: https://bicitienda-mdq.vercel.app (Neon `bicitienda-db`).
+En producción, vacía: https://bicitiendamdq.com.ar (también https://bicitienda-mdq.vercel.app) (Neon `bicitienda-db`).
 
 Hecho:
 
