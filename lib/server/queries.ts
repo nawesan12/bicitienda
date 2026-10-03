@@ -15,6 +15,7 @@ import type {
   Category,
   CategoryWithCount,
   Product,
+  RepairsContent,
   SiteContent,
   SiteTexts,
   StoreConfig,
@@ -215,6 +216,15 @@ export const getContent = unstable_cache(
   ["site-content"],
   { tags: ["content"], revalidate: BACKUP_REVALIDATE },
 );
+
+/**
+ * Contenido del taller (/reparaciones y bloque del home): título, texto y
+ * lista de trabajos, sin precios. Sale de getContent (tag "content"); lo
+ * edita adminSaveRepairsContent.
+ */
+export async function getRepairsContent(): Promise<RepairsContent> {
+  return (await getContent()).rep;
+}
 
 /** Textos de la web: el seed `TEXTS` con los overrides del admin encima. */
 export const getTexts = unstable_cache(

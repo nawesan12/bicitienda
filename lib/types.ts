@@ -725,7 +725,6 @@ export interface WaMessages {
   repair: string;
   repairForm: (f: { tipo: string; modelo: string; problema: string }) => string;
   financing: (productName: string | null) => string;
-  testRide: string;
   community: string;
   articleFallback: string;
 }

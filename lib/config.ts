@@ -81,12 +81,13 @@ export const store: StoreConfig = {
     },
   ],
   features: {
+    // Taller al frente: página /reparaciones y contenido `content.rep`.
+    repairs: true,
     // Módulos de contenido del core que BiciTienda no usa.
     comparador: false,
     blog: false,
     agenda: false,
     asesor: false,
-    repairs: false,
     community: false,
     pos: false,
     editorVisual: false,

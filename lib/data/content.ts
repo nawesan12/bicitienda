@@ -513,14 +513,17 @@ export const content: SiteContent = {
     ],
     localPhoto: null,
   },
+  // Taller: sin precios, el presupuesto se pasa por WhatsApp.
   rep: {
-    title: "Service y garantía",
-    body: "¿Algo no funciona como esperabas? Contanos qué pasó y te respondemos en el día con la solución.",
+    title: "Tu bici, en manos del taller",
+    body: "Traela al local, la revisamos y te pasamos el presupuesto por WhatsApp antes de tocar nada.",
     services: [
-      "Cambios y devoluciones",
-      "Garantía oficial",
-      "Reparaciones",
-      "Repuestos y accesorios",
+      "Service completo",
+      "Ajuste de cambios y frenos",
+      "Parche y cámara",
+      "Centrado de rueda",
+      "Cambio de cadena y piñón",
+      "Armado y puesta a punto",
     ],
   },
   perks: [
@@ -607,8 +610,6 @@ export const waMessages: WaMessages = {
   financing: (name) =>
     "Hola! Quiero consultar financiación en cuotas" +
     (name ? " para " + name : ""),
-  /** "Coordinar una visita". */
-  testRide: "Hola! Quiero coordinar una visita al local",
   /** Fallback cuando no hay link del grupo de la comunidad. */
   community: "Hola! Quiero sumarme al grupo de la comunidad",
   /** CTA de una nota sin ctaMsg propio. */
@@ -619,7 +620,6 @@ export const waMessages: WaMessages = {
 export const leadLabels = {
   productDetail: "Consulta desde la web",
   general: "Botón de WhatsApp general",
-  testRide: "Coordinar una visita",
   community: "Sumarse a la comunidad",
   repair: "Consulta de service",
   financing: "Financiación",
@@ -646,7 +646,7 @@ export const sampleLeads: [LeadType, string, string, number][] = [
   ["producto", "MTB rodado 29 · 21 vel. · aluminio", "Consulta desde la web", 1],
   ["financiacion", "MTB rodado 29 · doble suspensión", "Cuotas con tarjeta", 3],
   ["producto", "Casco urbano regulable · M/L", "Consulta desde la web", 5],
-  ["prueba", "Coordinar una visita", "", 20],
+  ["reparacion", "Frenos · MTB R29", "Frenan poco y hacen ruido", 20],
   ["producto", "Urbana rodado 28 · canasto", "Consulta desde la web", 30],
 ];
 

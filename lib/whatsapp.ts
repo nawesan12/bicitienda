@@ -62,14 +62,6 @@ export const wa = {
       detail: leadLabels.financingDetail,
     };
   },
-  testRide(): WaContext {
-    return {
-      message: waMessages.testRide,
-      type: "prueba",
-      label: leadLabels.testRide,
-      detail: "",
-    };
-  },
   /** Sin link del grupo: escribe al local pidiendo sumarse. */
   community(): WaContext {
     return {
