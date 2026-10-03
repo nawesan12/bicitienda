@@ -22,7 +22,9 @@ interface LeadRow {
 const TYPE: Partial<Record<LeadType, { label: string; tone: PillTone }>> = {
   producto: { label: "Producto", tone: "line" },
   pedido: { label: "Pedido", tone: "yellow-outline" },
-  prueba: { label: "Turno", tone: "paper" },
+  reparacion: { label: "Reparación", tone: "yellow" },
+  /** Datos viejos: la prueba de bici ya no se ofrece. */
+  prueba: { label: "Visita", tone: "paper" },
 };
 
 function typeOf(l: LeadRow): { label: string; tone: PillTone } {
