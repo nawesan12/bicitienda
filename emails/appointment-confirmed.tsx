@@ -1,15 +1,25 @@
-import { Section } from "@react-email/components";
 import {
+  Actions,
+  B,
   Button,
-  colors,
+  DataRows,
   EmailShell,
-  Kicker,
+  Eyebrow,
+  firstName,
+  Notice,
   P,
-  PriceBlocks,
+  Panel,
+  Pill,
+  Steps,
   Title,
+  waLink,
 } from "./components";
 
-/** "Tu turno está confirmado": servicio, día y hora, y cómo gestionarlo. */
+/**
+ * "Tu turno está confirmado" (y, con `rescheduledFrom`, "reprogramado"):
+ * servicio, día y hora, dónde, y cómo gestionarlo. La firma la usa
+ * lib/server/mail.ts: los campos nuevos son opcionales.
+ */
 export interface AppointmentConfirmedData {
   brandName: string;
   number: string;
@@ -27,47 +37,87 @@ export interface AppointmentConfirmedData {
   manageUrl: string;
   whatsapp: string;
   footer: string;
+  /** Duración del servicio (default 30). */
+  durationMin?: number;
+  /** Turno reprogramado: día y hora anteriores ("martes 6 de octubre 10:30"). */
+  rescheduledFrom?: string | null;
+  mapsUrl?: string | null;
 }
 
 export function AppointmentConfirmedEmail(data: AppointmentConfirmedData) {
-  const first = data.customerName.split(" ")[0];
+  const first = firstName(data.customerName);
+  const moved = Boolean(data.rescheduledFrom);
+  const duration = data.durationMin ?? 30;
   return (
     <EmailShell
-      preview={`Turno ${data.dayLabel} a las ${data.time}`}
+      preview={`${moved ? "Turno reprogramado" : "Turno confirmado"}: ${data.dayLabel} a las ${data.time} hs · ${data.serviceName}`}
       footer={data.footer}
+      whatsapp={data.whatsapp}
     >
-      <Kicker>TURNO {data.number}</Kicker>
-      <Title>
-        {first}, te esperamos el {data.dayLabel} a las {data.time}
-      </Title>
-      <P>
-        {data.serviceName}
-        {data.product ? ` · ${data.product}` : ""}. Dura 30 minutos.{" "}
-        {data.priceNote ? `${data.priceNote}: no cobramos nada online.` : ""}
-      </P>
-      <Section style={{ marginTop: "18px" }}>
-        <PriceBlocks
-          blocks={[
-            { tone: "night", label: "Día y hora", value: `${data.time} hs`, sub: data.dayLabel },
-            { tone: "pastel", label: data.hours, value: data.address },
+      <Eyebrow>
+        {moved ? "Turno reprogramado" : "Turno confirmado"} · {data.number}
+      </Eyebrow>
+      <Title accent={<>el {data.dayLabel} a las {data.time}.</>}>{first}, te esperamos</Title>
+      <Pill tone="yellow">{moved ? "Reprogramado" : "Confirmado"}</Pill>
+      {moved && (
+        <P>
+          Movimos tu turno. El anterior (<span style={{ textDecoration: "line-through" }}>{data.rescheduledFrom}</span>)
+          quedó liberado.
+        </P>
+      )}
+
+      <Panel label={data.serviceName} accent="yellow">
+        <DataRows
+          rows={[
+            {
+              label: "Día y hora",
+              value: `${data.time} hs`,
+              big: true,
+              tone: "yellow",
+              sub: `${data.dayLabel.charAt(0).toUpperCase()}${data.dayLabel.slice(1)} · ${duration} min`,
+            },
+            ...(data.product ? [{ label: "Bici", value: data.product }] : []),
+            {
+              label: "Dónde",
+              value: data.mapsUrl ? (
+                <a href={data.mapsUrl} style={{ color: "inherit", textDecoration: "underline" }}>
+                  {data.address}
+                </a>
+              ) : (
+                data.address
+              ),
+              sub: data.hours,
+            },
           ]}
         />
-      </Section>
-      <Section style={{ marginTop: "24px" }}>
+      </Panel>
+
+      <Notice tone="yellow">
+        {data.priceNote ? `${data.priceNote}: ` : ""}no cobramos nada online.
+      </Notice>
+
+      <Steps
+        title="Para tu turno"
+        steps={[
+          { title: "Llegá 5 minutos antes", body: `Así aprovechás los ${duration} minutos completos.` },
+          ...(data.product
+            ? [{ title: "Vení con ropa cómoda", body: "Si es una prueba, salís a dar una vuelta con la bici." }]
+            : []),
+          { title: "¿No podés venir?", body: <>Reprogramalo o cancelalo desde el link, o avisanos por WhatsApp.</> },
+        ]}
+      />
+
+      <Actions>
         <Button href={data.manageUrl}>Reprogramar o cancelar</Button>
         <Button
-          variant="brand"
-          href={`https://wa.me/${data.whatsapp}?text=${encodeURIComponent(
-            `Hola, tengo el turno ${data.number} (${data.dayLabel} ${data.time}).`,
-          )}`}
+          variant="secondary"
+          href={waLink(data.whatsapp, `Hola, tengo el turno ${data.number} (${data.dayLabel} ${data.time}).`)}
         >
           WhatsApp
         </Button>
-      </Section>
-      <P>
-        <span style={{ color: colors.muted }}>
-          Si no podés venir, avisanos o reprogramalo desde el link.
-        </span>
+      </Actions>
+      <P muted>
+        Turno <B>{data.number}</B> en {data.brandName}.
       </P>
     </EmailShell>
   );

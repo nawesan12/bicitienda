@@ -1,22 +1,30 @@
-import { Section } from "@react-email/components";
-import { lexicon } from "@/lib/data/content";
 import {
+  Actions,
   Button,
-  colors,
+  DataRows,
   EmailShell,
-  Kicker,
+  Eyebrow,
+  firstName,
+  money,
+  Notice,
   P,
-  PriceBlocks,
+  Panel,
+  Pill,
+  splitVariant,
+  Summary,
   Title,
+  waLink,
 } from "./components";
 
-const t = lexicon.commerce.tracking;
-
-/** "Tu pedido está listo para retirar" / "va en camino". */
+/**
+ * "Tu pedido está listo para retirar" / "va en camino". La firma la usa
+ * lib/server/mail.ts: los campos nuevos son opcionales.
+ */
 export interface StatusEmailData {
   brandName: string;
   number: string;
   customerName: string;
+  /** "tu pedido está listo" / "tu pedido va en camino". */
   headline: string;
   body: string;
   pickupCode: string | null;
@@ -26,56 +34,97 @@ export interface StatusEmailData {
   trackingUrl: string;
   footer: string;
   isPickup: boolean;
+  /** Lo que falta pagar al retirar (efectivo / saldo). 0 o ausente = pagado. */
+  amountDue?: number;
+  /** Ítems del pedido, para el resumen (opcional). */
+  items?: { name: string; variant?: string | null; quantity: number; unitPrice: number }[];
+  total?: number;
+  mapsUrl?: string | null;
 }
 
 export function OrderStatusEmail(data: StatusEmailData) {
-  const first = data.customerName.split(" ")[0];
+  const first = firstName(data.customerName);
+  const due = data.amountDue ?? 0;
+  // "tu pedido está listo" → "Tu pedido" + "está listo." en amarillo.
+  const m = /^(tu pedido)\s+(.*)$/i.exec(data.headline);
   return (
     <EmailShell
-      preview={`Pedido ${data.number}: ${data.headline}`}
+      preview={
+        data.isPickup
+          ? `Pedido ${data.number} listo. ${data.pickupCode ? `Código de retiro ${data.pickupCode}.` : ""}`
+          : `Pedido ${data.number}: ${data.headline}.`
+      }
       footer={data.footer}
+      whatsapp={data.whatsapp}
     >
-      <Kicker>{t.orderTitle(data.number)}</Kicker>
-      <Title>
-        {first}, {data.headline}
-      </Title>
+      <Eyebrow>Pedido {data.number}</Eyebrow>
+      {m ? (
+        <Title accent={<>{m[2]}.</>}>
+          {first}, {m[1].toLowerCase()}
+        </Title>
+      ) : (
+        <Title>
+          {first}, {data.headline}
+        </Title>
+      )}
+      <Pill tone="paper">{data.isPickup ? "Listo para retirar" : "En camino"}</Pill>
       <P>{data.body}</P>
 
       {data.isPickup && (
-        <Section style={{ marginTop: "22px" }}>
-          <Kicker color={colors.muted}>{t.pickupKicker}</Kicker>
-          <PriceBlocks
-            blocks={[
+        <Panel label="Retiro en el local" accent="yellow">
+          <DataRows
+            rows={[
               ...(data.pickupCode
                 ? [
                     {
-                      tone: "night" as const,
-                      label: t.code,
+                      label: "Código de retiro",
                       value: data.pickupCode,
+                      mono: true,
+                      big: true,
+                      tone: "yellow" as const,
+                      sub: "Mostralo en el mostrador.",
                     },
                   ]
                 : []),
               {
-                tone: "pastel" as const,
-                label: data.hours,
-                value: data.address,
+                label: "Dónde",
+                value: data.mapsUrl ? (
+                  <a href={data.mapsUrl} style={{ color: "inherit", textDecoration: "underline" }}>
+                    {data.address}
+                  </a>
+                ) : (
+                  data.address
+                ),
               },
+              { label: "Horario", value: data.hours },
+              ...(due > 0 ? [{ label: "A pagar al retirar", value: money(due), big: true }] : []),
             ]}
           />
-        </Section>
+        </Panel>
       )}
 
-      <Section style={{ marginTop: "24px" }}>
-        <Button href={data.trackingUrl}>Ver el seguimiento →</Button>
+      {data.isPickup && due > 0 && <Notice tone="yellow">Lo pagás en el local, en efectivo, al retirarlo.</Notice>}
+
+      {data.items && data.items.length > 0 && data.total != null && (
+        <Summary
+          items={data.items.map((it) => ({
+            ...splitVariant(it.name, it.variant),
+            quantity: it.quantity,
+            amount: it.unitPrice * it.quantity,
+          }))}
+          total={money(data.total)}
+        />
+      )}
+
+      <Actions>
+        <Button href={data.trackingUrl}>Ver el pedido →</Button>
         <Button
-          variant="brand"
-          href={`https://wa.me/${data.whatsapp}?text=${encodeURIComponent(
-            t.waMsg(data.number),
-          )}`}
+          variant="secondary"
+          href={waLink(data.whatsapp, `Hola! Consulta por el pedido ${data.number}`)}
         >
           WhatsApp
         </Button>
-      </Section>
+      </Actions>
     </EmailShell>
   );
 }
