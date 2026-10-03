@@ -9,21 +9,54 @@ solo; no comparte código en vivo con Rodar ni con otras tiendas.
 Diseño: `design_handoff_bicitienda_mdq/` (no versionado; abrir
 `BiciTienda MDQ.dc.html` con `npx serve` en esa carpeta).
 
-## Estado (2026-10-01) — en construcción
+## Estado (2026-10-02) — en construcción
 
 | Fase | Estado |
 |---|---|
-| B0 · Core: variantes talle × color, pedidos de retiro (MP / transferencia / efectivo), cuentas con recupero por mail, turnos, presupuestos → pedido, plantillas WhatsApp `wa.me`, importación CSV/XLSX, mails | ✅ commiteado (tests en `scripts/tests/`), con pendientes de endurecimiento (ver abajo) |
+| B0 · Core: variantes talle × color, pedidos de retiro (MP / transferencia / efectivo), cuentas con recupero por mail, turnos, presupuestos → pedido, plantillas WhatsApp `wa.me`, importación CSV/XLSX, mails | ✅ (tests en `scripts/tests/`) |
 | B1a · Identidad (tokens, Archivo wdth + JetBrains Mono, logo, íconos) y datos demo (`lib/data/demo/*`, fotos en Cloudinary `bicitienda-mdq/demo/`) | ✅ |
-| B2a · Sistema de diseño (`components/bt/*`, muestra en `/bt-kit` en dev) | ✅ — falta revisarlo en el navegador |
-| B1b · Seed real con los datos demo | ⏭️ |
-| B2 · Pantallas públicas · B3 · Admin propio · B4 · Pantallas sin diseño | ⏭️ |
-| B5 · Este README + DEPLOY | ⏭️ (manual del core ya en `../factory/docs/`) |
+| B2a · Sistema de diseño (`components/bt/*`, muestra en `/bt-kit` en dev) | ✅ |
+| Ola 0 · Config real, seed demo, shells bt (tienda y admin), placeholders | ✅ |
+| Ola 1 · Pantallas públicas y admin con `components/bt` | ⏭️ |
+| B4 · Pantallas sin diseño · B5 · DEPLOY | ⏭️ |
 
-**Pendientes de B0:** bloquear el pago simulado en producción sin pasarela,
-vencimiento de pedidos online con liberación de stock, cancelar pedidos
-pagados repone stock, flags que apaguen rutas/links/sitemap de verdad,
-`db:migrate`/`db:seed` cargando `.env.local` y respetando el lock de PGlite.
+**Ola 0 (cerrada):**
+- `lib/config.ts` con los datos del prototipo (`STORE_INFO`, `PAYMENT_SETTINGS`);
+  lo que el cliente no pasó queda "[… a confirmar]" y el WhatsApp es un
+  número inexistente (`WHATSAPP_PENDING`). `routes` suma carrito, turnos,
+  presupuesto, cuenta, login, registro, recupero y seguimiento (`lib/paths.ts`).
+- Seed real (`lib/data/catalog.ts` y `operations.ts` traducen `lib/data/demo/*`;
+  la operación demo vive en `lib/server/seed-demo.ts`): 13 productos con
+  variantes y stock, pedidos en todos los estados (+ uno cancelado), turnos
+  con fechas relativas a hoy (agenda de la semana actual), presupuestos en
+  todos los estados, clientes, cuenta demo, horarios (sábado solo a la mañana),
+  feriado bloqueado y plantillas WA. La demo entra solo en una base sin
+  clientes (no pisa operación real).
+- Shells: `app/(tienda)/layout.tsx` (Header/MobileHeader/Footer de bt) y
+  `app/admin/(panel)/layout.tsx` (AdminShell/AdminSidebar). Ver
+  `components/bt/README.md` → "Shells".
+- Core: sandbox de pago cerrado con `VERCEL_ENV=production` aunque haya
+  `PAYMENT_SANDBOX=1`; pago aprobado sobre un pedido cancelado → evento +
+  aviso "Pago tardío"; flags que gatean páginas, home y sitemap;
+  `seed:images` mergea el manifest (no borra las claves `pexels:*`).
+  Vencimiento de reservas online, stock al cancelar pagados y `.env.local` +
+  lock de PGlite en los scripts ya estaban en B0.
+
+**Pendientes del cliente:** dirección, horarios de atención, WhatsApp,
+email, alias/CBU, marcas, fotos reales.
+
+## Datos demo y accesos (local)
+
+```bash
+pnpm db:migrate && pnpm db:seed   # base nueva → catálogo + operación demo
+pnpm dev
+```
+
+- Admin: `/admin`, PIN **`000000`** (solo en desarrollo, sin `ADMIN_PIN_HASH`).
+- Cuenta demo: **`juanperez@gmail.com`** / **`bicitienda-demo`** (Juan Pérez:
+  2 pedidos, turnos anteriores y el próximo).
+- Para recargar la demo con fechas de hoy: borrar `.data/pglite` (con el dev
+  server cerrado) y volver a correr migrate + seed.
 
 Plan completo: `~/.claude/plans/bicitienda-construccion.md`.
 
@@ -129,5 +162,6 @@ falta ningún rewrite. Una tienda puede definir otros (`/productos`,
 más el **redirect** inverso. Los links del core siempre pasan por
 `lib/paths.ts`: nunca hardcodeés estos paths.
 
-La marca placeholder es **"Faro"**: si ves "Faro" o `faro` en algo publicado,
-falta reemplazar un valor de la capa por tienda.
+La marca placeholder del starter era **"Faro"**: en BiciTienda ya no queda
+(salvo lo que reescriba otra ola); si aparece en algo publicado, falta
+reemplazar un valor de la capa por tienda.
