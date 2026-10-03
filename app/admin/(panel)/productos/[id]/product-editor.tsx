@@ -60,7 +60,6 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
       price: moneyInput(data.price),
       published: data.status === "publicado",
       featured: data.featured,
-      testRide: data.testRide,
       hideWhenOut: data.hideWhenOut,
       photos: data.images.map((u) => ({ key: u, src: thumb(u) })) as SortablePhoto[],
       rows: data.variants.map((v) => ({ key: v.id, ...v })) as Row[],
@@ -96,7 +95,6 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
     if (price !== data.price) p.price = price;
     if (f.published !== initial.published) p.status = f.published ? "publicado" : "borrador";
     if (f.featured !== initial.featured) p.featured = f.featured;
-    if (f.testRide !== initial.testRide) p.testRide = f.testRide;
     if (f.hideWhenOut !== initial.hideWhenOut) p.hideWhenOut = f.hideWhenOut;
     return p;
   }
@@ -354,7 +352,6 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
             <PanelTitle>{T.visibility}</PanelTitle>
             <Toggle label={T.toggles.published} checked={f.published} onChange={(e) => set("published", e.target.checked)} />
             <Toggle label={T.toggles.featured} checked={f.featured} onChange={(e) => set("featured", e.target.checked)} />
-            <Toggle label={T.toggles.testRide} checked={f.testRide} onChange={(e) => set("testRide", e.target.checked)} />
             <Toggle label={T.toggles.hideWhenOut} checked={f.hideWhenOut} onChange={(e) => set("hideWhenOut", e.target.checked)} />
           </Panel>
 

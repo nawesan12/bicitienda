@@ -65,7 +65,6 @@ export interface ProductListRow {
   /** "S 1 · M 3 · L 2 · XL 0" / "Único 3" / "Unidades 12". */
   stockLabel: string;
   stock: number;
-  testRide: boolean;
   status: ProductRowStatus;
 }
 
@@ -128,7 +127,6 @@ export async function getProductList(opts: { q?: string; filter?: string } = {})
       image: p.images[0] ?? null,
       stockLabel: stockLabelOf(p.variants, group),
       stock: p.stock,
-      testRide: p.testRide,
       status: rowStatus({ status: p.status, hidden: p.hidden, stock: p.stock, stockOverride: p.stockOverride ?? null }),
     };
   });
@@ -178,7 +176,6 @@ export interface ProductEditorData {
   images: string[];
   status: "publicado" | "borrador";
   featured: boolean;
-  testRide: boolean;
   hideWhenOut: boolean;
   /** Se puede eliminar (creado desde el admin). */
   custom: boolean;
@@ -220,7 +217,6 @@ export async function getProductEditor(id: string): Promise<ProductEditorData | 
     images: p.images,
     status: p.status === "borrador" ? "borrador" : "publicado",
     featured: p.featured,
-    testRide: p.testRide,
     hideWhenOut: p.hideWhenOut,
     custom: p.custom,
     variants: p.variants

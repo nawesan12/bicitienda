@@ -5,7 +5,7 @@ import { COPY } from "@/lib/data/demo/copy";
 import { features } from "@/lib/features";
 import { img } from "@/lib/images";
 import { getProductList, type ProductListRow } from "@/lib/server/screens/admin-d2";
-import { NewProductButton, TestRideToggle } from "./product-list-client";
+import { NewProductButton } from "./product-list-client";
 import { NO_PHOTO } from "./product-utils";
 
 export const metadata: Metadata = { title: "Productos" };
@@ -25,8 +25,8 @@ function hrefFor(filter: string | undefined, q: string | undefined) {
 }
 
 /**
- * 3c · Productos: listado con stock por talle, "Prueba" editable en la
- * fila y filtros por grupo del menú (Bicicletas · Accesorios · Repuestos ·
+ * 3c · Productos: listado con stock por talle (sin columna "Prueba": la
+ * tienda ya no ofrece pruebas de bici, el foco es el taller) y filtros por grupo del menú (Bicicletas · Accesorios · Repuestos ·
  * Importados) + "Sin stock". La fila entera abre la edición (3d).
  */
 export default async function AdminProductosPage({
@@ -68,14 +68,8 @@ export default async function AdminProductosPage({
       ),
     },
     {
-      key: "test",
-      header: T.columns[4],
-      width: "64px",
-      cell: (r) => <TestRideToggle id={r.id} name={r.name} initial={r.testRide} />,
-    },
-    {
       key: "status",
-      header: T.columns[5],
+      header: T.columns[T.columns.length - 1],
       width: "112px",
       cell: (r) => <ProductPill status={r.status} size="md" />,
     },
@@ -176,15 +170,9 @@ export default async function AdminProductosPage({
                       <span className="text-[15px] font-extrabold">{price(r.price)}</span>
                       <ProductPill status={r.status} size="sm" />
                     </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={cx("min-w-0 font-mono text-[12px] font-semibold leading-[1.5]", r.stock <= 0 ? "text-red-light" : "text-text-2")}>
-                        {r.stockLabel}
-                      </span>
-                      <span className="flex flex-none items-center gap-2 text-[11px] font-bold uppercase tracking-[.08em] text-text-3">
-                        Prueba
-                        <TestRideToggle id={r.id} name={r.name} initial={r.testRide} />
-                      </span>
-                    </div>
+                    <span className={cx("min-w-0 font-mono text-[12px] font-semibold leading-[1.5]", r.stock <= 0 ? "text-red-light" : "text-text-2")}>
+                      {r.stockLabel}
+                    </span>
                   </div>
                 </li>
               ))}

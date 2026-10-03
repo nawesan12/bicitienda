@@ -39,7 +39,6 @@ export const IMPORT_COLUMNS = [
   "altura",
   "sku_variante",
   "stock",
-  "se_puede_probar",
   "ocultar_sin_stock",
   "estado",
   "descripcion",
@@ -56,9 +55,9 @@ export const MAX_IMPORT_BYTES = 4 * 1024 * 1024;
 export function importTemplateCsv(): string {
   const rows: string[][] = [
     [...IMPORT_COLUMNS],
-    ["MTB29-21", "MTB rodado 29 · 21 vel. · aluminio", "mtb", "Venzo", "489900", "", "29", "M", "Negro/amarillo", "1,65 – 1,75 m", "", "3", "si", "no", "publicado", "Cuadro de aluminio, 21 velocidades.", ""],
-    ["MTB29-21", "", "", "", "", "", "", "L", "Negro/amarillo", "1,75 – 1,85 m", "", "2", "", "", "", "", ""],
-    ["LUCES-USB", "Kit luces delantera + trasera", "accesorios", "Genérica", "24900", "", "", "", "", "", "", "12", "no", "no", "publicado", "", ""],
+    ["MTB29-21", "MTB rodado 29 · 21 vel. · aluminio", "mtb", "Venzo", "489900", "", "29", "M", "Negro/amarillo", "1,65 – 1,75 m", "", "3", "no", "publicado", "Cuadro de aluminio, 21 velocidades.", ""],
+    ["MTB29-21", "", "", "", "", "", "", "L", "Negro/amarillo", "1,75 – 1,85 m", "", "2", "", "", "", ""],
+    ["LUCES-USB", "Kit luces delantera + trasera", "accesorios", "Genérica", "24900", "", "", "", "", "", "", "12", "no", "publicado", "", ""],
   ];
   return toCsv(rows, ";");
 }
@@ -82,7 +81,6 @@ const HEADER_ALIASES: Record<string, Column> = {
   precio_anterior: "precio_lista",
   talla: "talle",
   altura_sugerida: "altura",
-  prueba: "se_puede_probar",
   descripcion: "descripcion",
   imagenes: "fotos",
   foto: "fotos",
@@ -154,7 +152,6 @@ interface ParsedRow {
   height: string;
   variantSku: string;
   stock: number | null;
-  testRide: boolean | null;
   hideWhenOut: boolean | null;
   status: ProductStatus | null;
   description: string;
@@ -295,7 +292,7 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
     const oldPrice = parseMoney(get("precio_lista"));
     const stockRaw = get("stock").trim();
     const stock = stockRaw === "" ? null : /^\d{1,5}$/.test(stockRaw) ? Number(stockRaw) : NaN;
-    const testRide = parseBool(get("se_puede_probar"));
+    // "se_puede_probar" (planillas viejas) se ignora: ya no hay pruebas de bici.
     const hideWhenOut = parseBool(get("ocultar_sin_stock"));
     const statusRaw = get("estado").trim().toLowerCase();
     const status: ProductStatus | null | "invalid" = !statusRaw
@@ -315,7 +312,6 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
     if (price === "invalid") err("precio", "Precio inválido: usá solo números (ej. 489900).");
     if (oldPrice === "invalid") err("precio_lista", "Precio de lista inválido.");
     if (Number.isNaN(stock)) err("stock", "Stock inválido: un número entero de 0 a 99999.");
-    if (testRide === "invalid") err("se_puede_probar", "Usá si o no.");
     if (hideWhenOut === "invalid") err("ocultar_sin_stock", "Usá si o no.");
     if (status === "invalid") err("estado", "Usá publicado o borrador.");
     if (photos.some((u) => !/^https?:\/\/\S+$/.test(u))) err("fotos", "Las fotos tienen que ser URLs (separadas por |).");
@@ -335,7 +331,6 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
       height: b.altura,
       variantSku: b.sku_variante.toUpperCase(),
       stock: stock as number | null,
-      testRide: testRide as boolean | null,
       hideWhenOut: hideWhenOut as boolean | null,
       status: status as ProductStatus | null,
       description: b.descripcion.trim(),
@@ -423,7 +418,6 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
         (oldPrice != null && oldPrice !== existing.oldPrice) ||
         (first.rodado && first.rodado !== (existing.rodado ?? "")) ||
         (first.description && first.description !== existing.description) ||
-        (first.testRide !== null && first.testRide !== existing.testRide) ||
         (first.hideWhenOut !== null && first.hideWhenOut !== existing.hideWhenOut) ||
         (first.status !== null && first.status !== existing.status) ||
         (first.photos.length > 0 && JSON.stringify(first.photos) !== JSON.stringify(existing.images));
@@ -549,7 +543,6 @@ export async function commitProductImport(
           oldPrice: oldPrice ?? null,
           rodado: rodado || null,
           description: first.description,
-          testRide: first.testRide ?? false,
           hideWhenOut: first.hideWhenOut ?? false,
           status: first.status ?? "publicado",
           images: first.photos,
@@ -566,7 +559,6 @@ export async function commitProductImport(
       if (oldPrice != null && oldPrice !== product.oldPrice) set.oldPrice = oldPrice;
       if (rodado && rodado !== product.rodado) set.rodado = rodado;
       if (first.description && first.description !== product.description) set.description = first.description;
-      if (first.testRide !== null) set.testRide = first.testRide;
       if (first.hideWhenOut !== null) set.hideWhenOut = first.hideWhenOut;
       if (first.status !== null) set.status = first.status;
       if (first.photos.length) set.images = first.photos;

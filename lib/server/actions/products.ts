@@ -62,7 +62,6 @@ const productPatchSchema = z
     /** SKU del producto (único). "" = sin SKU. */
     sku: z.string().trim().max(60),
     rodado: z.string().trim().max(20).nullable(),
-    testRide: z.boolean(),
     hideWhenOut: z.boolean(),
     status: z.enum(["publicado", "borrador"]),
     hidden: z.boolean(),
@@ -122,7 +121,6 @@ export async function patchProduct(id: unknown, patch: unknown): Promise<Result>
   }
   if (p.brandName !== undefined) set.brandId = await brandIdFor(db, p.brandName);
   if (p.rodado !== undefined) set.rodado = p.rodado?.trim() || null;
-  if (p.testRide !== undefined) set.testRide = p.testRide;
   if (p.hideWhenOut !== undefined) set.hideWhenOut = p.hideWhenOut;
   if (p.status !== undefined) set.status = p.status;
   if (p.hidden !== undefined) set.hidden = p.hidden;

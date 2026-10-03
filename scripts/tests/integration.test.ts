@@ -804,9 +804,10 @@ async function main() {
     assert.equal(res.ok, false);
     assert.equal((await db.select().from(schema.products)).length, productsBefore, "con errores no escribe nada");
 
+    // "se_puede_probar" (planillas viejas) se ignora sin error, valga lo que valga.
     const good = [
       "﻿sku_producto;nombre;categoria;marca;precio;rodado;talle;color;altura;stock;se_puede_probar;estado",
-      "CASCO-1;Casco urbano;mtb;Venzo;$ 54.900;;M/L;Negro;;4;no;publicado",
+      "CASCO-1;Casco urbano;mtb;Venzo;$ 54.900;;M/L;Negro;;4;tal vez;publicado",
       "CASCO-1;;;;;;S;Negro;;1;;",
       "LUZ-1;Kit luces USB;mtb;Genérica;24900;;;;;12;;",
       "MTB29;;;;499900;;M;Negro/amarillo;1,65 – 1,75 m;7;;",
