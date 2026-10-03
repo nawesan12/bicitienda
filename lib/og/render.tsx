@@ -800,7 +800,7 @@ export async function appointmentsOgImage(opts: { slots?: string[] } = {}) {
     <Panel title="Elegí día y horario">
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1, display: "flex" }}>
-          <Pill text="Prueba de bici" bg={C.yellow} fg={C.ink} size={17} />
+          <Pill text="Reparación / service" bg={C.yellow} fg={C.ink} size={17} />
         </div>
         <div style={{ display: "flex" }}>
           <Pill text="Asesoramiento" bg={C.lineStrong} fg={C.paper} size={17} />

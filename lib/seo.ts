@@ -251,12 +251,12 @@ export const SEO = {
     },
     appointments: {
       kicker: "SACAR TURNO",
-      title: "Probala antes de comprarla",
-      sub: "Prueba de bici o asesoramiento · 30 min · se paga en el local",
+      title: "Turnos para el taller",
+      sub: "Reparación, service o asesoramiento · presupuesto por WhatsApp",
       meta: {
-        title: `Sacá turno: prueba de bici o asesoramiento en ${CITY}`,
+        title: `Turnos para el taller de bicis en ${CITY}`,
         description:
-          "Reservá un turno en BiciTienda MDQ para probar una bici o para que te asesoremos con talle, rodado y uso. 30 minutos, sin cargo online. Elegí día y horario.",
+          "Sacá turno en el taller de BiciTienda MDQ: service, frenos, cambios, pinchaduras y puesta a punto. También asesoramiento de compra. Elegí día y horario.",
       },
     },
     quote: {

@@ -237,7 +237,6 @@ export interface Lexicon {
     repairsCta: string;
     repairsWaCta: string;
     agendaKicker: string;
-    testRideCta: string;
     aboutLink: string;
     instagramLink: string;
     tiktokLink: string;

@@ -76,7 +76,6 @@ export const lexicon: Lexicon = {
     repairsCta: "Pedir un diagnóstico",
     repairsWaCta: "Escribinos por WhatsApp",
     agendaKicker: "PRÓXIMOS EVENTOS",
-    testRideCta: "Coordinar una visita",
     aboutLink: "Conocé más sobre nosotros →",
     instagramLink: "Instagram →",
     tiktokLink: "TikTok →",
@@ -174,7 +173,7 @@ export const lexicon: Lexicon = {
     brandsKicker: "MARCAS OFICIALES",
     metaTitle: "Nosotros",
     metaDescription:
-      `${store.brandName}: bicicletería en Mar del Plata. Bicis, accesorios y repuestos con retiro en el local, turnos de prueba y presupuestos.`,
+      `${store.brandName}: bicicletería en Mar del Plata. Bicis, accesorios y repuestos con retiro en el local, taller de reparaciones y presupuestos.`,
   },
   blog: {
     kicker: "NOVEDADES Y GUÍAS",
@@ -462,14 +461,14 @@ export const content: SiteContent = {
   ],
   stats: [
     { num: "10%", label: "OFF TRANSFERENCIA" },
-    { num: "30'", label: "PRUEBA EN EL LOCAL" },
+    { num: "TALLER", label: "SERVICE Y REPARACIONES" },
   ],
   nosotros: {
     title: "Somos BiciTienda MDQ",
     intro:
       "[Texto a confirmar] Una bicicletería de Mar del Plata: te asesoramos, te la armamos y te la entregamos ajustada a tu altura.",
     paras: [
-      "Elegís online o pasás a probarla antes con un turno.",
+      "Elegís online o traés la tuya al taller con un turno.",
       "Pagás como quieras: Mercado Pago, transferencia o efectivo en el local.",
       "La retirás armada: te avisamos por WhatsApp cuando está lista.",
     ],
