@@ -82,7 +82,7 @@ export default async function AdminLoginPage({
           Panel de administración
         </div>
         <p className="mb-0 mt-2 text-center font-sans text-[13px] text-ink/55">
-          Gestioná productos, novedades, agenda y contenidos de la web.
+          Gestioná pedidos, turnos, presupuestos y productos.
         </p>
 
         <form action={login}>
