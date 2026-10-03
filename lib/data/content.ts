@@ -1,5 +1,6 @@
 import { store } from "@/lib/config";
-import { brands } from "@/lib/data/catalog";
+import { brands, PLACEHOLDER_BRAND_ID } from "@/lib/data/catalog";
+import { COPY, DEMO_PHOTOS, manifestKey } from "@/lib/data/demo";
 import type {
   AgendaEvent,
   Article,
@@ -12,7 +13,8 @@ import type {
 
 /**
  * ── CAPA POR TIENDA ──────────────────────────────────────────
- * Léxico (solo código) + SEED del contenido editable — placeholder "Faro".
+ * Léxico (solo código) + SEED del contenido editable de BiciTienda MDQ
+ * (copy del prototipo en lib/data/demo/copy.ts).
  * `content`, `articles` y `agendaEvents` viven en la base (tablas settings,
  * articles y agenda_events) y se editan desde el admin; acá son el seed
  * inicial que puebla `pnpm db:seed`. La web pública los lee de la DB vía
@@ -29,8 +31,8 @@ export const lexicon: Lexicon = {
   unit: "modelo",
   unitPlural: "modelos",
   nav: {
-    logoAlt: `${store.brandName} — Tienda de ejemplo`,
-    catalog: "Productos",
+    logoAlt: `${store.brandName} — Bicicletería en Mar del Plata`,
+    catalog: "Catálogo",
     repairs: "Service",
     blog: "Novedades",
     test: "¿Cuál es para mí?",
@@ -38,7 +40,7 @@ export const lexicon: Lexicon = {
     community: "Comunidad",
     communityLong: "La comunidad",
     cuotas: "Calculadora de cuotas",
-    searchPlaceholder: "Buscar producto, marca…",
+    searchPlaceholder: COPY.header.searchPlaceholder,
     compare: "Comparar",
     cart: "Carrito",
     advisor: "Hablá con nosotros",
@@ -95,7 +97,7 @@ export const lexicon: Lexicon = {
     emptyLink: "preguntanos por WhatsApp",
     metaTitle: `Productos de ${store.brandName}`,
     metaDescription:
-      "Catálogo completo con garantía real y atención directa. Filtrá por categoría y marca.",
+      "Bicicletas MTB, ruta, urbanas e infantiles, accesorios y repuestos. Retiro en el local en Mar del Plata.",
     categoryMetaTitle: (name) => `${name} · ${store.brandName}`,
     backLink: "← Volver a productos",
     productMetaFallback: "Producto",
@@ -189,7 +191,7 @@ export const lexicon: Lexicon = {
     brandsKicker: "MARCAS OFICIALES",
     metaTitle: "Nosotros",
     metaDescription:
-      `${store.brandName} es la tienda de ejemplo del starter: reemplazá esta descripción por la propuesta real de la marca.`,
+      `${store.brandName}: bicicletería en Mar del Plata. Bicis, accesorios y repuestos con retiro en el local, turnos de prueba y presupuestos.`,
   },
   blog: {
     kicker: "NOVEDADES Y GUÍAS",
@@ -231,7 +233,7 @@ export const lexicon: Lexicon = {
     productDeleted: "Producto eliminado",
     deleteProductTitle: "Eliminar producto",
     deleteProductCta: "Eliminar este producto",
-    newProductBrandId: "faro",
+    newProductBrandId: PLACEHOLDER_BRAND_ID,
     newProductTag: "NUEVO",
     productPhotoHint:
       "Ideal: foto con fondo blanco, 1400 px o más. El fondo blanco se funde con la tarjeta.",
@@ -253,7 +255,7 @@ export const lexicon: Lexicon = {
     eventMetaPlaceholder: "Hora · lugar · cupo",
     eventsStat: "EVENTOS EN AGENDA",
     galleryHint: "4 fotos al pie de la página de la comunidad. Se optimizan solas.",
-    brandSuggestions: ["Faro", "Marca Invitada"],
+    brandSuggestions: [],
   },
   commerce: {
     cart: {
@@ -454,8 +456,8 @@ export const lexicon: Lexicon = {
       other: "← Consultar con otro email",
     },
   },
-  compareStorageKey: "tienda-compare",
-  cartStorageKey: "tienda-cart",
+  compareStorageKey: "bicitienda-compare",
+  cartStorageKey: "bicitienda-cart",
 };
 
 /**
@@ -464,33 +466,33 @@ export const lexicon: Lexicon = {
  * la DB se completan con estos valores al leer (getContent).
  */
 export const content: SiteContent = {
-  badge: "TIENDA DE EJEMPLO · MAR DEL PLATA",
-  l1: "TU MARCA",
-  l2: "ACÁ.",
-  sub: "Faro es la tienda placeholder del starter: reemplazá este texto, la paleta de theme.css y las fuentes de fonts.ts por la identidad real del cliente.",
-  heroProd: "mochila-norte",
-  // Foto HD subida para el hero (se edita desde /admin → Contenido).
-  heroPhoto: null,
+  badge: COPY.home.hero.tag.toUpperCase(),
+  l1: COPY.home.hero.titleLead,
+  l2: COPY.home.hero.titleHighlight,
+  sub: COPY.home.hero.subline,
+  heroProd: "mtb-rodado-29-21-vel-aluminio",
+  // Foto del hero del prototipo (2a): el seed la resuelve a Cloudinary.
+  heroPhoto: { prodId: "mtb-rodado-29-21-vel-aluminio", url: manifestKey(DEMO_PHOTOS.hero) },
   marquee: [
-    "GARANTÍA OFICIAL",
-    "ENVÍOS A TODO EL PAÍS",
-    "3 Y 6 CUOTAS CON TARJETA",
-    "5% OFF POR TRANSFERENCIA",
+    "MERCADO PAGO",
+    "6 CUOTAS SIN INTERÉS",
+    "10% OFF POR TRANSFERENCIA",
+    "EFECTIVO EN EL LOCAL",
     "RETIRO EN EL LOCAL",
   ],
   stats: [
-    { num: "+6", label: "PRODUCTOS DE EJEMPLO" },
-    { num: "2", label: "SUCURSALES" },
-    { num: "1", label: "COMUNIDAD" },
+    { num: "6", label: "CUOTAS SIN INTERÉS" },
+    { num: "10%", label: "OFF TRANSFERENCIA" },
+    { num: "30'", label: "PRUEBA EN EL LOCAL" },
   ],
   nosotros: {
-    title: "Somos Faro",
+    title: "Somos BiciTienda MDQ",
     intro:
-      "Faro es la tienda de ejemplo del starter: reemplazá esta presentación por la historia real de la marca.",
+      "[Texto a confirmar] Una bicicletería de Mar del Plata: te asesoramos, te la armamos y te la entregamos ajustada a tu altura.",
     paras: [
-      "Este es el primer párrafo de Nosotros: contá cómo arrancó la tienda y qué la hace distinta.",
-      "Segundo párrafo: las marcas con las que trabajan, cómo atienden y qué respaldo ofrecen.",
-      "Tercer párrafo: la comunidad, el local y por qué vale la pena comprar acá.",
+      "Elegís online o pasás a probarla antes con un turno.",
+      "Pagás como quieras: Mercado Pago en cuotas, transferencia o efectivo en el local.",
+      "La retirás armada: te avisamos por WhatsApp cuando está lista.",
     ],
     pillars: [
       {
@@ -541,36 +543,18 @@ export const content: SiteContent = {
   gallery: [null, null, null, null],
   // Una entrada por perfil de TEST_PROFILES (lib/advisor.ts).
   test: {
-    hogar_alto: {
-      id: "silla-costa",
-      why: "Ergonómica, de fabricación local y con 5 años de garantía.",
-    },
-    hogar: {
-      id: "lampara-duna",
-      why: "Luz cálida regulable y 10 hs sin cable: la más vendida.",
-    },
-    viaje_bajo: {
-      id: "botella-sur",
-      why: "Compacta, 24 hs de frío y entra en cualquier bolso.",
-    },
-    viaje: {
-      id: "mochila-norte",
-      why: "28 L impermeables con lugar acolchado para la notebook.",
-    },
-    regalo_bajo: {
-      id: "reloj-puerto",
-      why: "Un clásico silencioso que queda bien en cualquier casa.",
-    },
-    regalo: {
-      id: "auriculares-eco",
-      why: "Cancelación activa y 40 hs de autonomía: regalo seguro.",
-    },
+    hogar_alto: { id: "mtb-rodado-29-doble-suspension", why: "Doble suspensión para salir a la sierra." },
+    hogar: { id: "mtb-rodado-29-21-vel-aluminio", why: "La más vendida: firme y liviana para todos los días." },
+    viaje_bajo: { id: "paseo-rodado-26-guardabarros", why: "Cómoda y simple para pasear por la costa." },
+    viaje: { id: "ruta-aluminio-2x8-vel", why: "Liviana y rápida para la ruta." },
+    regalo_bajo: { id: "infantil-rodado-16-rueditas", why: "La primera bici, con rueditas." },
+    regalo: { id: "urbana-rodado-28-canasto", why: "Urbana con canasto, lista para la ciudad." },
   },
 };
 
 /**
  * Texto fantasma del hero: el nombre del producto sin la marca adelante
- * ("Faro Lámpara Duna" → "Lámpara Duna").
+ * ("Marca MTB 29" → "MTB 29").
  */
 export function heroGhost(name: string): string {
   const brand = brands.find((b) => name.startsWith(b.name + " "));
@@ -578,12 +562,12 @@ export function heroGhost(name: string): string {
 }
 
 /** Producto que la calculadora de cuotas muestra al abrirse. */
-export const cuotasDefault = "mochila-norte";
+export const cuotasDefault = "mtb-rodado-29-21-vel-aluminio";
 
 /** Comparaciones armadas que ofrece el comparador vacío. */
 export const cmpPresets: ComparePreset[] = [
-  { label: "PARA LA CASA", ids: ["lampara-duna", "silla-costa", "reloj-puerto"] },
-  { label: "PARA VIAJAR", ids: ["mochila-norte", "botella-sur", "auriculares-eco"] },
+  { label: "MTB", ids: ["mtb-rodado-29-21-vel-aluminio", "mtb-rodado-29-doble-suspension", "mtb-rodado-27-5-juvenil"] },
+  { label: "URBANAS", ids: ["urbana-rodado-28-canasto", "paseo-rodado-26-guardabarros"] },
 ];
 
 /** Leyendas de los 4 slots de la galería mientras no tengan foto. */
@@ -659,13 +643,11 @@ export const leadTypeLabels: Record<LeadType, string> = {
  * cuántas horas]. Las de más de 24 h se cargan como atendidas.
  */
 export const sampleLeads: [LeadType, string, string, number][] = [
-  ["producto", "Mochila Norte", "Consulta desde la web", 1],
-  ["reparacion", "Hogar · Lámpara Duna", "No carga por USB-C", 2],
-  ["financiacion", "Silla Costa", "Cuotas con tarjeta", 3],
-  ["producto", "Lámpara Duna", "Consulta desde la web", 5],
+  ["producto", "MTB rodado 29 · 21 vel. · aluminio", "Consulta desde la web", 1],
+  ["financiacion", "MTB rodado 29 · doble suspensión", "Cuotas con tarjeta", 3],
+  ["producto", "Casco urbano regulable · M/L", "Consulta desde la web", 5],
   ["prueba", "Coordinar una visita", "", 20],
-  ["comunidad", "Sumarse a la comunidad", "", 26],
-  ["producto", "Auriculares Eco", "Consulta desde la web", 30],
+  ["producto", "Urbana rodado 28 · canasto", "Consulta desde la web", 30],
 ];
 
 /** Suscriptos de ejemplo que se cargan si la newsletter está vacía. */
@@ -674,67 +656,8 @@ export const sampleSubscribers: [email: string, hoursAgo: number][] = [
   ["cliente.dos@example.com", 30],
 ];
 
-export const articles: Article[] = [
-  {
-    id: "guia-ejemplo",
-    slug: "como-elegir-bien",
-    tag: "GUÍA",
-    date: "Ene 2026",
-    readMinutes: 3,
-    title: "Cómo elegir bien: la nota de ejemplo del starter",
-    excerpt:
-      "Así se ve una guía en la tienda: tag, fecha, minutos de lectura y una bajada corta que invita a entrar.",
-    paras: [
-      "Este es el cuerpo de una nota de ejemplo. Cada string de este array es un párrafo del lector.",
-      "Las notas sirven para SEO local y para darle vida a la marca: guías de compra, novedades, historias de clientes.",
-      "El CTA del pie deriva a WhatsApp con un mensaje prearmado, o al PDF del catálogo (ctaKind \"pdf\", con `catalogPdfUrl` en lib/config.ts).",
-    ],
-    ctaTitle: "¿Te quedó alguna duda?",
-    ctaLabel: "Escribinos por WhatsApp",
-    ctaKind: "wa",
-    ctaMsg: "Hola! Leí la guía de la web y tengo una consulta",
-    published: true,
-    order: 1,
-  },
-  {
-    id: "novedad-ejemplo",
-    slug: "llego-lo-nuevo",
-    tag: "NOVEDAD",
-    date: "Ene 2026",
-    readMinutes: 2,
-    title: "Llegó lo nuevo: segunda nota de ejemplo",
-    excerpt:
-      "Una nota corta de novedad, para anunciar llegadas de stock, lanzamientos o promos.",
-    paras: [
-      "Cuerpo breve de la novedad. Dos o tres párrafos alcanzan.",
-      "Cerrá siempre con un llamado a la acción concreto.",
-    ],
-    ctaTitle: "Vení a verlo al local",
-    ctaLabel: "Coordinar visita",
-    ctaKind: "wa",
-    ctaMsg: "Hola! Vi la novedad en la web y quiero pasar a verla",
-    published: true,
-    order: 2,
-  },
-];
+/** Blog apagado (features.blog = false): sin notas en el seed. */
+export const articles: Article[] = [];
 
-export const agendaEvents: AgendaEvent[] = [
-  {
-    id: "evento-1",
-    date: "2026-11-14",
-    day: "14",
-    month: "NOV",
-    title: "Evento de ejemplo en el local",
-    meta: "18:00 hs · entrada libre",
-    published: true,
-  },
-  {
-    id: "evento-2",
-    date: "2026-12-05",
-    day: "05",
-    month: "DIC",
-    title: "Segundo evento de la agenda",
-    meta: "10:00 hs · con inscripción",
-    published: true,
-  },
-];
+/** Agenda de eventos apagada (features.agenda = false). */
+export const agendaEvents: AgendaEvent[] = [];

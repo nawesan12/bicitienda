@@ -1,5 +1,5 @@
 /**
- * Textos editables de la web — seed de la marca placeholder "Faro".
+ * Textos editables de la web — seed de BiciTienda MDQ.
  * `TEXTS` es el seed; los overrides del admin viven en la tabla `texts` y
  * se mergean en getTexts(). `TEXT_GROUPS` arma los formularios de
  * /admin/contenido. Al crear una tienda real, reescribí los valores de
@@ -40,8 +40,8 @@ export const TEXTS: SiteTexts = {
   "blogp_sub": "Guías para elegir bien y novedades de la tienda, por escrito.",
   "erp_body": "Comprar en la tienda te suma a la comunidad: un grupo de WhatsApp con novedades, encuentros, tips y promos antes que nadie.",
   "float_btn": "Hablá con nosotros",
-  "ig_handle": "@faro.tienda",
-  "footer_copy": "© 2026 Faro — Tienda de ejemplo."
+  "ig_handle": "@bicitiendamdq",
+  "footer_copy": "© 2026 BiciTienda MDQ — Mar del Plata."
 };
 
 export const TEXT_GROUPS: TextGroup[] = [

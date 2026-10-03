@@ -34,9 +34,18 @@ export function img(url: string, opts: ImgOptions = {}): string {
 
 const MANIFEST = manifest as Record<string, string>;
 
-/** Path local del seed → URL de Cloudinary (si se subió); si no, el path. */
+/**
+ * Path local del seed → URL de Cloudinary (si se subió); si no, el path.
+ * Las fotos demo se referencian como `pexels:<id>` (lib/data/demo/photos.ts):
+ * sin subir a Cloudinary (`pnpm demo:images`) caen a la URL de Pexels.
+ */
 export function resolveImage(path: string): string {
-  return MANIFEST[path] ?? path;
+  const hit = MANIFEST[path];
+  if (hit) return hit;
+  const pexels = /^pexels:(\d+)$/.exec(path);
+  if (pexels)
+    return `https://images.pexels.com/photos/${pexels[1]}/pexels-photo-${pexels[1]}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
+  return path;
 }
 
 /* ── Límites de upload por tipo (los del prototipo del admin) ── */

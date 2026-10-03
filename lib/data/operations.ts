@@ -1,57 +1,55 @@
+import {
+  APPOINTMENT_SETTINGS,
+  PAYMENT_SETTINGS,
+  SERVICES,
+  WEEKLY_SCHEDULE,
+  WHATSAPP_TEMPLATES,
+} from "@/lib/data/demo/settings";
 import type { WhatsAppTemplateId } from "@/lib/types";
 
 /**
  * ── CAPA POR TIENDA ──────────────────────────────────────────
- * Seed de la operación del local: servicios con turno, horario semanal de
- * turnos, ajustes de la agenda y plantillas de WhatsApp. Todo se edita
- * después desde el admin (Ajustes → Turnos / Notificaciones); esto es lo
- * que carga `pnpm db:seed` la primera vez.
+ * Seed de la operación del local, traducido de los Ajustes del prototipo
+ * (`lib/data/demo/settings.ts`): servicios con turno, horario semanal,
+ * ajustes de la agenda y plantillas de WhatsApp. Todo se edita después
+ * desde el admin (Ajustes → Turnos / Notificaciones); esto es lo que
+ * carga `pnpm db:seed`.
  */
 
-export const appointmentServices = [
-  {
-    id: "prueba",
-    name: "Prueba de bici",
-    description: "Elegís el modelo y salís a dar una vuelta con ella.",
-    durationMin: 30,
-    priceNote: "Se paga en el local",
-    allowsProduct: true,
-    active: true,
-    order: 0,
-  },
-  {
-    id: "asesoramiento",
-    name: "Asesoramiento",
-    description: "Te ayudamos con talle, rodado, uso y presupuesto.",
-    durationMin: 30,
-    priceNote: "Se paga en el local",
-    allowsProduct: false,
-    active: true,
-    order: 1,
-  },
-];
+export const appointmentServices = SERVICES.map((s, i) => ({
+  id: s.key,
+  name: s.name,
+  description: s.description,
+  durationMin: s.durationMin,
+  priceNote: "Se paga en el local",
+  // Solo la prueba de bici lleva el modelo a probar.
+  allowsProduct: s.key === "prueba",
+  active: s.active,
+  order: i,
+}));
 
 /**
- * Horario de turnos (0 = domingo): mañana de lunes a sábado 10–13, tarde
- * de lunes a viernes 16–19. Domingo cerrado (y el sábado a la tarde
- * también: el prototipo lo ofrecía por error).
+ * Horario de turnos. El prototipo numera 0 = lunes; `schedule_rules` usa
+ * 0 = domingo (Date#getDay). Lunes a viernes mañana y tarde, sábado SOLO a
+ * la mañana (el prototipo 2f ofrecía la tarde del sábado: bug corregido),
+ * domingo cerrado.
  */
-export const scheduleRules: { weekday: number; startTime: string; endTime: string }[] = [
-  ...[1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, startTime: "10:00", endTime: "13:00" })),
-  ...[1, 2, 3, 4, 5].map((weekday) => ({ weekday, startTime: "16:00", endTime: "19:00" })),
-];
+export const scheduleRules: { weekday: number; startTime: string; endTime: string }[] =
+  WEEKLY_SCHEDULE.filter((d) => d.open).flatMap((d) => {
+    const weekday = (d.day + 1) % 7;
+    return [d.am, d.pm]
+      .filter((r) => r !== null)
+      .map((r) => ({ weekday, startTime: r.from, endTime: r.to }));
+  });
 
 /** Ajustes de la agenda y de pagos que no viven en lib/config.ts. */
 export const operationSettings = {
-  slotMinutes: 30,
-  slotCapacity: 1,
-  minNoticeMin: 120,
-  maxDaysAhead: 30,
+  ...APPOINTMENT_SETTINGS,
   autoConfirmAppointments: true,
-  maxInstallments: 6,
+  maxInstallments: PAYMENT_SETTINGS.maxInstallments,
   /** null = la reserva en efectivo no vence. */
-  cashReservationHours: null as number | null,
-  cashEnabled: true,
+  cashReservationHours: PAYMENT_SETTINGS.cashReservationHours,
+  cashEnabled: PAYMENT_SETTINGS.cashEnabled,
 };
 
 /** Plantillas de WhatsApp (links wa.me, sin envío automático). */
@@ -60,17 +58,9 @@ export const whatsappTemplates: {
   name: string;
   trigger: string;
   body: string;
-}[] = [
-  {
-    id: "turno_confirmado",
-    name: "Turno confirmado",
-    trigger: "Al reservar",
-    body: "¡Hola {nombre}! Te esperamos el {día} a las {hora} para tu {servicio} en BiciTienda MDQ. Si no podés venir, reprogramá acá: {link}",
-  },
-  {
-    id: "pedido_listo",
-    name: "Pedido listo",
-    trigger: "Al marcarlo listo",
-    body: "¡{nombre}, tu {producto} ya está armada y lista! Pasá a buscarla con tu DNI y el pedido {número}.",
-  },
-];
+}[] = WHATSAPP_TEMPLATES.map((t) => ({
+  id: t.key,
+  name: t.name,
+  trigger: t.when,
+  body: t.body,
+}));

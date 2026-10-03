@@ -252,7 +252,7 @@ export async function sendPasswordResetEmail(opts: {
       PasswordResetEmail({
         brandName: runtime.brandName,
         customerName: opts.name,
-        resetUrl: `${runtimeSiteUrl()}/cuenta/recuperar?token=${encodeURIComponent(opts.token)}`,
+        resetUrl: `${runtimeSiteUrl()}${paths.recover()}?token=${encodeURIComponent(opts.token)}`,
         validMinutes: opts.validMinutes,
         footer: `${runtime.brandName} · ${local.address} · ${local.hours}`,
       }),

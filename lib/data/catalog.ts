@@ -1,205 +1,103 @@
 /**
- * Catálogo de ejemplo del starter (marca placeholder "Faro"). Es el SEED
- * de la base (`pnpm db:seed`): la web lee siempre de la DB, editable desde
- * /admin. Al crear una tienda real: reemplazá marcas, categorías y
- * productos por los del cliente (a mano, o con un script que lea su
- * fuente), las fotos en public/products/ (`pnpm optimize:images`) y
- * subilas a Cloudinary con `pnpm seed:images` antes del seed.
+ * ── CAPA POR TIENDA ──────────────────────────────────────────
+ * Catálogo seed de BiciTienda MDQ: traduce los datos del prototipo
+ * (`lib/data/demo/*`, tipos propios sin dependencias) a los tipos del seed
+ * del core (`SeedCategory`, `SeedProduct`). Es el SEED de la base
+ * (`pnpm db:seed`): la web lee siempre de la DB, editable desde /admin.
+ *
+ * Fotos: claves `pexels:<id>`; `resolveImage()` (lib/images.ts) las pasa a
+ * Cloudinary vía el manifest (`pnpm demo:images`) o, sin subir, a Pexels.
  */
+import {
+  CATEGORIES,
+  HOME_CATEGORY_STRIP,
+  manifestKey,
+  PRODUCTS,
+  type DemoProduct,
+} from "@/lib/data/demo";
 import type { Brand, SeedCategory, SeedProduct } from "@/lib/types";
 
-export const brands: Brand[] = [
-  { id: "faro", name: "Faro" },
-  { id: "invitada", name: "Marca Invitada" },
-];
+/**
+ * El prototipo no tiene marcas ("MARCA" / "[Marca a confirmar]"): todos los
+ * productos cuelgan de esta marca placeholder hasta que el cliente las pase.
+ * La UI puede tratar `PLACEHOLDER_BRAND_ID` como "sin marca".
+ */
+export const PLACEHOLDER_BRAND_ID = "sin-marca";
+
+export const brands: Brand[] = [{ id: PLACEHOLDER_BRAND_ID, name: "[Marca a confirmar]" }];
+
+/** Singular en mayúsculas para la etiqueta de las tarjetas. */
+const SINGLE: Record<string, string> = {
+  bicicletas: "BICICLETA",
+  accesorios: "ACCESORIO",
+  repuestos: "REPUESTO",
+  importados: "IMPORTADO",
+  mtb: "MTB",
+  "ruta-gravel": "RUTA / GRAVEL",
+  urbanas: "URBANA",
+  infantiles: "INFANTIL",
+  cascos: "CASCO",
+  indumentaria: "INDUMENTARIA",
+};
+
+const HOME = new Set(HOME_CATEGORY_STRIP.map((c) => c.categorySlug));
 
 /**
- * `slug` es el id interno corto; `pathSlug` la URL pública
- * (/catalogo/<pathSlug>). `single` va en mayúsculas en la etiqueta de las
- * tarjetas; `sub` es el subtítulo de la tarjeta del home (vacío = contador
- * de productos); `imgProductId` elige la foto de la tarjeta.
+ * Dos niveles: grupos del nav (`parentSlug: null`) y tipos dentro de cada
+ * grupo. El `order` de los tipos es relativo a su grupo.
  */
-export const categories: SeedCategory[] = [
-  {
-    slug: "hogar",
-    label: "Hogar",
-    single: "HOGAR",
-    sub: "",
-    home: true,
-    imgProductId: "lampara-duna",
-    pathSlug: "hogar",
-    order: 1,
-  },
-  {
-    slug: "viaje",
-    label: "Viaje",
-    single: "VIAJE",
-    sub: "",
-    home: true,
-    imgProductId: "mochila-norte",
-    pathSlug: "viaje",
-    order: 2,
-  },
-];
+export const categories: SeedCategory[] = CATEGORIES.map((c) => ({
+  slug: c.slug,
+  label: c.name,
+  single: SINGLE[c.slug] ?? c.name.toUpperCase(),
+  sub: "",
+  home: HOME.has(c.slug),
+  imgProductId:
+    PRODUCTS.find(
+      (p) =>
+        p.categorySlug === c.slug ||
+        CATEGORIES.some((t) => t.slug === p.categorySlug && t.parentSlug === c.slug),
+    )?.slug ?? null,
+  pathSlug: c.slug,
+  order: c.order,
+  parentSlug: c.parentSlug,
+}));
 
-export const products: SeedProduct[] = [
-  {
-    id: "lampara-duna",
-    slug: "lampara-duna",
-    name: "Lámpara Duna",
-    brandId: "faro",
-    category: "hogar",
-    price: 96000,
+function toSeedProduct(p: DemoProduct, i: number): SeedProduct {
+  return {
+    id: p.slug,
+    slug: p.slug,
+    name: p.name,
+    brandId: PLACEHOLDER_BRAND_ID,
+    category: p.categorySlug,
+    price: p.price,
     priceApprox: false,
     oldPrice: null,
-    tag: "MÁS VENDIDA",
-    chips: ["Luz cálida", "Regulable", "USB-C"],
-    specs: [
-      { label: "Potencia", value: "8 W LED" },
-      { label: "Temperatura", value: "2700–4000 K regulable" },
-      { label: "Autonomía", value: "10 hs sin cable" },
-      { label: "Carga", value: "USB-C" },
-      { label: "Material", value: "Aluminio anodizado" },
-      { label: "Garantía", value: "12 meses" },
-    ],
-    images: ["/products/lampara-duna.webp"],
-    stock: 5,
+    tag: p.tag,
+    chips: [],
+    specs: p.specs,
+    images: p.photos.map(manifestKey),
+    stock: p.variants.reduce((a, v) => a + v.stock, 0),
     stockOverride: null,
     hidden: false,
-    featured: true,
+    featured: p.featured,
     custom: false,
-    description: "",
-    createdAt: "2026-01-01",
-  },
-  {
-    id: "mochila-norte",
-    slug: "mochila-norte",
-    name: "Mochila Norte",
-    brandId: "faro",
-    category: "viaje",
-    price: 148000,
-    priceApprox: false,
-    oldPrice: null,
-    tag: "NUEVA",
-    chips: ["28 L", "Impermeable", "Notebook 16”"],
-    specs: [
-      { label: "Capacidad", value: "28 L" },
-      { label: "Material", value: "Lona encerada impermeable" },
-      { label: "Notebook", value: "Hasta 16” acolchado" },
-      { label: "Bolsillos", value: "7 (2 ocultos)" },
-      { label: "Peso", value: "1.1 kg" },
-      { label: "Garantía", value: "24 meses" },
-    ],
-    images: ["/products/mochila-norte.webp"],
-    stock: 8,
-    stockOverride: null,
-    hidden: false,
-    featured: true,
-    custom: false,
-    description: "",
-    createdAt: "2026-01-01",
-  },
-  {
-    id: "botella-sur",
-    slug: "botella-sur",
-    name: "Botella Sur",
-    brandId: "faro",
-    category: "viaje",
-    price: 42000,
-    priceApprox: false,
-    oldPrice: null,
-    tag: null,
-    chips: ["750 ml", "24 hs frío", "Acero"],
-    specs: [
-      { label: "Capacidad", value: "750 ml" },
-      { label: "Aislamiento", value: "24 hs frío / 12 hs calor" },
-      { label: "Material", value: "Acero inoxidable 316" },
-      { label: "Peso", value: "380 g" },
-    ],
-    images: ["/products/botella-sur.webp"],
-    stock: 12,
-    stockOverride: null,
-    hidden: false,
-    featured: true,
-    custom: false,
-    description: "",
-    createdAt: "2026-01-01",
-  },
-  {
-    id: "auriculares-eco",
-    slug: "auriculares-eco",
-    name: "Auriculares Eco",
-    brandId: "invitada",
-    category: "viaje",
-    price: null,
-    priceApprox: false,
-    oldPrice: null,
-    tag: "PREMIUM",
-    chips: ["Cancelación", "40 hs", "Multipunto"],
-    specs: [
-      { label: "Cancelación", value: "Activa híbrida" },
-      { label: "Autonomía", value: "40 hs con estuche" },
-      { label: "Conexión", value: "Bluetooth 5.4 multipunto" },
-      { label: "Peso", value: "48 g" },
-    ],
-    images: ["/products/auriculares-eco.webp"],
-    stock: 4,
-    stockOverride: null,
-    hidden: false,
-    featured: true,
-    custom: false,
-    description: "",
-    createdAt: "2026-01-01",
-  },
-  {
-    id: "silla-costa",
-    slug: "silla-costa",
-    name: "Silla Costa",
-    brandId: "faro",
-    category: "hogar",
-    price: 210000,
-    priceApprox: true,
-    oldPrice: null,
-    tag: null,
-    chips: ["Ergonómica", "Madera", "Local"],
-    specs: [
-      { label: "Material", value: "Guatambú + lino" },
-      { label: "Peso máximo", value: "120 kg" },
-      { label: "Origen", value: "Fabricación local" },
-      { label: "Garantía", value: "5 años estructura" },
-    ],
-    images: ["/products/silla-costa.webp"],
-    stock: 0,
-    stockOverride: null,
-    hidden: false,
-    featured: false,
-    custom: false,
-    description: "",
-    createdAt: "2026-01-01",
-  },
-  {
-    id: "reloj-puerto",
-    slug: "reloj-puerto",
-    name: "Reloj Puerto",
-    brandId: "invitada",
-    category: "hogar",
-    price: 74000,
-    priceApprox: false,
-    oldPrice: null,
-    tag: null,
-    chips: ["Pared", "Silencioso", "30 cm"],
-    specs: [
-      { label: "Diámetro", value: "30 cm" },
-      { label: "Mecanismo", value: "Barrido silencioso" },
-      { label: "Material", value: "MDF laqueado" },
-    ],
-    images: ["/products/reloj-puerto.webp"],
-    stock: 6,
-    stockOverride: null,
-    hidden: false,
-    featured: false,
-    custom: false,
-    description: "",
-    createdAt: "2026-01-01",
-  },
-];
+    description: p.description ?? "",
+    // Orden estable del catálogo ("más nuevos" respeta el del prototipo).
+    createdAt: `2026-09-${String(30 - i).padStart(2, "0")}`,
+    sku: p.sku,
+    rodado: p.rodado,
+    testRide: p.testRide,
+    hideWhenOut: p.hideWhenOut,
+    status: p.status,
+    variants: p.variants.map((v) => ({
+      size: v.size,
+      ...(v.color ? { color: v.color } : {}),
+      heightRange: v.heightRange,
+      sku: v.sku,
+      stock: v.stock,
+    })),
+  };
+}
+
+export const products: SeedProduct[] = PRODUCTS.map(toSeedProduct);

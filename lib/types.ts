@@ -148,6 +148,23 @@ export interface StoreRoutes {
   catalog: string;
   /** URL pública de la sección comunidad: "/comunidad", "/e-riders"… */
   community: string;
+  /**
+   * Rutas fijas del core (carpetas reales de app/, sin rewrite): se listan
+   * acá para que los links salgan de un solo lugar (lib/paths.ts).
+   */
+  /** Carrito con el pago integrado. */
+  cart: string;
+  /** Reserva de turnos (features.appointments). */
+  appointments: string;
+  /** Pedido de presupuesto (features.quotes). */
+  quote: string;
+  /** Mi cuenta y sus pantallas de acceso (features.accounts). */
+  account: string;
+  login: string;
+  register: string;
+  recover: string;
+  /** Seguimiento de un pedido sin cuenta. */
+  tracking: string;
 }
 
 /* ── Léxico ───────────────────────────────────────────────── */

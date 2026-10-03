@@ -64,15 +64,56 @@ async function main() {
     console.log("✔ migración 0009 sobre datos existentes (backfill a variante Único)");
   }
 
-  /* ── Base de los tests: migrada y sembrada ───────────────── */
+  /* ── Seed con la operación demo del prototipo ────────────── */
+  {
+    const demoClient = new PGlite();
+    const demoDb = drizzle(demoClient, { schema });
+    await migrate(demoDb, { migrationsFolder: MIGRATIONS });
+    const { runSeed } = await import("@/lib/server/seed");
+    const first = await runSeed(demoDb as any);
+    assert.ok(first.demo, "base nueva: carga la demo");
+    assert.equal(first.demo.orders, 9);
+    assert.equal(first.demo.quotes, 6);
+    assert.ok(first.demo.appointments >= 6);
+    // Idempotente: con clientes cargados no vuelve a sembrar la demo.
+    const again = await runSeed(demoDb as any);
+    assert.equal(again.demo, null);
+    const q = async <T,>(text: string) => (await demoClient.query<T>(text)).rows;
+    // Todos los estados de pedido y de presupuesto del prototipo.
+    const st = (await q<{ status: string }>("SELECT DISTINCT status FROM orders")).map((r) => r.status).sort();
+    assert.deepEqual(st, ["CANCELADO", "EN_PREPARACION", "LISTO_RETIRO", "PAGADO", "PENDIENTE_PAGO", "RETIRADO"]);
+    const qs = (await q<{ status: string }>("SELECT DISTINCT status FROM quote_requests")).map((r) => r.status);
+    assert.equal(qs.length, 5);
+    // El stock disponible es el del prototipo (3c) aunque haya reservas.
+    const [g] = await q<{ qty: number }>("SELECT qty FROM product_stock WHERE variant_id = 'gravel-700c-2x9-vel--l'");
+    assert.equal(g.qty, 0);
+    const [m] = await q<{ n: number }>(
+      "SELECT sum(qty)::int AS n FROM product_stock WHERE product_slug = 'mtb-rodado-29-21-vel-aluminio' AND variant_id LIKE '%--m-%'",
+    );
+    assert.equal(m.n, 3);
+    // Cuenta demo enlazada a sus pedidos; numeración sigue después de la demo.
+    const [acct] = await q<{ n: number }>(
+      "SELECT count(*)::int AS n FROM orders o JOIN customer_accounts a ON a.id = o.account_id WHERE a.email = 'juanperez@gmail.com'",
+    );
+    assert.equal(acct.n, 2);
+    const [c] = await q<{ value: number }>("SELECT value FROM counters WHERE id = 'order_number'");
+    assert.equal(c.value, 10482);
+    // Sábado solo a la mañana.
+    const sat = await q<{ end_time: string }>("SELECT end_time FROM schedule_rules WHERE weekday = 6");
+    assert.deepEqual(sat.map((r) => r.end_time), ["13:00"]);
+    await demoClient.close();
+    console.log("✔ seed demo: pedidos, turnos, presupuestos, stock y cuenta demo (idempotente)");
+  }
+
+  /* ── Base de los tests: migrada y sembrada (sin la demo) ──── */
   const client = new PGlite();
   const db = drizzle(client, { schema });
   await migrate(db, { migrationsFolder: MIGRATIONS });
   (globalThis as any).__storeDb = Promise.resolve(db);
   const { runSeed } = await import("@/lib/server/seed");
-  await runSeed(db as any);
+  await runSeed(db as any, { demo: false });
   // Idempotente.
-  await runSeed(db as any);
+  await runSeed(db as any, { demo: false });
 
   const stock = await import("@/lib/server/stock");
   const variants = await import("@/lib/server/variants");
@@ -97,7 +138,11 @@ async function main() {
   const TZ = store.timeZone;
 
   // Producto de prueba con talles: MTB S/M/L.
-  await db.insert(schema.categories).values({ slug: "mtb", label: "MTB", pathSlug: "mtb", parentSlug: null });
+  // (El seed ya trae la categoría MTB: el insert es por si cambia.)
+  await db
+    .insert(schema.categories)
+    .values({ slug: "mtb", label: "MTB", pathSlug: "mtb", parentSlug: null })
+    .onConflictDoNothing();
   await db.insert(schema.brands).values({ id: "venzo", name: "Venzo" }).onConflictDoNothing();
   await db.insert(schema.products).values({
     id: "mtb-29",
@@ -294,6 +339,47 @@ async function main() {
     assert.equal(await qty(vM.id), before - 1);
     await orders.cancelOrder(o.id);
     assert.equal(await qty(vM.id), before, "el saldo neto vuelve exacto");
+  });
+
+  test("pago aprobado sobre un pedido CANCELADO: no se reactiva, queda evento y aviso", async () => {
+    const before = await qty(vM.id);
+    const r = await checkout({ paymentMethod: "mercadopago" });
+    const o = await orderByNumber((r as any).number);
+    assert.equal(await orders.cancelOrder(o.id), true);
+    await payments.applyPaymentResult({ provider: "mp", providerPaymentId: "mp-cancelado", status: "approved", amount: o.total, orderNumber: o.number });
+    const after = await order(o.id);
+    assert.equal(after.status, "CANCELADO");
+    assert.equal(await qty(vM.id), before, "no re-reserva stock");
+    assert.ok(after.timeline.some((e: any) => /cancelado/.test(e.label) && e.key === "PAGO"));
+    const leads = await db.select().from(schema.leads).where(eq(schema.leads.label, `Pago tardío — pedido ${o.number}`));
+    assert.equal(leads.length, 1);
+  });
+
+  test("contadores del sidebar del admin", async () => {
+    const { getAdminNavCounts } = await import("@/lib/server/admin-queries");
+    const c = await getAdminNavCounts();
+    for (const k of ["ordersToAct", "appointmentsToday", "appointmentsUnconfirmed", "quotesNew", "products"] as const)
+      assert.equal(typeof c[k], "number", k);
+    assert.ok(c.products > 0);
+  });
+
+  test("sandbox de pago: nunca en un deploy de producción", async () => {
+    const { isPaymentSandboxAllowed } = await import("@/lib/server/payment-availability");
+    const env = process.env as Record<string, string | undefined>;
+    const prev = { NODE_ENV: env.NODE_ENV, PAYMENT_SANDBOX: env.PAYMENT_SANDBOX, VERCEL_ENV: env.VERCEL_ENV };
+    try {
+      env.NODE_ENV = "production";
+      env.PAYMENT_SANDBOX = "1";
+      env.VERCEL_ENV = undefined;
+      assert.equal(isPaymentSandboxAllowed(), true, "build local con PAYMENT_SANDBOX=1");
+      env.VERCEL_ENV = "production";
+      assert.equal(isPaymentSandboxAllowed(), false);
+    } finally {
+      for (const [k, v] of Object.entries(prev)) {
+        if (v === undefined) delete env[k];
+        else env[k] = v;
+      }
+    }
   });
 
   test("comprobante de transferencia: validación de pedido + contacto, imagen o PDF", async () => {

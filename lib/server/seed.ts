@@ -1,4 +1,4 @@
-import { eq, notInArray } from "drizzle-orm";
+import { eq, notInArray, sql } from "drizzle-orm";
 import { store } from "@/lib/config";
 import { brands, categories, products } from "@/lib/data/catalog";
 import { agendaEvents, articles, content } from "@/lib/data/content";
@@ -11,10 +11,9 @@ import {
 import { resolveImage } from "@/lib/images";
 import type { Db } from "@/lib/server/db";
 import * as schema from "@/lib/server/db/schema";
+import { demoReservedStock, seedDemoOperations } from "@/lib/server/seed-demo";
+import { seedVariantsOf } from "@/lib/server/seed-variants";
 import { applyStockMovement, getVariantStockMatrix } from "@/lib/server/stock";
-import { SINGLE_SIZE, type SeedProduct, type SeedVariant } from "@/lib/types";
-import { defaultVariantId, defaultVariantSku } from "@/lib/variants";
-import { slugify } from "@/lib/slug";
 
 /**
  * Carga los valores originales de la capa por-tienda (lib/config.ts,
@@ -81,36 +80,6 @@ async function seedLocations(db: Db) {
   }
 }
 
-/** Variantes del seed con id y SKU resueltos. */
-function seedVariantsOf(p: SeedProduct): (SeedVariant & { id: string; sku: string; order: number })[] {
-  if (!p.variants?.length)
-    return [
-      {
-        id: defaultVariantId(p.slug),
-        size: SINGLE_SIZE,
-        color: "",
-        heightRange: null,
-        sku: defaultVariantSku(p.slug, p.sku),
-        stock: p.stock,
-        order: 0,
-      },
-    ];
-  return p.variants.map((v, i) => {
-    const single = v.size === SINGLE_SIZE && !v.color;
-    const key = [v.size, v.color].filter(Boolean).join("-");
-    return {
-      ...v,
-      id: single ? defaultVariantId(p.slug) : `${p.slug}--${slugify(key, 30)}`,
-      sku:
-        v.sku ??
-        (single
-          ? defaultVariantSku(p.slug, p.sku)
-          : `${(p.sku || p.slug).toUpperCase()}-${slugify(key, 30).toUpperCase()}`),
-      order: i,
-    };
-  });
-}
-
 /** Upsert de las variantes del seed (por id). */
 async function seedVariants(db: Db) {
   for (const p of products) {
@@ -138,7 +107,10 @@ async function seedVariants(db: Db) {
  * por variante. En una corrida normal solo completa variantes SIN filas de
  * stock (no pisa inventario vivo); con `reset` vuelve todo al seed.
  */
-async function seedStock(db: Db, opts: { reset: boolean }) {
+async function seedStock(
+  db: Db,
+  opts: { reset: boolean; reserved: Map<string, number> },
+) {
   const principal = store.locations[0].id;
   const matrix = await getVariantStockMatrix(db);
 
@@ -159,12 +131,15 @@ async function seedStock(db: Db, opts: { reset: boolean }) {
             });
         }
       }
-      if (v.stock > 0)
+      // + lo que reservan los pedidos demo que se cargan en esta corrida
+      // (ellos lo descuentan después: queda el disponible del prototipo).
+      const qty = v.stock + (opts.reserved.get(v.id) ?? 0);
+      if (qty > 0)
         await applyStockMovement(db, {
           variantId: v.id,
           productSlug: p.slug,
           locationId: principal,
-          delta: v.stock,
+          delta: qty,
           reason: "seed",
         });
     }
@@ -202,6 +177,12 @@ export async function runSeed(
      * todo" del admin; sin esto el reset es total (`pnpm db:seed`).
      */
     keepOperational?: boolean;
+    /**
+     * Operación demo del prototipo (lib/server/seed-demo.ts). Default true;
+     * igual solo entra en una base sin clientes. Los tests la apagan para
+     * armar sus propios datos.
+     */
+    demo?: boolean;
   } = {},
 ) {
   // Raíces primero: los tipos (MTB) referencian a su grupo (Bicicletas).
@@ -378,7 +359,26 @@ export async function runSeed(
       .where(notInArray(schema.agendaEvents.id, eventIds));
   }
 
-  await seedStock(db, { reset: !!opts.reset && !opts.keepOperational });
+  // Operación demo (pedidos, turnos, presupuestos, clientes y la cuenta
+  // demo): solo sobre una base sin clientes y con el inventario arrancando
+  // del seed (base nueva, o reset total). Una base con operación real, o
+  // el "Restablecer" del admin (keepOperational), nunca la reciben.
+  const [{ n: customerCount }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.customers);
+  const [{ n: stockRows }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.productStock);
+  const withDemo =
+    opts.demo !== false &&
+    customerCount === 0 &&
+    !(opts.reset && opts.keepOperational) &&
+    (!!opts.reset || stockRows === 0);
+
+  await seedStock(db, {
+    reset: !!opts.reset && !opts.keepOperational,
+    reserved: withDemo ? demoReservedStock() : new Map(),
+  });
   await seedOperations(db, { reset: !!opts.reset && !opts.keepOperational });
 
   // Numeración (el contador guarda el último): pedidos desde
@@ -426,9 +426,17 @@ export async function runSeed(
     .values(settingsRow)
     .onConflictDoUpdate({ target: schema.settings.id, set: settingsRow });
 
+  const demo = withDemo
+    ? await seedDemoOperations(db, {
+        locationId: store.locations[0].id,
+        slotCapacity: operationSettings.slotCapacity,
+      })
+    : null;
+
   return {
     products: products.length,
     articles: articles.length,
     events: agendaEvents.length,
+    demo,
   };
 }

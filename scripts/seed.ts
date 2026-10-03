@@ -48,9 +48,12 @@ async function main() {
   const { db, close } = await connect();
   const n = await runSeed(db);
   await close();
-  console.log(
-    `✔ seed: ${n.products} productos, ${n.articles} notas, ${n.events} eventos y settings`,
-  );
+  console.log(`✔ seed: ${n.products} productos, ${n.articles} notas, ${n.events} eventos y settings`);
+  if (n.demo)
+    console.log(
+      `✔ demo: ${n.demo.customers} clientes, ${n.demo.orders} pedidos, ${n.demo.appointments} turnos, ${n.demo.quotes} presupuestos y la cuenta demo`,
+    );
+  else console.log("· demo: la base ya tiene clientes, no se carga la operación demo");
 }
 
 main().catch((err) => {

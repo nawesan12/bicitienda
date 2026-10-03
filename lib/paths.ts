@@ -24,4 +24,28 @@ export const paths = {
   community(): string {
     return routes.community;
   },
+  cart(): string {
+    return routes.cart;
+  },
+  appointments(): string {
+    return routes.appointments;
+  },
+  quote(): string {
+    return routes.quote;
+  },
+  account(): string {
+    return routes.account;
+  },
+  login(): string {
+    return routes.login;
+  },
+  register(): string {
+    return routes.register;
+  },
+  recover(): string {
+    return routes.recover;
+  },
+  tracking(numero?: string): string {
+    return numero ? `${routes.tracking}/${numero}` : routes.tracking;
+  },
 };

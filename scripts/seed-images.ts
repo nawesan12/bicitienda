@@ -19,7 +19,9 @@
  *                                   flag, el PDF se sirve estático desde
  *                                   /public (CDN de Vercel, sin funciones).
  *
- * Resultado: lib/data/image-manifest.json { "/products/x.webp": "https://…" }.
+ * Resultado: lib/data/image-manifest.json { "/products/x.webp": "https://…" },
+ * MERGEADO con el que ya había (no borra las claves `pexels:<id>` de
+ * `pnpm demo:images` ni otras subidas previas).
  * Después de correrlo, `pnpm db:seed` guarda las URLs de Cloudinary en la
  * base (las fotos de producto y la del hero).
  */
@@ -145,7 +147,17 @@ async function main() {
   const fetchImpl = dryRun ? dryFetch(cfg) : undefined;
 
   const items = await listItems();
-  const manifest: Record<string, string> = {};
+  const out = dryRun ? DRY_MANIFEST : MANIFEST;
+  // MERGE con el manifest existente: conserva las claves que este script
+  // no sube (las `pexels:<id>` de `pnpm demo:images`, u otras fotos ya
+  // subidas). Solo se pisan los paths que se vuelven a subir.
+  let previous: Record<string, string> = {};
+  try {
+    previous = JSON.parse(await readFile(MANIFEST, "utf8")) as Record<string, string>;
+  } catch {
+    /* sin manifest todavía */
+  }
+  const manifest: Record<string, string> = { ...previous };
   let done = 0;
 
   // De a 4 en paralelo: rápido sin saturar la cuenta free.
@@ -175,7 +187,6 @@ async function main() {
   const sorted = Object.fromEntries(
     Object.entries(manifest).sort(([a], [b]) => a.localeCompare(b)),
   );
-  const out = dryRun ? DRY_MANIFEST : MANIFEST;
   await mkdir(path.dirname(out), { recursive: true });
   await writeFile(out, JSON.stringify(sorted, null, 2) + "\n");
   console.log(

@@ -4,54 +4,66 @@ import type {
   StoreConfig,
   StoreRoutes,
 } from "@/lib/types";
+// Import relativo: next.config.ts importa este archivo y ahí "@/" no resuelve.
+import { PAYMENT_SETTINGS, STORE_INFO } from "./data/demo/settings";
 
 /**
  * ── CAPA POR TIENDA ──────────────────────────────────────────
- * Configuración de la tienda. Este archivo, `app/theme.css` (tokens),
+ * Configuración de BiciTienda MDQ. Este archivo, `app/theme.css` (tokens),
  * `app/fonts.ts` (tipografías), `app/layout.tsx` (metadata), `lib/data/`
- * (seed y léxico), `lib/advisor.ts` (test) y `public/brand/` son los
- * únicos lugares donde vive la marca: el resto del código es core y no
- * sabe qué tienda es.
+ * (seed y léxico; los datos del prototipo en `lib/data/demo/`),
+ * `lib/advisor.ts` (test) y `public/brand/` son los únicos lugares donde
+ * vive la marca: el resto del código es core y no sabe qué tienda es.
  *
- * Lo editable en runtime (WhatsApp, alias, recargos, seña, venta online…)
- * vive en la tabla `settings` y se edita desde /admin/ajustes: lo de acá es
- * el valor del seed (`pnpm db:seed`).
+ * Lo editable en runtime (WhatsApp, alias, recargos, venta online…) vive
+ * en la tabla `settings` y se edita desde /admin/ajustes: lo de acá es el
+ * valor del seed (`pnpm db:seed`).
  *
- * "Faro" es la marca placeholder del starter: reemplazá TODOS los
- * valores de este archivo al crear una tienda real.
+ * Los datos del local que el cliente todavía no pasó quedan como en el
+ * prototipo ("[… a confirmar]", ver STORE_INFO en lib/data/demo/settings.ts).
+ * El WhatsApp necesita dígitos para los links wa.me: hasta tener el real
+ * queda un número inexistente (549 223 000-0000).
  */
+/** WhatsApp placeholder (inexistente) hasta que el cliente pase el real. */
+export const WHATSAPP_PENDING = "5492230000000";
+
 export const store: StoreConfig = {
   /** Carpeta en Cloudinary y prefijos técnicos: kebab-case, estable. */
   slug: "bicitienda",
-  // Cambiala por el dominio real antes de publicar.
-  siteUrl: "https://faro.example.com",
-  brandName: "BiciTienda MDQ",
-  legalName: "BiciTienda MDQ",
-  city: "Mar del Plata, Argentina",
+  // Dominio provisorio: confirmarlo antes de publicar.
+  siteUrl: "https://bicitiendamdq.com.ar",
+  brandName: STORE_INFO.name,
+  legalName: STORE_INFO.name,
+  city: `${STORE_INFO.city}, Argentina`,
   timeZone: "America/Argentina/Buenos_Aires",
-  whatsapp: "5492230000000", // ← número real de la tienda
-  whatsappGroupUrl: null, // ← link del grupo de la comunidad, si hay
-  instagram: "faro.tienda",
+  whatsapp: WHATSAPP_PENDING, // ← [Número a confirmar] (STORE_INFO.whatsapp)
+  whatsappGroupUrl: null,
+  instagram: STORE_INFO.instagram.replace(/^@/, ""),
   tiktok: null,
-  transferAlias: "FARO.TIENDA", // ← alias/CBU real
-  transferDiscount: 10, // % de descuento por transferencia
-  r3: 0, // % de recargo en 3 cuotas (0 = sin recargo)
-  r6: 0, // % de recargo en 6 cuotas
-  address: "Av. Ejemplo 1234 · Mar del Plata",
-  hours: "Lun a vie 9–18 hs · Sáb 9–13 hs",
-  mapsUrl: "https://www.google.com/maps/search/?api=1&query=Mar+del+Plata",
-  openingHours: ["Mo-Fr 09:00-18:00", "Sa 09:00-13:00"],
-  /** Tipo schema.org del negocio (JSON-LD): "Store", "ClothingStore"… */
-  businessType: "Store",
+  transferAlias: PAYMENT_SETTINGS.alias,
+  transferDiscount: PAYMENT_SETTINGS.transferDiscountPct, // % off por transferencia
+  r3: 0, // cuotas sin interés (Mercado Pago, hasta settings.maxInstallments)
+  r6: 0,
+  address: `${STORE_INFO.address} · ${STORE_INFO.city}`,
+  hours: STORE_INFO.hours,
+  mapsUrl: "https://www.google.com/maps/search/?api=1&query=BiciTienda+MDQ+Mar+del+Plata",
+  // Horario de turnos del local (WEEKLY_SCHEDULE): lun–vie mañana y tarde,
+  // sábado solo a la mañana. Ajustarlo cuando el cliente confirme el de
+  // atención al público.
+  openingHours: ["Mo-Fr 10:00-13:00", "Mo-Fr 16:00-19:00", "Sa 10:00-13:00"],
+  /** Tipo schema.org del negocio (JSON-LD). */
+  businessType: "BicycleStore",
   ventaOnline: true,
   /** PDF del catálogo en public/brand/ (o Cloudinary). null = sin link. */
   catalogPdfUrl: null,
+  // Sin seña (features.deposit = false): estos valores no se usan.
   depositRate: 0.1,
   depositMinTotal: 300_000,
   // Reserva de una transferencia sin acreditar (el efectivo tiene la suya
   // en settings.cashReservationHours: null = no vence).
-  reservationHours: 24,
-  localShippingCost: 8000,
+  reservationHours: PAYMENT_SETTINGS.transferReservationHours,
+  // Solo retiro en el local (features.pickupOnly): sin envío.
+  localShippingCost: 0,
   showPrices: true,
   criticalStock: 1,
   lowStock: 3,
@@ -59,12 +71,11 @@ export const store: StoreConfig = {
   locations: [
     {
       id: "central",
-      name: "Av. Ejemplo 1234",
-      shortName: "Central",
-      address: "Av. Ejemplo 1234 · Mar del Plata",
-      hours: "Lun a vie 9–18 hs · Sáb 9–13 hs",
-      mapsUrl:
-        "https://www.google.com/maps/search/?api=1&query=Mar+del+Plata",
+      name: STORE_INFO.name,
+      shortName: "Local",
+      address: `${STORE_INFO.address} · ${STORE_INFO.city}`,
+      hours: STORE_INFO.hours,
+      mapsUrl: "https://www.google.com/maps/search/?api=1&query=BiciTienda+MDQ+Mar+del+Plata",
       order: 0,
       active: true,
     },
@@ -115,6 +126,14 @@ export const store: StoreConfig = {
 export const routes: StoreRoutes = {
   catalog: "/catalogo",
   community: "/comunidad",
+  cart: "/checkout",
+  appointments: "/turnos",
+  quote: "/presupuesto",
+  account: "/cuenta",
+  login: "/cuenta/ingresar",
+  register: "/cuenta/registro",
+  recover: "/cuenta/recuperar",
+  tracking: "/seguimiento",
 };
 
 const allDeliveryMethods: DeliveryMethod[] = [
