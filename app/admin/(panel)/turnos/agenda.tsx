@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { cx } from "../cx";
-import { FOCUS, FONT, MONO, TRANSITION } from "../styles";
+import { cx } from "@/components/bt/cx";
+import { FOCUS, FONT, MONO, TRANSITION } from "@/components/bt/styles";
 
 /* ── WeekNav (3b "‹ 5 – 10 oct 2026 ›") ───────────────────────
    Archivo 800 16 px uppercase .04em. Flechas con área táctil de 44 px.

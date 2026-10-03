@@ -1,20 +1,9 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import {
-  AppointmentPill,
-  Button,
-  Eyebrow,
-  Mono,
-  OrderPill,
-  Pill,
-  QuotePill,
-  SegmentedControl,
-  TextLink,
-} from "@/components/bt";
-import { AccountNav } from "@/components/bt/cliente-c/account-nav";
-import { AppointmentManager } from "@/components/bt/cliente-c/appointment-manager";
-import { OrderSummaryCard } from "@/components/bt/cliente-c/order-summary-card";
+import { AppointmentPill, Button, Eyebrow, Mono, OrderPill, OrderSummaryCard, Pill, QuotePill, SegmentedControl, TextLink } from "@/components/bt";
+import { AccountNav } from "./account-nav";
+import { AppointmentManager } from "@/components/bt/appointment-manager";
 import { COPY } from "@/lib/data/demo/copy";
 import { features } from "@/lib/features";
 import { paths } from "@/lib/paths";

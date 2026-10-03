@@ -3,8 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useToast } from "@/components/admin/toast";
-import { Button, Field, Input, Select, Textarea } from "@/components/bt";
-import { FormError, Modal } from "@/components/bt/admin-d1/modal";
+import { Button, Field, FormError, Input, Modal, Select, Textarea } from "@/components/bt";
 import { adminBlockSchedule, adminCreateAppointment } from "@/lib/server/actions/admin-appointments";
 
 /** Lunes de la semana de una fecha local "YYYY-MM-DD" (domingo → lunes siguiente). */

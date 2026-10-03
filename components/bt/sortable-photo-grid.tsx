@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { cx } from "../cx";
-import { FOCUS, FONT, TRANSITION } from "../styles";
+import { cx } from "./cx";
+import { FOCUS, FONT, TRANSITION } from "./styles";
 
 /**
  * Grilla de fotos ordenable (3d "Fotos"): 5 columnas (3 en mobile), gap

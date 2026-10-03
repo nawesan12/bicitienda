@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { cx } from "../cx";
-import { FONT, FOCUS, TRANSITION } from "../styles";
+import { cx } from "./cx";
+import { FONT, FOCUS, TRANSITION } from "./styles";
 
 /**
  * Botón chico "Copiar" (CBU, alias, número de pedido). Borde #3a362f r6,

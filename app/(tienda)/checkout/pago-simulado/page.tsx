@@ -7,7 +7,7 @@ import { formatMoney } from "@/components/bt/format";
 import { Field, Input } from "@/components/bt/field";
 import { Panel } from "@/components/bt/panel";
 import { Display, Eyebrow, Mono, Price } from "@/components/bt/typography";
-import { KeyValueList } from "@/components/bt/compra-b/blocks";
+import { KeyValueList } from "@/components/bt";
 import { chargeAmount, isGatewayLive } from "@/lib/server/online-payment";
 import { getOrderById } from "@/lib/server/order-queries";
 import { isPaymentSandboxAllowed } from "@/lib/server/payment-availability";
@@ -111,6 +111,7 @@ export default async function SimulatedPaymentPage({
             <span className="text-[20px] font-extrabold">{runtime.brandName}</span>
           </div>
           <KeyValueList
+            layout="stacked"
             items={[
               { label: t.order, value: order.number, mono: true },
               { label: t.customer, value: customer.name },

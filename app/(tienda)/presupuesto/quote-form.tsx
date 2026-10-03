@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Button, Display, Eyebrow, Input, OptionCard, Panel, Textarea, UploadDropzone, cx } from "@/components/bt";
-import { NumberedSteps } from "@/components/bt/cliente-c/numbered-steps";
+import { Button, cx, Display, Eyebrow, Input, NumberedSteps, OptionCard, Panel, Textarea, UploadDropzone } from "@/components/bt";
 import { COPY } from "@/lib/data/demo/copy";
 import { DEFAULT_QUOTE_KIND, QUOTE_KINDS } from "@/lib/data/demo/quotes";
 import type { QuoteKind as DemoQuoteKind } from "@/lib/data/demo/types";

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AdminTopBar, CellStack, Display, EmptyState, FilterChip, QuotePill, SearchInput, Table, cx } from "@/components/bt";
-import { BackLink } from "@/components/bt/admin-d1/common";
+import { AdminTopBar, BackLink, CellStack, cx, Display, EmptyState, FilterChip, QuotePill, SearchInput, Table } from "@/components/bt";
 import { features } from "@/lib/features";
 import { getQuoteDetail, getQuotesBoard, QUOTE_FILTER_DEFS, type QuoteFilter, type QuoteRowView } from "@/lib/server/screens/admin-d1";
 import { QuotePanel } from "./quote-panel";

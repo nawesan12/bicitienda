@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import {
-  Button,
-  CellMono,
-  CellStack,
-  EmptyState,
-  Panel,
-  Table,
-  buttonClasses,
-  formatMoney,
-  type TableColumn,
-} from "@/components/bt";
-import { HistoryList, KpiCell } from "@/components/bt/admin-d2/history-list";
-import { ResponsiveTopBar } from "@/components/bt/admin-d2/top-bar";
+import { Button, buttonClasses, CellMono, CellStack, EmptyState, formatMoney, Panel, ResponsiveTopBar, Table, type TableColumn } from "@/components/bt";
+import { HistoryList, KpiCell } from "./history-list";
 import { store } from "@/lib/config";
 import { COPY } from "@/lib/data/demo/copy";
 import { getCustomersScreen, type CustomerCard, type CustomerListRow } from "@/lib/server/screens/admin-d2";

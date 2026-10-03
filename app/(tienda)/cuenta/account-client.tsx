@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Button, Field, Input, cx } from "@/components/bt";
-import { ACCOUNT_NAV_ITEM } from "@/components/bt/cliente-c/account-nav";
+import { ACCOUNT_NAV_ITEM } from "./account-nav";
 import { logoutAccount, updateMyProfile } from "@/lib/server/actions/account";
 
 /** "Cerrar sesión": desktop como ítem del nav (#8d867a), mobile como botón. */

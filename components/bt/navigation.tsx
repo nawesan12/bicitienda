@@ -195,3 +195,24 @@ export function SegmentedControl({
     </div>
   );
 }
+
+/* ── BackLink (4i "← Pedidos") ────────────────────────────────
+   Archivo 600 14 px #8d867a, padding 4×0, alto táctil 44 en mobile.
+   ──────────────────────────────────────────────────────────── */
+
+export function BackLink({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
+  return (
+    <Link
+      href={href}
+      className={cx(
+        "inline-flex min-h-11 items-center self-start rounded-[2px] text-[14px] font-semibold text-text-3 hover:text-paper md:min-h-0 md:py-1",
+        FONT,
+        TRANSITION,
+        FOCUS,
+        className,
+      )}
+    >
+      ← {children}
+    </Link>
+  );
+}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { cx } from "../cx";
-import { FOCUS, FONT, TRANSITION } from "../styles";
+import { cx } from "@/components/bt/cx";
+import { FOCUS, FONT, TRANSITION } from "@/components/bt/styles";
 
 /**
  * Historial de la ficha de cliente (3e): filas `72px 1fr`, gap 12,

@@ -1,19 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  Button,
-  CellMono,
-  CellStack,
-  CellThumb,
-  EmptyState,
-  FilterChip,
-  ProductPill,
-  Table,
-  cx,
-  formatMoney,
-  type TableColumn,
-} from "@/components/bt";
-import { ResponsiveTopBar } from "@/components/bt/admin-d2/top-bar";
+import { Button, CellMono, CellStack, CellThumb, cx, EmptyState, FilterChip, formatMoney, ProductPill, ResponsiveTopBar, Table, type TableColumn } from "@/components/bt";
 import { COPY } from "@/lib/data/demo/copy";
 import { features } from "@/lib/features";
 import { img } from "@/lib/images";

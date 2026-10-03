@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Display, Eyebrow, Input, OptionCard, Panel, SizeSelector, cx } from "@/components/bt";
-import { SelectedProductRow } from "@/components/bt/cliente-c/selected-product-row";
-import { SlotPicker, type SlotValue } from "@/components/bt/cliente-c/slot-picker";
-import { SummaryRows } from "@/components/bt/cliente-c/summary-rows";
+import { Button, cx, Display, Eyebrow, Input, OptionCard, Panel, SizeSelector, SummaryRows } from "@/components/bt";
+import { SelectedProductRow } from "./selected-product-row";
+import { SlotPicker, type SlotValue } from "@/components/bt/slot-picker";
 import { COPY } from "@/lib/data/demo/copy";
 import { paths } from "@/lib/paths";
 import { formatArPhone, isValidArPhone } from "@/lib/phone";
@@ -330,6 +329,7 @@ export function BookingClient({ data, bikes }: { data: BookingData; bikes: TestR
           {fill(T.durationValue, service?.durationMin ?? 30)} · {data.address}
         </p>
         <SummaryRows
+          tone="yellow"
           className="max-md:hidden"
           rows={[
             { label: T.summary.day, value: dayText },
@@ -452,6 +452,7 @@ function BookingSuccess({ booked, account, address }: { booked: Booked; account:
           {booked.serviceName}
         </Display>
         <SummaryRows
+          tone="yellow"
           rows={[
             { label: T.summary.day, value: booked.dayText },
             { label: T.summary.time, value: `${booked.time} hs` },

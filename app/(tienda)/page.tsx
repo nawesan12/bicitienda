@@ -1,8 +1,8 @@
 import { JsonLd, localBusinessLd, siteLd } from "@/components/bt/json-ld";
 import { TextLink } from "@/components/bt/button";
 import { Display } from "@/components/bt/typography";
-import { CatalogCard } from "@/components/bt/tienda-a/catalog-card";
-import { CategoryStrip, HomeHero, HowItWorks } from "@/components/bt/tienda-a/home";
+import { CatalogCard } from "@/components/bt/catalog-card";
+import { CategoryStrip, HomeHero, HowItWorks } from "./_components/home";
 import { COPY } from "@/lib/data/demo/copy";
 import { manifestKey } from "@/lib/data/demo/photos";
 import { img, resolveImage } from "@/lib/images";

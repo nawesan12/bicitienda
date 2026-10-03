@@ -2,9 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Button, Field, Input, Panel, PanelTitle, Pill, Select, Toggle, cx } from "@/components/bt";
-import { ScheduleDayRow, SettingsSubNav, WhatsAppTemplateCard } from "@/components/bt/admin-d2/settings";
-import { ResponsiveTopBar } from "@/components/bt/admin-d2/top-bar";
+import { Button, cx, Field, Input, Panel, PanelTitle, Pill, ResponsiveTopBar, Select, Toggle } from "@/components/bt";
+import { ScheduleDayRow, SettingsSubNav, WhatsAppTemplateCard } from "./settings-parts";
 import { useToast } from "@/components/admin/toast";
 import { COPY } from "@/lib/data/demo/copy";
 import { features } from "@/lib/features";

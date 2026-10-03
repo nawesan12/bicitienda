@@ -3,27 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import {
-  Button,
-  Eyebrow,
-  Field,
-  Input,
-  Panel,
-  PanelTitle,
-  ProductCard,
-  QtyStepper,
-  Select,
-  Textarea,
-  Toggle,
-  UploadDropzone,
-  cx,
-  formatMoney,
-  installmentAmount,
-  transferPrice,
-} from "@/components/bt";
-import { ComputedField, DangerTextButton } from "@/components/bt/admin-d2/fields";
-import { SortablePhotoGrid, type SortablePhoto } from "@/components/bt/admin-d2/sortable-photo-grid";
-import { ResponsiveTopBar } from "@/components/bt/admin-d2/top-bar";
+import { Button, ComputedField, cx, DangerTextButton, Eyebrow, Field, formatMoney, Input, installmentAmount, Panel, PanelTitle, ProductCard, QtyStepper, ResponsiveTopBar, Select, type SortablePhoto, SortablePhotoGrid, Textarea, Toggle, transferPrice, UploadDropzone } from "@/components/bt";
 import { useConfirm } from "@/components/admin/confirm";
 import { useToast } from "@/components/admin/toast";
 import { sendPhoto } from "@/components/admin/upload";

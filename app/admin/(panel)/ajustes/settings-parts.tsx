@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { cx } from "../cx";
-import { FOCUS, FONT, MONO, TRANSITION } from "../styles";
-import { Toggle } from "../toggle";
-import { COMPACT_INPUT } from "./fields";
+import { cx } from "@/components/bt/cx";
+import { FOCUS, FONT, MONO, TRANSITION } from "@/components/bt/styles";
+import { Toggle } from "@/components/bt/toggle";
+import { COMPACT_INPUT } from "@/components/bt/field";
 
 /* ── SettingsSubNav ───────────────────────────────────────────
    3f: columna de 200 px, gap 4. Ítem padding 11×14, radio 6, 14 px

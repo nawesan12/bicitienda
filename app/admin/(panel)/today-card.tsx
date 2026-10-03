@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { cx } from "../cx";
-import { FOCUS, FONT, TRANSITION } from "../styles";
+import { cx } from "@/components/bt/cx";
+import { FOCUS, FONT, TRANSITION } from "@/components/bt/styles";
 
 /* ── TodayAppointmentCard (2i / 4h) ───────────────────────────
    Grilla 64 | 1fr (52 en mobile), gap 14 (10), padding 14 (12), radio 8,

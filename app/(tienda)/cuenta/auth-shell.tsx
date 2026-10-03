@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { Highlight, SegmentedControl } from "@/components/bt";
-import { PhotoPanel } from "@/components/bt/cliente-c/photo-panel";
+import { Highlight, PhotoPanel, SegmentedControl } from "@/components/bt";
 import { COPY } from "@/lib/data/demo/copy";
 import { DEMO_PHOTOS, demoPhoto } from "@/lib/data/demo/photos";
 import { img } from "@/lib/images";

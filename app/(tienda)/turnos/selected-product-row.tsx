@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { cx } from "../cx";
-import { FONT, MONO } from "../styles";
+import { cx } from "@/components/bt/cx";
+import { FONT, MONO } from "@/components/bt/styles";
 
 /* ── SelectedProductRow ("Bici a probar" de 2f) ───────────────
    Panel #1f1d1a borde #2b2824 radio 10, padding 14, gap 14: foto

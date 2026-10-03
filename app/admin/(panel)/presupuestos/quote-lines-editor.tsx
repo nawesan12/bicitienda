@@ -1,8 +1,8 @@
 "use client";
 
-import { cx } from "../cx";
-import { formatMoney } from "../format";
-import { FOCUS, FONT, TRANSITION } from "../styles";
+import { cx } from "@/components/bt/cx";
+import { formatMoney } from "@/components/bt/format";
+import { FOCUS, FONT, TRANSITION } from "@/components/bt/styles";
 
 /* ── QuoteLinesEditor (5b "Cotización") ───────────────────────
    Líneas grilla minmax(0,1fr) | auto, gap 12, padding 10×0, borde

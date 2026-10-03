@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { AdminTopBar } from "@/components/bt";
-import { BackLink } from "@/components/bt/admin-d1/common";
+import { AdminTopBar, BackLink } from "@/components/bt";
 import { getOrderDetail } from "@/lib/server/screens/admin-d1";
 import { OrderDetailPanel } from "../order-detail";
 

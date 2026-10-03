@@ -11,7 +11,7 @@ import { Breadcrumb } from "@/components/bt/navigation";
 import { FOCUS, FONT, MONO, TRANSITION } from "@/components/bt/styles";
 import { Checkbox, Toggle } from "@/components/bt/toggle";
 import type { CatalogItem, Pricing } from "@/lib/server/screens/tienda-a";
-import { CatalogCard } from "./catalog-card";
+import { CatalogCard } from "@/components/bt/catalog-card";
 import { PriceRangeSlider } from "./price-range";
 
 /**

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { AdminTopBar, Button, Display, Panel, Pill, SegmentedControl } from "@/components/bt";
-import { BackLink } from "@/components/bt/admin-d1/common";
-import { Legend, WeekAgenda, WeekNav, type WeekAgendaGroup } from "@/components/bt/admin-d1/agenda";
+import { AdminTopBar, BackLink, Button, Display, Panel, Pill, SegmentedControl } from "@/components/bt";
+import { Legend, WeekAgenda, WeekNav, type WeekAgendaGroup } from "./agenda";
 import { features } from "@/lib/features";
 import {
   getAgendaWeek,

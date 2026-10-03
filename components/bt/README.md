@@ -153,6 +153,120 @@ también controlados.
 - `AdminTopBar` `{ title, back?, search?: {action, placeholder, width: 280|300}, actions?, children? }`.
 - `AdminMobileHeader` `{ label="Mostrador", homeHref?, menuHref?, menu? }`.
 
+## Componentes de la Ola 1
+
+Lo que sumaron las pantallas (agentes A, B, C, D1 y D2) se consolidó acá.
+Regla: lo **reutilizable** vive en un archivo temático de `components/bt/` y
+se exporta desde `index.ts` (salvo las islas que tocan `lib/`); lo
+**específico de una pantalla** queda en la carpeta de su ruta.
+
+**Resúmenes y datos** (`summary.tsx`, exportado)
+- `SummaryRows` `{ tone: dark|paper|yellow|panel, size?: md|sm, rows?, total?: {label?, amount, note?}, children? }`
+  + `SummaryRow` `{ label, value, tone, variant: default|discount }` + `SummaryTotal` `{ label, amount, tone, size?, note? }`.
+  Es un `<dl>`; se usa con `rows`/`total` o componiendo hijos con el mismo `tone`.
+  - `dark`: totales del carrito 2d/4d (dashed #3a362f, etiquetas #cfc8bb, total amarillo 44/40, nota a la derecha).
+  - `paper`: pie del resumen de 2e y del seguimiento (#4c463d, valores 700, total ink 40 también en desktop).
+    El descuento sale #ff6a5c sobre oscuro y #b81d16 sobre paper.
+  - `yellow`: resumen del turno sobre amarillo (2f): borde superior 1.5 tinta, filas 14×0 16 px, divisores `ink/25`.
+  - `panel`: paneles del admin (3a/4i/5b): dashed, etiquetas #8d867a, "Total" 800 14 + monto 900 34 @72 amarillo (`size="sm"`: 32, gap 6, 4i mobile).
+- `KeyValueList` `{ items: {label, value, tone?, mono?, action?}[], layout: inline|stacked }`.
+  `inline` (admin 3a/3b/5b): 14 px, clave #8d867a a la izquierda y valor 700 a la derecha con `tone` (paper|red-light|yellow|muted).
+  `stacked` (datos bancarios, pago en el local, sandbox): etiqueta 700 12 uppercase arriba, valor 800 17 (mono 600 15 con `mono`), `action` a la derecha (`CopyButton`).
+
+**Bloques** (`blocks.tsx`, exportado)
+- `CalloutLink` `{ href, title, text?, cta }`: banner-link del carrito ("¿Querés probar la MTB antes de pagar?").
+- `InfoBox` `{ title, children? }`: caja con borde #3a362f r8 (retiro del carrito).
+- `SuccessMark` `{ tone: done|waiting|muted, symbol? }`: círculo 88 (72) de 2e; 2e solo diseña el ✓ amarillo, `waiting`/`muted` son nuestras.
+- `NumberedSteps` `{ items: {n, title, text?}[] }`: "Cómo sigue" (5a), filas 44 | 1fr con número amarillo 30 @70.
+- `PhotoPanel` `{ src, alt, children }`: foto + gradiente de 2h (desktop, padding 56) / 4g (alto 220).
+- `MessageBox` `{ children, meta? }` (5b), `ClosedNote` `{ children, action? }` (reemplaza los botones de un estado cerrado),
+  `SectionHeading` `{ children, aside? }` (2i "Turnos de hoy · 6 TURNOS").
+- `BackLink` `{ href, children }` está en `navigation.tsx` ("← Pedidos", 44 px táctil en mobile).
+
+**Pedidos** (`order.tsx`, exportado; `cart-line.tsx` y `copy-button.tsx` son cliente)
+- `OrderItemRow` `{ image?, name, variant?, price, quantity?, size: md 64×48|sm 60×46 }` (3a/4i).
+- `ReceiptBox` `{ href?, fileName?, kind: pdf|image, title?, viewLabel?, emptyText? }`: comprobante con borde rojo punteado + "Ver"; sin `href`, "Sin comprobante adjunto".
+- `OrderSummaryItem` `{ image, name, meta?, price }`: ítem del resumen sobre paper (2e). Es un `<li>`.
+- `OrderSummaryCard` `{ href?, number, pill?, title, meta, image?: string|null|false }`: pedidos y presupuestos de Mi cuenta (la pill la pone la página).
+- `CartLine` (cliente) `{ image, name, eyebrow?, variant?, quantity, max, price, onQuantityChange, onRemove, removeLabel?, warning? }`:
+  fila del carrito; dibuja los dos steppers (desktop `md`, mobile `sm` con mínimo 0 = quitar). Es un `<li>`.
+- `CopyButton` (cliente) `{ value, label?, doneLabel? }`: "Copiar" → "Copiado".
+
+**Calendario y turnos** (`calendar.tsx`, exportado)
+- `MonthCalendar` `{ monthLabel, days: {date, state: available|closed|loading}[], selected?, onSelect?, onPrev?, onNext?, prevDisabled?, nextDisabled?, label?, surface?: page|panel }`. Celda 52 (44); cerrado = #4a453e tachado.
+- `TimeSlotGrid` `{ groups: {label, slots: {time, available}[], emptyText?}[], selected?, onSelect? }`: Mañana/Tarde en 3 columnas (desktop) / grilla de 4 sin rótulos (4e).
+- `DateBadge` `{ weekday, day, caption, size: lg|sm }`: fecha del próximo turno (2g/4f).
+
+**Modal** (`modal.tsx`, cliente, exportado)
+- `Modal` `{ open, onClose, title, children, footer?, width: 420|480|560 }` sobre `<dialog>` nativo, con el lenguaje de los paneles (surface, borde line, r10, título 900 @70). `FormError`.
+
+**Admin** (en `admin.tsx` y `field.tsx`, exportados)
+- `ResponsiveTopBar` `{ ...AdminTopBarProps, mobileActions?: ReactNode|null }`: desde `lg` es `AdminTopBar`; debajo, volver + título 40/.9 @66 + buscador a lo ancho + acciones en 2 columnas.
+- `ComputedField` `{ tone: red|muted }`: campo calculado con borde punteado (3d "Con transferencia (auto)"; `muted` para datos de Ajustes).
+- `DangerTextButton`: "Eliminar producto", 800 13 uppercase #ff6a5c.
+- `COMPACT_INPUT` (clases): input compacto de 3f, 8×10, 13 px.
+- `SortablePhotoGrid` (cliente, `sortable-photo-grid.tsx`) `{ photos: {key,src,alt?}[], onChange, coverLabel?, trailing?, disabled? }`:
+  3d Fotos, 5 columnas (3 en mobile), la primera es portada; arrastrar o ← →, ✕ quita.
+
+**Islas con datos** (en `components/bt/`, **no** exportadas desde `index.ts` porque importan `lib/`)
+- `CatalogCard` (`catalog-card.tsx`) `{ item: CatalogItem, pricing }`: `ProductCard` desde un `CatalogItem` (marca `sin-marca` → sin marca).
+- `CardAddButton` (`card-add.tsx`, cliente) `{ slug, name, href, variant }`: "+" de la card; con una sola variante vendible suma al carrito, si no lleva a la ficha.
+- `SlotPicker` (`slot-picker.tsx`, cliente): `MonthCalendar` + `TimeSlotGrid` con la disponibilidad real (`fetchAvailability`, mes a mes); "hoy" en la zona del local, horizonte `maxDaysAhead`, `refreshKey`. Lo usan /turnos y reprogramar.
+- `AppointmentManager` (`appointment-manager.tsx`, cliente): card amarilla del próximo turno con Reprogramar y Cancelar; con sesión (`{id}`) o por link (`{number, token}`); si pasó la anticipación, "Escribinos por WhatsApp".
+
+**Específicos de una pantalla** (viven junto a su ruta)
+
+| Área | Archivo | Componentes |
+|---|---|---|
+| Home 2a/4a | `app/(tienda)/_components/home.tsx` | `HomeHero`, `CategoryStrip`, `HowItWorks` |
+| Catálogo 2b/4b | `app/(tienda)/catalogo/_screens/catalog-browser.tsx`, `price-range.tsx` | `CatalogBrowser`, `PriceRangeSlider` |
+| Ficha 2c/4c | `app/(tienda)/catalogo/_screens/product-gallery.tsx`, `product-purchase.tsx` | `ProductPhotos`/`ProductGallery`/`ProductCarousel`, `ProductPurchase` |
+| Turnos 2f | `app/(tienda)/turnos/selected-product-row.tsx` | `SelectedProductRow` ("Bici a probar" + "Cambiar") |
+| Mi cuenta 2g | `app/(tienda)/cuenta/account-nav.tsx` | `AccountNav`, `ACCOUNT_NAV_ITEM` (mobile usa `SegmentedControl`) |
+| Resumen 2i/4h | `app/admin/(panel)/today-card.tsx` | `TodayAppointmentCard` (`status: hecho|ahora|confirmado|sin_confirmar|no_vino`) |
+| Turnos 3b | `app/admin/(panel)/turnos/agenda.tsx` | `WeekNav`, `Legend`, `AgendaCell`, `WeekAgenda` |
+| Presupuestos 5b | `app/admin/(panel)/presupuestos/quote-lines-editor.tsx` | `QuoteLinesEditor` (inputs que se ven como texto hasta el hover/foco) |
+| Clientes 3e | `app/admin/(panel)/clientes/history-list.tsx` | `HistoryList`, `KpiCell` |
+| Ajustes 3f | `app/admin/(panel)/ajustes/settings-parts.tsx` | `SettingsSubNav`, `ScheduleDayRow`, `WhatsAppTemplateCard` |
+
+### Decisiones por área
+
+**Tienda (A)**
+- **Filtros del catálogo en el navegador.** La página es estática/ISR: el server manda todos los productos del grupo y `CatalogBrowser` filtra, ordena y pagina. El estado vive en la URL (`?tipo=&rodado=&talle=&min=&max=&prueba=1&orden=&q=&pagina=`): se escribe con `history.replaceState` (con debounce, por el slider) y se lee con `useSearchParams` dentro de un `Suspense` chico.
+- **Rodados y talles**: los del prototipo (12…29, S–XL) más los que haya en los datos; sin productos quedan deshabilitados. Rodado, Talle y "Se puede probar" solo si el grupo tiene bicis. "Tipo" solo con más de un tipo.
+- **Orden**: Más vendidas (orden del seed), Menor precio, Mayor precio, Más nuevos.
+- **Drawer de filtros (sin diseño)**: pantalla completa sobre ink, título 900 30 @70, ✕ de 44, pie con "Limpiar" + "Ver N modelos". Escape cierra.
+- **Ficha**: talle inicial = el de más stock; color inicial = el primero con stock en ese talle. "Quedan N en talle X" es el stock de la variante elegida. Sin stock: botón deshabilitado y celda en rojo claro. "Agregar al carrito" suma y lleva a `/checkout`.
+- **Links de turnos**: "Reservar una prueba" → `/turnos?servicio=prueba&producto=<slug>`; ayuda de talle → `/turnos?servicio=asesoramiento&producto=<slug>`.
+- **Relacionados**: de una bici, accesorios ("Sumale a tu bici"); del resto, su mismo grupo. Solo desktop.
+- **Retiro** en productos que no son bicis: "Sin cargo, listo para llevar".
+
+**Compra (B)**
+- `CartLine` dibuja los dos steppers y muestra uno por breakpoint (en mobile no hay "Quitar" y el mínimo es 0).
+- `SummaryRows tone="paper"` usa 40 px también en desktop (como el inline de 2e); `Price size="total"` da 44.
+- `KeyValueList` no está en el handoff: es la del consolidado de `docs/screens/README.md`.
+
+**Cliente (C)**
+- **Sábado a la tarde**: la agenda sale de `schedule_rules` vía `fetchAvailability`; en "Tarde" se ve "Ese día no hay turnos a la tarde.".
+- **Talle a probar**: se agrupan los colores de cada talle; se manda la primera variante con stock de ese talle.
+- **Login**: labels visibles en Email/Contraseña también en mobile; Nombre/WhatsApp con placeholder + `aria-label`. Sin Google ni divisor "o".
+- **Presupuesto mobile** respeta 5d: sin "Para qué bici", "Presupuesto aproximado" ni email. Con sesión se prellenan los datos.
+- **Fotos del presupuesto**: se achican en el navegador (hasta 1600 px) para que las 4 entren en el 1 MB por request de las server actions.
+
+**Admin operación (D1)**
+- **Turno seleccionado ≠ "Sin confirmar"**: sin confirmar = borde rojo 1.5 px; seleccionado = anillo amarillo de 2 px separado 2 px. Se pueden combinar.
+- **Celda bloqueada** (no está en el handoff): fondo #1a1816, borde punteado #3a362f, "Bloqueado" + motivo.
+- **Celda vacía con `href`**: "+" al hover (turno manual). Las cerradas y las pasadas no son clickeables.
+- **Empty de la agenda**: el #221f1c del prototipo no tiene token; se usa `border-line/60`.
+- **Modal**: el handoff no dibuja diálogos; se arma con el lenguaje de los paneles.
+
+**Admin gestión (D2)**
+- **Menú del admin en mobile**: no está dibujado; usa el lenguaje del menú 5c (filas de 60 px, sección 900 28 @70, contador en pill mono, activa en amarillo con barra, "Ver tienda ↗" y "Salir" abajo). El header dice "Admin · {sección}".
+- **Nav**: "Consultas" va entre Clientes y Ajustes (`ADMIN_NAV` en `admin.tsx`; el layout le pasa los ítems a `AdminSidebar`).
+- **Tablas anchas** (3c, 3e, Consultas): desde `xl`/`lg` son `Table`; debajo, lista de cards.
+- `HistoryList`: Pedido en amarillo, Turno en paper y Presupuesto en #ff6a5c (no está en el prototipo).
+- `WhatsAppTemplateCard` sin switch: nada se manda solo.
+
 ## Shells (ola 0)
 
 Las páginas **no** arman el chrome: lo ponen los layouts. Cada pantalla solo

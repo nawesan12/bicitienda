@@ -6,8 +6,7 @@ import { formatMoney } from "@/components/bt/format";
 import { Panel } from "@/components/bt/panel";
 import { StepList } from "@/components/bt/timeline";
 import { Display, Eyebrow, Highlight, Mono, Price } from "@/components/bt/typography";
-import { KeyValueList, OrderSummaryItem, SuccessMark } from "@/components/bt/compra-b/blocks";
-import { SummaryRow, SummaryRows, SummaryTotal } from "@/components/bt/compra-b/summary-rows";
+import { KeyValueList, OrderSummaryItem, SuccessMark, SummaryRow, SummaryRows, SummaryTotal } from "@/components/bt";
 import { isOnlinePayment } from "@/lib/config";
 import { COPY } from "@/lib/data/demo/copy";
 import { fillTemplate } from "@/lib/data/demo/format";
@@ -197,7 +196,7 @@ export default async function ConfirmationPage({
               <Eyebrow size="sm">{B.cash.payAmount}</Eyebrow>
               <Price amount={order.total} size="panel" tone="yellow" />
             </div>
-            <KeyValueList items={[{ label: B.cash.payUntil, value: expires ?? B.cash.noExpiry }]} />
+            <KeyValueList layout="stacked" items={[{ label: B.cash.payUntil, value: expires ?? B.cash.noExpiry }]} />
           </Panel>
     ) : null;
 

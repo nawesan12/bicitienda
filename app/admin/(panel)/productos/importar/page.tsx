@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Panel, PanelTitle } from "@/components/bt";
-import { ResponsiveTopBar } from "@/components/bt/admin-d2/top-bar";
+import { Panel, PanelTitle, ResponsiveTopBar } from "@/components/bt";
 import { features } from "@/lib/features";
 import { IMPORT_COLUMNS } from "@/lib/server/product-import";
 import { ImportFlow } from "./import-flow";

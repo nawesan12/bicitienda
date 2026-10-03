@@ -1,18 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import {
-  CellMono,
-  EmptyState,
-  FilterChip,
-  Pill,
-  Table,
-  buttonClasses,
-  cx,
-  type PillTone,
-  type TableColumn,
-} from "@/components/bt";
-import { ResponsiveTopBar } from "@/components/bt/admin-d2/top-bar";
+import { buttonClasses, CellMono, cx, EmptyState, FilterChip, Pill, type PillTone, ResponsiveTopBar, Table, type TableColumn } from "@/components/bt";
 import { useConfirm } from "@/components/admin/confirm";
 import { useToast } from "@/components/admin/toast";
 import { formatDateTime } from "@/lib/format";

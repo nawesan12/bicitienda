@@ -1,5 +1,5 @@
 import { JsonLd, breadcrumbLd, itemListLd } from "@/components/bt/json-ld";
-import { CatalogBrowser } from "@/components/bt/tienda-a/catalog-browser";
+import { CatalogBrowser } from "./catalog-browser";
 import { COPY } from "@/lib/data/demo/copy";
 import { paths } from "@/lib/paths";
 import { categoryTerms } from "@/lib/seo";

@@ -1,9 +1,9 @@
 "use client";
 
-import { cx } from "../cx";
-import { QtyStepper } from "../qty-stepper";
-import { FONT, MONO, TRANSITION, FOCUS } from "../styles";
-import { Price } from "../typography";
+import { cx } from "./cx";
+import { QtyStepper } from "./qty-stepper";
+import { FONT, MONO, TRANSITION, FOCUS } from "./styles";
+import { Price } from "./typography";
 
 /**
  * Fila de ítem del carrito (2d / 4d).

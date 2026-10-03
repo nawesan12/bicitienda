@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { cx } from "../cx";
-import { FOCUS, FONT, TRANSITION } from "../styles";
+import { cx } from "@/components/bt/cx";
+import { FOCUS, FONT, TRANSITION } from "@/components/bt/styles";
 
 /* ── AccountNav (2g, nav vertical de Mi cuenta) ───────────────
    Ítems 13×16, radio 6, Archivo 15 uppercase .06em: activo amarillo

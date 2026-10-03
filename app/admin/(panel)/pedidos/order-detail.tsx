@@ -1,6 +1,4 @@
-import { Mono, OrderPill, Timeline, cx } from "@/components/bt";
-import { SummaryRows } from "@/components/bt/admin-d1/common";
-import { OrderItemRow, ReceiptBox } from "@/components/bt/admin-d1/order";
+import { cx, Mono, OrderItemRow, OrderPill, ReceiptBox, SummaryRows, Timeline } from "@/components/bt";
 import { resolveImage, img } from "@/lib/images";
 import type { OrderDetail } from "@/lib/server/screens/admin-d1";
 import { OrderPanelActions } from "./order-panel-actions";
@@ -71,8 +69,9 @@ export function OrderDetailPanel({ order, variant }: { order: OrderDetail; varia
 
       {page ? (
         <>
-          <SummaryRows className="lg:hidden" size="sm" rows={[{ label: "Pago", value: order.payment }]} total={{ amount: order.total }} />
+          <SummaryRows tone="panel" className="lg:hidden" size="sm" rows={[{ label: "Pago", value: order.payment }]} total={{ amount: order.total }} />
           <SummaryRows
+            tone="panel"
             className="max-lg:hidden"
             rows={[
               { label: "Pago", value: order.payment },
@@ -83,6 +82,7 @@ export function OrderDetailPanel({ order, variant }: { order: OrderDetail; varia
         </>
       ) : (
         <SummaryRows
+          tone="panel"
           rows={[
             { label: "Pago", value: order.payment },
             { label: "Entrega", value: order.delivery },

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppointmentPill, Button, Display, EmptyState, Eyebrow } from "@/components/bt";
-import { AppointmentManager } from "@/components/bt/cliente-c/appointment-manager";
+import { AppointmentManager } from "@/components/bt/appointment-manager";
 import { features } from "@/lib/features";
 import { paths } from "@/lib/paths";
 import { withinRateLimit } from "@/lib/server/rate-limit";

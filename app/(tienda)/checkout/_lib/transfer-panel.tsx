@@ -1,7 +1,6 @@
 import { Divider, Panel } from "@/components/bt/panel";
 import { Eyebrow, Price } from "@/components/bt/typography";
-import { KeyValueList } from "@/components/bt/compra-b/blocks";
-import { CopyButton } from "@/components/bt/compra-b/copy-button";
+import { CopyButton, KeyValueList } from "@/components/bt";
 import { fillTemplate } from "@/lib/data/demo/format";
 import { isTransferPending, type TransferDetails } from "@/lib/server/screens/compra-b";
 import { waUrl } from "@/lib/whatsapp";
@@ -45,6 +44,7 @@ export function TransferPanel({
         {T.bankTitle}
       </Eyebrow>
       <KeyValueList
+        layout="stacked"
         items={[
           { label: T.alias, value: bank.alias, mono: true, action: !isTransferPending(bank.alias) && <CopyButton value={bank.alias} /> },
           { label: T.cbu, value: bank.cbu, mono: true, action: !isTransferPending(bank.cbu) && <CopyButton value={bank.cbu} /> },

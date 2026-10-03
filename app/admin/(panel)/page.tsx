@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { AdminTopBar, Button, Display, FilterChip, Kpi, KpiGrid, Mono } from "@/components/bt";
-import { SectionHeading } from "@/components/bt/admin-d1/common";
-import { TodayAppointmentCard } from "@/components/bt/admin-d1/today";
+import { AdminTopBar, Button, Display, FilterChip, Kpi, KpiGrid, Mono, SectionHeading } from "@/components/bt";
+import { TodayAppointmentCard } from "./today-card";
 import { features } from "@/lib/features";
 import { getResumen, todayTitle, type OrderRow } from "@/lib/server/screens/admin-d1";
 import { OrdersTable } from "./pedidos/orders-table";

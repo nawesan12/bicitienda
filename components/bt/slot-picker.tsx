@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactN
 import { fetchAvailability } from "@/lib/server/actions/appointments";
 import type { AvailabilityDay } from "@/lib/schedule";
 import { addDays, toLocalParts } from "@/lib/zoned-time";
-import { cx } from "../cx";
-import { MonthCalendar, type CalendarDay } from "./month-calendar";
-import { TimeSlotGrid, type TimeSlotGroup } from "./time-slot-grid";
+import { cx } from "./cx";
+import { MonthCalendar, type CalendarDay } from "./calendar";
+import { TimeSlotGrid, type TimeSlotGroup } from "./calendar";
 
 /**
  * Día + horario de un turno (2f/4e y reprogramar en Mi cuenta / link de

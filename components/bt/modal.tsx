@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { cx } from "../cx";
-import { FOCUS, FONT, TRANSITION } from "../styles";
+import { cx } from "./cx";
+import { FOCUS, FONT, TRANSITION } from "./styles";
 
 /* ── Modal (sin diseño en el handoff) ─────────────────────────
    <dialog> nativo (foco atrapado, Esc cierra): panel #1f1d1a con borde

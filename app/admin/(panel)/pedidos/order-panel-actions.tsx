@@ -3,8 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useToast } from "@/components/admin/toast";
-import { Button, buttonClasses, cx } from "@/components/bt";
-import { FormError, Modal } from "@/components/bt/admin-d1/modal";
+import { Button, buttonClasses, cx, FormError, Modal } from "@/components/bt";
 import { advanceOrder, cancelOrder } from "@/lib/server/actions/orders";
 import type { OrderStatus } from "@/lib/types";
 

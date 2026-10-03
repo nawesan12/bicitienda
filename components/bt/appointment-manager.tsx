@@ -4,12 +4,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { cancelMyAppointment, rescheduleMyAppointment } from "@/lib/server/actions/appointments";
 import type { AppointmentCardView } from "@/lib/server/screens/cliente-c";
-import { Button } from "../button";
-import { cx } from "../cx";
-import { Panel } from "../panel";
-import { FONT } from "../styles";
-import { Eyebrow } from "../typography";
-import { DateBadge } from "./date-badge";
+import { Button } from "./button";
+import { cx } from "./cx";
+import { Panel } from "./panel";
+import { FONT } from "./styles";
+import { Eyebrow } from "./typography";
+import { DateBadge } from "./calendar";
 import { SlotPicker, type SlotValue } from "./slot-picker";
 
 /**

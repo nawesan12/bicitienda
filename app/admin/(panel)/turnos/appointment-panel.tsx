@@ -4,9 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useToast } from "@/components/admin/toast";
-import { Button, buttonClasses, cx, Field, Input, Pill, Select, Textarea } from "@/components/bt";
-import { ClosedNote, KeyValueList } from "@/components/bt/admin-d1/common";
-import { FormError, Modal } from "@/components/bt/admin-d1/modal";
+import { Button, buttonClasses, ClosedNote, cx, Field, FormError, Input, KeyValueList, Modal, Pill, Select, Textarea } from "@/components/bt";
 import {
   adminCancelAppointment,
   adminConfirmAppointment,
