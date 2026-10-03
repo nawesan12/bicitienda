@@ -11,7 +11,7 @@ import { getCategories, getStore, getVisibleProducts } from "@/lib/server/querie
 import type { Category, Product } from "@/lib/types";
 import { waUrl } from "@/lib/whatsapp";
 
-/** Grupos del nav que son categorías (los otros dos son turnos y presupuesto). */
+/** Grupos del nav que son categorías (los otros son taller, presupuesto y turnos). */
 const NAV_GROUPS = ["bicicletas", "accesorios", "repuestos", "importados"] as const;
 
 /** Links del chrome de la tienda: salen de `routes` (lib/paths.ts). */
@@ -27,6 +27,7 @@ export function storeHrefs(): StoreHrefs {
       accesorios: paths.catalog("accesorios"),
       repuestos: paths.catalog("repuestos"),
       importados: paths.catalog("importados"),
+      ...(features.repairs ? { taller: paths.repairs() } : {}),
       presupuesto: paths.quote(),
       turnos: paths.appointments(),
     },
@@ -79,7 +80,7 @@ export async function StoreFrame({ children }: { children: ReactNode }) {
         hrefs={hrefs}
         activeByPath={nav.activeByPath}
         categoryPaths={nav.categoryPaths}
-        noSearchPrefixes={[paths.cart(), paths.appointments(), paths.quote(), paths.account()]}
+        noSearchPrefixes={[paths.cart(), paths.appointments(), paths.quote(), paths.account(), paths.repairs()]}
         menuInfo={`WhatsApp ${whatsapp} · ${runtime.hours}`}
         accounts={features.accounts}
         accountPrefix={paths.account()}
@@ -98,6 +99,11 @@ export async function StoreFrame({ children }: { children: ReactNode }) {
           { label: "Facebook" },
         ]}
         transferDiscountPct={runtime.transferDiscount}
+        workshop={
+          features.repairs
+            ? { href: paths.repairs(), title: "Taller", sub: "Service y reparaciones con turno" }
+            : undefined
+        }
       />
     </div>
   );

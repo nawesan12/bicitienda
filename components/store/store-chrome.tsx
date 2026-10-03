@@ -35,7 +35,8 @@ function showSearchFor(pathname: string, hrefs: StoreHrefs, categoryPaths: strin
 /** Ítem activo del nav según la URL (match exacto o por prefijo). */
 function activeFor(pathname: string, hrefs: StoreHrefs, byPath: Record<string, StoreNavKey>): StoreNavKey | "" {
   if (byPath[pathname]) return byPath[pathname];
-  for (const [key, href] of Object.entries(hrefs.nav) as [StoreNavKey, string][]) {
+  for (const [key, href] of Object.entries(hrefs.nav) as [StoreNavKey, string | undefined][]) {
+    if (!href) continue;
     if (pathname === href || pathname.startsWith(`${href}/`)) return key;
   }
   return "";

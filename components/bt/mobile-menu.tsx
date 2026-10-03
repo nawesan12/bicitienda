@@ -18,6 +18,7 @@ export interface MobileMenuProps {
 /**
  * Menú mobile abierto (5c). Lista de categorías: filas min-h 64, Archivo
  * 900 30 @70 % uppercase, "→" 700 18 #8d867a, divisor #2b2824. Debajo,
+ * la fila roja del Taller (sin diseño en el handoff: el acento del taller),
  * "Sacar turno" amarillo y "Pedir presupuesto" con borde paper (min-h 52).
  * Pie: "Mi cuenta" (min-h 44) + línea de WhatsApp/horarios.
  */
@@ -36,7 +37,7 @@ export function MobileMenu({
         {categories.map((n) => (
           <Link
             key={n.key}
-            href={hrefs.nav[n.key]}
+            href={hrefs.nav[n.key as Exclude<StoreNavKey, "taller">]}
             aria-current={active === n.key ? "page" : undefined}
             className={cx(
               "flex min-h-16 items-center justify-between border-b border-line text-[30px] font-black uppercase leading-none stretch-70",
@@ -51,6 +52,26 @@ export function MobileMenu({
             </span>
           </Link>
         ))}
+        {hrefs.nav.taller && (
+          <Link
+            href={hrefs.nav.taller}
+            aria-current={active === "taller" ? "page" : undefined}
+            className={cx(
+              "mt-4 flex min-h-[72px] items-center justify-between gap-3 rounded-box bg-red px-4 py-3 text-white hover:bg-card-transfer",
+              active === "taller" && "outline-2 outline-offset-2 outline-yellow",
+              TRANSITION,
+              FOCUS,
+            )}
+          >
+            <span className="flex flex-col gap-1">
+              <span className="text-[30px] font-black uppercase leading-none stretch-70">Taller</span>
+              <span className="text-[14px] font-semibold leading-tight">Service y reparaciones con turno</span>
+            </span>
+            <span aria-hidden className="text-[18px] font-bold stretch-100">
+              →
+            </span>
+          </Link>
+        )}
       </nav>
       <div className="flex flex-col gap-[10px] px-4 py-5">
         <Button href={hrefs.nav.turnos} variant="primary" size="full" className="min-h-[52px]">
