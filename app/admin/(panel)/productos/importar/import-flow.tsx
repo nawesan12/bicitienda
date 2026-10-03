@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   Button,
@@ -22,7 +21,6 @@ const ACTION_TONE = { crear: "yellow", actualizar: "line", sin_cambios: "muted" 
 
 /** Subida → vista previa (errores por fila) → confirmar. */
 export function ImportFlow() {
-  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [done, setDone] = useState<ImportPreview | null>(null);
@@ -38,9 +36,9 @@ export function ImportFlow() {
       const r = await (commit ? commitImport(fd) : previewImport(fd));
       if (!r.ok) return setError(r.error);
       if (commit && r.preview.ok) {
+        // commitImport invalida el panel: Next re-renderiza en la misma respuesta.
         setDone(r.preview);
         setPreview(null);
-        router.refresh();
       } else setPreview(r.preview);
     });
   };

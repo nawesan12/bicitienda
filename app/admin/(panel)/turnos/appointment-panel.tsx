@@ -58,8 +58,8 @@ export function AppointmentPanel({ appt, times }: { appt: AppointmentDetail; tim
       if (!res.ok) return setError(res.error);
       setDialog(null);
       toast(done);
-      if (after) after();
-      else router.refresh();
+      // Las actions invalidan el panel: Next re-renderiza en la misma respuesta.
+      after?.();
     });
   }
 

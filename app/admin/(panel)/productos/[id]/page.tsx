@@ -10,6 +10,7 @@ export default async function EditarProductoPage({ params }: { params: Promise<{
   const { id } = await params;
   const data = await getProductEditor(decodeURIComponent(id));
   if (!data) notFound();
-  // key: al guardar, router.refresh() trae datos nuevos y el editor se rearma.
+  // key: al guardar, la action invalida y Next re-renderiza la página en la misma respuesta;
+  // con datos nuevos el editor se rearma.
   return <ProductEditor key={JSON.stringify([data.images, data.variants])} data={data} />;
 }

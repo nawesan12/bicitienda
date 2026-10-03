@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useToast } from "@/components/admin/toast";
 import { Button, buttonClasses, cx, FormError, Modal } from "@/components/bt";
@@ -38,7 +37,6 @@ export function OrderPanelActions({
   whatsappIsTemplate: boolean;
   variant: "panel" | "page";
 }) {
-  const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
   const [ask, setAsk] = useState<null | "pay" | "cancel">(null);
@@ -55,8 +53,8 @@ export function OrderPanelActions({
         return;
       }
       setAsk(null);
+      // advanceOrder invalida el panel: Next re-renderiza en la misma respuesta.
       toast(DONE_TOAST[res.status] ?? "Pedido actualizado");
-      router.refresh();
     });
   }
 
@@ -70,7 +68,6 @@ export function OrderPanelActions({
       }
       setAsk(null);
       toast("Pedido cancelado · el stock volvió al catálogo");
-      router.refresh();
     });
   }
 

@@ -1,16 +1,15 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Button, cx, Field, Input, Panel, PanelTitle, Pill, ResponsiveTopBar, Select, Textarea, Toggle } from "@/components/bt";
 import { RepairServicesList, ScheduleDayRow, SettingsSubNav, WhatsAppTemplateCard } from "./settings-parts";
 import { useToast } from "@/components/admin/toast";
 import { COPY } from "@/lib/data/demo/copy";
 import { features } from "@/lib/features";
-import { adminPatchService, adminSaveAgendaSettings, adminSaveScheduleRules } from "@/lib/server/actions/admin-appointments";
-import { adminSaveRepairsContent, resetRepairsContent } from "@/lib/server/actions/content";
-import { patchSettings, type SettingsPatch } from "@/lib/server/actions/settings";
-import { adminResetWhatsAppTemplate, adminSaveWhatsAppTemplate } from "@/lib/server/actions/whatsapp";
+import { resetRepairsContent } from "@/lib/server/actions/content";
+import type { SettingsPatch } from "@/lib/server/actions/settings";
+import { saveSettingsScreen, type SettingsScreenSave } from "@/lib/server/actions/settings-screen";
+import { adminResetWhatsAppTemplate } from "@/lib/server/actions/whatsapp";
 import type { SettingsScreen } from "@/lib/server/screens/admin-d2";
 
 const T = COPY.admin.settings;
@@ -40,7 +39,6 @@ const noticeLabel = (m: number) => (m === 0 ? "Sin mínimo" : m < 60 ? `${m} min
 const withCurrent = (list: number[], v: number) => (list.includes(v) ? list : [...list, v].sort((a, b) => a - b));
 
 export function SettingsEditor({ data }: { data: SettingsScreen }) {
-  const router = useRouter();
   const toast = useToast();
   const [saving, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -72,72 +70,64 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
     setError(null);
     if (Object.values(bad).some((b) => b.am || b.pm)) return setError("Revisá los horarios: usá el formato 10:00 – 13:00 o dejalo vacío (cerrado).");
     if (!s.repairs.title.trim()) return setError("El taller necesita un título.");
+    // Una sola action con todo lo que cambió (re-render único al final).
+    const input: SettingsScreenSave = {};
+    // 1) Local y pagos.
+    const patch: SettingsPatch = {};
+    const L = s.local;
+    const B = base.local;
+    if (L.address !== B.address && L.address.trim()) patch.address = L.address;
+    if (L.whatsapp !== B.whatsapp && L.whatsapp.trim()) patch.whatsapp = L.whatsapp;
+    if (L.instagram !== B.instagram) patch.instagram = L.instagram;
+    if (L.hours !== B.hours && L.hours.trim()) patch.hours = L.hours;
+    const P = s.payments;
+    const BP = base.payments;
+    if (P.transferDiscount !== BP.transferDiscount) patch.transferDiscount = P.transferDiscount;
+    if (P.maxInstallments !== BP.maxInstallments) patch.maxInstallments = P.maxInstallments;
+    if (P.transferAlias !== BP.transferAlias && P.transferAlias.trim()) patch.transferAlias = P.transferAlias;
+    if (P.transferCbu !== BP.transferCbu) patch.transferCbu = P.transferCbu;
+    if (P.transferHolder !== BP.transferHolder) patch.transferHolder = P.transferHolder;
+    if (P.transferBank !== BP.transferBank) patch.transferBank = P.transferBank;
+    if (P.reservationHours !== BP.reservationHours) patch.reservationHours = P.reservationHours;
+    if (P.cashEnabled !== BP.cashEnabled) patch.cashEnabled = P.cashEnabled;
+    if (P.cashReservationHours !== BP.cashReservationHours) patch.cashReservationHours = P.cashReservationHours;
+    if (Object.keys(patch).length) input.settings = patch;
+    // 2) Horario semanal.
+    if (JSON.stringify(s.schedule) !== JSON.stringify(base.schedule)) {
+      input.scheduleRules = s.schedule.flatMap((d) =>
+        !d.open
+          ? []
+          : [parseRange(d.am), parseRange(d.pm)].flatMap((r) =>
+              r && typeof r === "object" ? [{ weekday: d.weekday, startTime: r.start, endTime: r.end }] : [],
+            ),
+      );
+    }
+    // 3) Reglas de la agenda.
+    if (JSON.stringify(s.agenda) !== JSON.stringify(base.agenda)) {
+      const { slotCapacity, minNoticeMin, maxDaysAhead } = s.agenda;
+      input.agenda = { slotCapacity, minNoticeMin, maxDaysAhead };
+    }
+    // 4) Servicios.
+    const services = s.services.filter((sv) => {
+      const before = base.services.find((x) => x.id === sv.id);
+      return before && before.active !== sv.active;
+    });
+    if (services.length) input.services = services.map((sv) => ({ id: sv.id, active: sv.active }));
+    // 5) Plantillas.
+    const templates = s.templates.filter((t) => {
+      const before = base.templates.find((x) => x.id === t.id);
+      return before && before.body !== t.body;
+    });
+    if (templates.length) input.templates = templates.map((t) => ({ id: t.id, body: t.body }));
+    // 6) Taller (content.rep): los servicios vacíos se descartan al guardar.
+    if (JSON.stringify(s.repairs) !== JSON.stringify(base.repairs)) input.repairs = s.repairs;
+    if (!Object.keys(input).length) return;
+
     start(async () => {
-      // 1) Local y pagos.
-      const patch: SettingsPatch = {};
-      const L = s.local;
-      const B = base.local;
-      if (L.address !== B.address && L.address.trim()) patch.address = L.address;
-      if (L.whatsapp !== B.whatsapp && L.whatsapp.trim()) patch.whatsapp = L.whatsapp;
-      if (L.instagram !== B.instagram) patch.instagram = L.instagram;
-      if (L.hours !== B.hours && L.hours.trim()) patch.hours = L.hours;
-      const P = s.payments;
-      const BP = base.payments;
-      if (P.transferDiscount !== BP.transferDiscount) patch.transferDiscount = P.transferDiscount;
-      if (P.maxInstallments !== BP.maxInstallments) patch.maxInstallments = P.maxInstallments;
-      if (P.transferAlias !== BP.transferAlias && P.transferAlias.trim()) patch.transferAlias = P.transferAlias;
-      if (P.transferCbu !== BP.transferCbu) patch.transferCbu = P.transferCbu;
-      if (P.transferHolder !== BP.transferHolder) patch.transferHolder = P.transferHolder;
-      if (P.transferBank !== BP.transferBank) patch.transferBank = P.transferBank;
-      if (P.reservationHours !== BP.reservationHours) patch.reservationHours = P.reservationHours;
-      if (P.cashEnabled !== BP.cashEnabled) patch.cashEnabled = P.cashEnabled;
-      if (P.cashReservationHours !== BP.cashReservationHours) patch.cashReservationHours = P.cashReservationHours;
-      if (Object.keys(patch).length) {
-        const r = await patchSettings(patch);
-        if (!r.ok) return setError(r.error);
-      }
-      // 2) Horario semanal.
-      if (JSON.stringify(s.schedule) !== JSON.stringify(base.schedule)) {
-        const rules = s.schedule.flatMap((d) =>
-          !d.open
-            ? []
-            : [parseRange(d.am), parseRange(d.pm)].flatMap((r) =>
-                r && typeof r === "object" ? [{ weekday: d.weekday, startTime: r.start, endTime: r.end }] : [],
-              ),
-        );
-        const r = await adminSaveScheduleRules(rules);
-        if (!r.ok) return setError(r.error);
-      }
-      // 3) Reglas de la agenda.
-      if (JSON.stringify(s.agenda) !== JSON.stringify(base.agenda)) {
-        const { slotCapacity, minNoticeMin, maxDaysAhead } = s.agenda;
-        const r = await adminSaveAgendaSettings({ slotCapacity, minNoticeMin, maxDaysAhead });
-        if (!r.ok) return setError(r.error);
-      }
-      // 4) Servicios.
-      for (const sv of s.services) {
-        const before = base.services.find((x) => x.id === sv.id);
-        if (before && before.active !== sv.active) {
-          const r = await adminPatchService(sv.id, { active: sv.active });
-          if (!r.ok) return setError(r.error);
-        }
-      }
-      // 5) Plantillas.
-      for (const t of s.templates) {
-        const before = base.templates.find((x) => x.id === t.id);
-        if (before && before.body !== t.body) {
-          const r = await adminSaveWhatsAppTemplate(t.id, t.body);
-          if (!r.ok) return setError(r.error);
-        }
-      }
-      // 6) Taller (content.rep): los servicios vacíos se descartan al guardar.
-      if (JSON.stringify(s.repairs) !== JSON.stringify(base.repairs)) {
-        const r = await adminSaveRepairsContent(s.repairs);
-        if (!r.ok) return setError(r.error);
-      }
+      const r = await saveSettingsScreen(input);
+      if (!r.ok) return setError(r.error);
       setBase(s);
       toast("Ajustes guardados");
-      router.refresh();
     });
   }
 
@@ -228,8 +218,8 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
               onClick={async () => {
                 const r = await resetRepairsContent();
                 if (!r.ok) return setError(r.error);
+                // La action invalida y Next re-renderiza la página con el texto original.
                 toast("Texto original del taller restaurado");
-                router.refresh();
               }}
             >
               ↺ Volver al texto original
@@ -420,7 +410,6 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
                       onClick={async () => {
                         await adminResetWhatsAppTemplate(t.id);
                         toast("Texto original restaurado");
-                        router.refresh();
                       }}
                     >
                       ↺ Volver al texto original

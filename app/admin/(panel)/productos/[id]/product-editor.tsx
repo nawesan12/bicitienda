@@ -122,10 +122,10 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
         setError(r.error);
         return;
       }
+      // saveProductEditor invalida: Next re-renderiza la página en la misma respuesta.
       toast("Cambios guardados");
       setRemoved([]);
       setInitial(f);
-      router.refresh();
     });
   }
 
@@ -161,7 +161,6 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
       set("published", false);
       setInitial((s) => ({ ...s, published: false }));
       toast("Pasado a borrador");
-      router.refresh();
       return;
     }
     const ok = await confirm({

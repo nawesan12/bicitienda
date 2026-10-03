@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import {
   Button,
@@ -38,7 +37,6 @@ const productsLabel = (n: number) => `${n} ${n === 1 ? "producto" : "productos"}
 
 /** "+ Nueva categoría": nace como categoría suelta (sin grupo) al final. */
 export function NewCategoryButton() {
-  const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
   return (
@@ -51,7 +49,6 @@ export function NewCategoryButton() {
           const r = await createCategory();
           if (!r.ok) return toast(r.error);
           toast("Categoría creada: ponele nombre");
-          router.refresh();
         })
       }
     >
@@ -68,7 +65,6 @@ export function NewCategoryButton() {
  * repite hasta pasar a la hermana visible).
  */
 export function CategoriesEditor({ categories }: { categories: CategoryRow[] }) {
-  const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
   const [ask, setAsk] = useState<CategoryRow | null>(null);
@@ -101,7 +97,6 @@ export function CategoriesEditor({ categories }: { categories: CategoryRow[] }) 
           break;
         }
       }
-      router.refresh();
     });
   }
 
@@ -111,7 +106,6 @@ export function CategoriesEditor({ categories }: { categories: CategoryRow[] }) 
     start(async () => {
       const r = await patchCategory(c.slug, { label });
       toast(r.ok ? `Guardado: ${label}` : r.error);
-      router.refresh();
     });
   }
 
@@ -124,7 +118,6 @@ export function CategoriesEditor({ categories }: { categories: CategoryRow[] }) 
       if (!r.ok) return setError(r.error);
       setAsk(null);
       toast(`Categoría eliminada: ${c.label}`);
-      router.refresh();
     });
   }
 
