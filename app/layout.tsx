@@ -21,7 +21,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es-AR" className={fontVariables}>
+    <html lang="es-AR" className={fontVariables} data-scroll-behavior="smooth">
       <body>{children}</body>
     </html>
   );

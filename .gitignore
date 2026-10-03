@@ -28,3 +28,7 @@ npm-debug.log*
 # tooling de agentes
 .agents/
 skills-lock.json
+
+# E2E (Playwright)
+/test-results/
+/playwright-report/

@@ -13,7 +13,7 @@ import "./globals.css";
  */
 export default function GlobalError({ retry }: { error: Error & { digest?: string }; retry: () => void }) {
   return (
-    <html lang="es-AR" className={fontVariables}>
+    <html lang="es-AR" className={fontVariables} data-scroll-behavior="smooth">
       <body>
         <title>{`Algo salió mal · ${store.brandName}`}</title>
         <main className="flex min-h-dvh items-center justify-center px-4 py-14">
