@@ -576,10 +576,10 @@ export const waMessages: WaMessages = {
   /** Tarjetas, ficha y comparador. */
   product: (name) => `Hola! Quiero consultar por ${name}`,
   /** "Escribinos por WhatsApp" del bloque de service. */
-  repair: "Hola! Quiero hacer una consulta de service",
+  repair: "Hola! Quiero llevar mi bici al taller. ¿Me pasan un presupuesto?",
   /** Formulario de service (tipo, producto, problema). */
   repairForm: ({ tipo, modelo, problema }) =>
-    "Hola! Quiero hacer una consulta de service" +
+    "Hola! Quiero llevar mi bici al taller" +
     (tipo && tipo !== "Otro" ? " (" + tipo.toLowerCase() + ")" : "") +
     (modelo.trim() ? " por " + modelo.trim() : "") +
     "." +
@@ -599,7 +599,7 @@ export const leadLabels = {
   productDetail: "Consulta desde la web",
   general: "Botón de WhatsApp general",
   community: "Sumarse a la comunidad",
-  repair: "Consulta de service",
+  repair: "Reparación",
   financing: "Financiación",
   financingDetail: "Cuotas con tarjeta",
 };
