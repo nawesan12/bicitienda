@@ -43,14 +43,6 @@
   }
 }
 
-/* ── Utilidades del core ─────────────────────────────────────── */
-
-/* Texto transparente con stroke de marca (título de la 404). */
-.stroke-title {
-  color: transparent;
-  -webkit-text-stroke: 1.5px var(--color-brand);
-}
-
 /* ── Animaciones ─────────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; }
