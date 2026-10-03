@@ -1,36 +1,28 @@
 import type { Metadata } from "next";
-import { lexicon } from "@/lib/data/content";
+import { Display, Eyebrow } from "@/components/bt/typography";
+import { NOINDEX } from "@/lib/seo";
+import { BUY } from "../checkout/_lib/copy";
 import { TrackingForm } from "./tracking-form";
 
-const t = lexicon.commerce.tracking;
+const T = BUY.tracking;
 
-export const metadata: Metadata = {
-  title: t.metaTitle,
-  robots: { index: false },
-};
+export const metadata: Metadata = { title: T.metaTitle, robots: NOINDEX };
 
 /** ISR on-demand por tag; 1 día de respaldo (ver BACKUP_REVALIDATE). */
 export const revalidate = 86400;
 
+/** Seguimiento sin cuenta: número de pedido + WhatsApp o email. */
 export default function TrackingIndexPage() {
   return (
-    <>
-      <section className="animate-fade-in bg-cream px-[clamp(16px,4vw,40px)] pb-[90px] pt-[clamp(40px,6vw,72px)]">
-        <div className="mx-auto grid max-w-content items-center gap-[clamp(28px,5vw,60px)] min-[900px]:grid-cols-[minmax(0,1fr)_440px]">
-          <div>
-            <div className="font-sans text-[11px] font-bold tracking-[.26em] text-brand-deep">
-              {t.kicker}
-            </div>
-            <h1 className="font-display mb-0 mt-3 text-[clamp(36px,5vw,64px)] leading-[1.02] text-ink">
-              {t.title}
-            </h1>
-            <p className="mb-0 mt-4 max-w-[44ch] font-sans text-[15.5px] leading-[1.65] text-ink/60">
-              {t.sub}
-            </p>
-          </div>
-          <TrackingForm />
-        </div>
-      </section>
-    </>
+    <div className="grid items-center gap-8 px-4 pt-8 pb-14 md:px-14 md:pt-16 md:pb-20 lg:grid-cols-[minmax(0,1fr)_480px] lg:gap-12">
+      <div className="flex flex-col gap-[14px]">
+        <Eyebrow tone="yellow" size="lg">
+          {T.eyebrow}
+        </Eyebrow>
+        <Display size="page">{T.title}</Display>
+        <p className="m-0 max-w-[560px] text-[17px] leading-[1.5] text-text-2 md:text-[19px]">{T.text}</p>
+      </div>
+      <TrackingForm />
+    </div>
   );
 }

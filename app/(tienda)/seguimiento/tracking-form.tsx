@@ -2,77 +2,92 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import {
-  darkField,
-  darkKicker,
-  darkLabel,
-  darkPanel,
-} from "@/components/store/form-styles";
-import { lexicon } from "@/lib/data/content";
+import { Button } from "@/components/bt/button";
+import { Field, Input } from "@/components/bt/field";
+import { Panel } from "@/components/bt/panel";
+import { Display } from "@/components/bt/typography";
+import { BUY } from "../checkout/_lib/copy";
 
-const t = lexicon.commerce.tracking;
+const T = BUY.tracking;
 
 /**
- * Búsqueda de pedido (número + email) en la tarjeta oscura del formulario
- * de Reparaciones. La usan /seguimiento y "Mis pedidos" (`toAccount`).
+ * Búsqueda de pedido: número + WhatsApp o email de la compra (el gate de
+ * getOrderForCustomer acepta cualquiera de los dos). `toAccount` manda a
+ * /cuenta con ?e=&n= (Mis pedidos sin sesión).
  */
 export function TrackingForm({ toAccount }: { toAccount?: boolean }) {
   const router = useRouter();
   const [number, setNumber] = useState("");
-  const [email, setEmail] = useState("");
+  const [contact, setContact] = useState("");
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!number.trim() || !email.trim()) return;
-    const q = `?e=${encodeURIComponent(email.trim())}`;
+    if (!number.trim() || !contact.trim()) return;
+    const q = `?e=${encodeURIComponent(contact.trim())}`;
     router.push(
       toAccount
         ? `/cuenta${q}&n=${encodeURIComponent(number.trim())}`
-        : `/seguimiento/${encodeURIComponent(number.trim())}${q}`,
+        : `/seguimiento/${encodeURIComponent(number.trim().replace(/^#/, ""))}${q}`,
     );
   }
 
   return (
-    <form onSubmit={submit} className={`${darkPanel} flex flex-col`}>
-      <div className={darkKicker}>{t.formKicker}</div>
-      <h2 className="font-display mb-0 mt-[10px] text-[26px] tracking-[-.01em]">
-        {t.formTitle}
-      </h2>
-      <label className="mt-[22px] block" htmlFor="trk-numero">
-        <span className={darkLabel}>{t.number}</span>
-      </label>
-      <input
-        id="trk-numero"
-        className={darkField}
-        placeholder={t.numberPh}
-        value={number}
-        onChange={(e) => setNumber(e.target.value)}
-        inputMode="numeric"
-        autoComplete="off"
-        required
+    <form onSubmit={submit} className="w-full">
+    <Panel padding="lg" gap="lg">
+      <Display size="panel" as="h2">
+        {T.formTitle}
+      </Display>
+      <FormBody
+        number={number}
+        contact={contact}
+        setNumber={setNumber}
+        setContact={setContact}
+        submitLabel={toAccount ? T.submitAccount : T.submit}
       />
-      <label className="mt-[18px] block" htmlFor="trk-email">
-        <span className={darkLabel}>{t.email}</span>
-      </label>
-      <input
-        id="trk-email"
-        className={darkField}
-        type="email"
-        placeholder={t.emailPh}
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        autoComplete="email"
-        required
-      />
-      <button
-        type="submit"
-        className="mt-5 rounded-full bg-brand p-4 text-center font-sans text-[15px] font-bold text-night hover:bg-brand-hover"
-      >
-        {toAccount ? t.submitAccount : t.submit}
-      </button>
-      <div className="mt-[10px] text-center font-sans text-[11.5px] text-cream/50">
-        {t.formNote}
-      </div>
+    </Panel>
     </form>
+  );
+}
+
+function FormBody({
+  number,
+  contact,
+  setNumber,
+  setContact,
+  submitLabel,
+}: {
+  number: string;
+  contact: string;
+  setNumber: (v: string) => void;
+  setContact: (v: string) => void;
+  submitLabel: string;
+}) {
+  return (
+    <>
+      <Field label={T.number}>
+        <Input
+          value={number}
+          onChange={(e) => setNumber(e.target.value)}
+          placeholder={T.numberPh}
+          autoComplete="off"
+          required
+          size="lg"
+        />
+      </Field>
+      <Field label={T.contact}>
+        <Input
+          value={contact}
+          onChange={(e) => setContact(e.target.value)}
+          placeholder={T.contactPh}
+          autoComplete="email"
+          required
+          size="lg"
+        />
+      </Field>
+      <Button type="submit" size="full-lg">
+        {submitLabel}
+      </Button>
+      <p className="m-0 text-center text-[13px] text-text-3">{T.formNote}</p>
+    </>
   );
 }

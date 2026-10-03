@@ -1,30 +1,62 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { statusPill } from "@/components/store/order-status";
-import { whatsappLink } from "@/lib/config";
-import { lexicon } from "@/lib/data/content";
-import { formatARS } from "@/lib/format";
-import { img } from "@/lib/images";
-import {
-  getOrderForCustomer,
-  publicTimeline,
-  STATUS_LABELS,
-} from "@/lib/server/order-queries";
+import { Button, TextLink } from "@/components/bt/button";
+import { formatMoney } from "@/components/bt/format";
+import { Panel } from "@/components/bt/panel";
+import { OrderPill, type OrderPillStatus } from "@/components/bt/pill";
+import { StepList } from "@/components/bt/timeline";
+import { Display, Eyebrow, Mono } from "@/components/bt/typography";
+import { OrderSummaryItem } from "@/components/bt/compra-b/blocks";
+import { SummaryRow, SummaryRows, SummaryTotal } from "@/components/bt/compra-b/summary-rows";
+import { isOnlinePayment } from "@/lib/config";
+import { COPY } from "@/lib/data/demo/copy";
+import { fillTemplate } from "@/lib/data/demo/format";
+import { paths } from "@/lib/paths";
+import { NOINDEX } from "@/lib/seo";
+import { getOrderForCustomer, publicTimeline, type OrderRow } from "@/lib/server/order-queries";
 import { getStore } from "@/lib/server/queries";
 import { withinRateLimit } from "@/lib/server/rate-limit";
+import { getOrderItemsInfo, getTransferDetails } from "@/lib/server/screens/compra-b";
+import { waUrl } from "@/lib/whatsapp";
+import { BUY } from "../../checkout/_lib/copy";
+import { approvedAt, expiryLabel, longDate, relativeStamp, stepsDone } from "../../checkout/_lib/order-view";
+import { TransferPanel } from "../../checkout/_lib/transfer-panel";
 
-const t = lexicon.commerce.tracking;
+const T = BUY.tracking;
+const B = BUY.confirm;
+const C = COPY.confirmation;
 
-export const metadata: Metadata = {
-  title: t.metaTitle,
-  robots: { index: false },
-};
+export const metadata: Metadata = { title: T.metaTitle, robots: NOINDEX };
 
 export const dynamic = "force-dynamic";
 
-const kicker = "font-sans text-[11px] font-bold tracking-[.26em] text-ink/50";
+const GATEWAY: Record<string, string> = { mercadopago: "Mercado Pago", payway: "Payway" };
 
+/** Estado del core + medio → pill del handoff (tabla de components/bt/README.md). */
+function pillStatus(order: OrderRow): OrderPillStatus {
+  switch (order.status) {
+    case "PENDIENTE_PAGO":
+      return order.paymentMethod === "efectivo" ? "paga_local" : "transf_pendiente";
+    case "EN_PREPARACION":
+      return "armando";
+    case "LISTO_RETIRO":
+      return "listo";
+    case "RETIRADO":
+    case "ENTREGADO":
+      return "retirado";
+    case "CANCELADO":
+    case "VENCIDO":
+      return "cancelado";
+    default:
+      return "pagado";
+  }
+}
+
+/**
+ * Seguimiento de un pedido (sin cuenta): número + email o WhatsApp en
+ * ?e=. Con transferencia pendiente muestra los datos bancarios y el
+ * comprobante en #comprobante (el mail de transferencia linkea ahí).
+ */
 export default async function TrackingPage({
   params,
   searchParams,
@@ -34,188 +66,177 @@ export default async function TrackingPage({
 }) {
   const [{ numero }, { e }] = await Promise.all([params, searchParams]);
   if (!e) notFound();
-  // Anti-enumeración: el par número+email se prueba de a pocos por minuto.
+  // Anti-enumeración: el par número + contacto se prueba de a pocos por minuto.
   if (!(await withinRateLimit("tracking", 20))) notFound();
-  const [full, runtime] = await Promise.all([
-    getOrderForCustomer(numero, e),
-    getStore(),
-  ]);
+  const full = await getOrderForCustomer(numero, e);
   if (!full) notFound();
+  const [runtime, info, bank] = await Promise.all([getStore(), getOrderItemsInfo(full.items), getTransferDetails()]);
 
-  const { order, items } = full;
-  // Sucursal del pedido: la elegida al retirar, o la principal.
-  const pickupLocal =
-    runtime.locations.find((l) => l.id === order.pickupLocationId) ??
-    runtime.locations[0];
+  const { order, items, customer } = full;
+  const contact = customer.email ?? customer.phone;
+  const local = runtime.locations.find((l) => l.id === order.pickupLocationId) ?? runtime.locations[0];
+  const timeline = publicTimeline(order);
+  const method = order.paymentMethod;
+  const online = isOnlinePayment(method);
+  const isCash = method === "efectivo";
+  const isTransfer = method === "transferencia";
   const closed = order.status === "CANCELADO" || order.status === "VENCIDO";
-  const steps = publicTimeline(order);
-  const isPickup = order.deliveryMethod === "retiro";
+  const paid = timeline[1]?.state === "done";
+  const gateway = GATEWAY[method] ?? (B.paymentLabels[method] ?? method);
+  const expires = order.expiresAt && !paid ? expiryLabel(order.expiresAt) : null;
+  const vence = expires ? fillTemplate(B.untilShort, { fecha: expires }) : "";
+
+  const prep = info.hasBike ? C.steps[1] : B.stepPrepNoBike;
+  const ready = info.hasBike ? C.steps[2] : { ...C.steps[2], title: B.stepReadyNoBike };
+  const payStamp = approvedAt(full);
+  const first = isCash
+    ? { title: B.cash.step1.title, description: relativeStamp(order.createdAt) }
+    : paid
+      ? { title: C.steps[0].title, description: `${gateway} · ${relativeStamp(payStamp ?? order.createdAt)}` }
+      : isTransfer
+        ? {
+            title: B.transfer.step,
+            description: order.transferReceiptUrl ? B.transfer.stepReceived : fillTemplate(B.transfer.stepWaiting, { vence }),
+          }
+        : { title: B.online.step, description: gateway };
+  const steps = [
+    first,
+    { title: prep.title, description: prep.text },
+    { title: ready.title, description: ready.text },
+    isCash
+      ? { title: B.cash.step4.title, description: B.cash.step4.text }
+      : { title: C.steps[3].title, description: C.steps[3].text },
+  ];
+
+  const payLabel =
+    online
+      ? `${gateway}${order.installments > 1 ? ` · ${order.installments} cuotas` : ""}`
+      : isTransfer && order.discount > 0
+        ? `Transferencia · ${runtime.transferDiscount}% off`
+        : (B.paymentLabels[method] ?? method);
 
   return (
-    <>
-      <section className="animate-fade-in box-content min-h-screen bg-cream px-[clamp(16px,4vw,40px)] pb-[90px] pt-[34px]">
-        <div className="mx-auto max-w-[880px]">
-          <Link
-            href="/seguimiento"
-            className="hit relative font-sans text-[13px] font-bold text-ink/55 hover:text-ink"
-          >
-            {t.back}
-          </Link>
-          <div className="mt-6 font-sans text-[11px] font-bold tracking-[.26em] text-brand-deep">
-            {t.orderKicker}
+    <div className="grid items-start gap-8 px-4 pt-6 pb-14 md:px-14 md:pt-10 md:pb-20 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-12">
+      <div className="flex min-w-0 flex-col gap-6 md:gap-7">
+        <TextLink href={paths.tracking()} tone="muted" className="self-start">
+          {T.back}
+        </TextLink>
+        <div className="flex flex-col gap-[14px]">
+          <Mono size={14} uppercase className="max-md:text-[12px]">
+            {fillTemplate(T.orderEyebrow, { número: order.number, fecha: longDate(order.createdAt) })}
+          </Mono>
+          <div className="flex flex-wrap items-center gap-4">
+            <Display size="page" as="h1">
+              {order.number}
+            </Display>
+            <OrderPill status={pillStatus(order)} size="lg" />
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-            <h1 className="font-display m-0 text-[clamp(32px,4.4vw,52px)] leading-[1.02] text-ink">
-              {t.orderTitle(order.number)}
-            </h1>
-            <span className={statusPill(order.status)}>
-              {STATUS_LABELS[order.status]}
-            </span>
-          </div>
-
-          {closed ? (
-            <div className="mt-7 rounded-[24px] border border-danger/25 bg-white p-[clamp(20px,3vw,28px)] font-sans text-[14.5px] leading-[1.65] text-ink/70">
-              {order.status === "VENCIDO" ? t.expired : t.cancelled}
-            </div>
-          ) : (
-            <div className="mt-7 rounded-[24px] border border-ink/10 bg-white p-[clamp(20px,3vw,28px)]">
-              <div className={kicker}>{t.progressKicker}</div>
-              <ol className="m-0 mt-5 list-none p-0">
-                {steps.map((step, i) => (
-                  <li key={step.key} className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div
-                        className={`font-display flex h-9 w-9 flex-none items-center justify-center rounded-full text-[14px] tracking-normal ${
-                          step.state === "done"
-                            ? "bg-brand text-night"
-                            : step.state === "current"
-                              ? "bg-night text-brand"
-                              : "border-[1.5px] border-ink/15 bg-white text-ink/30"
-                        }`}
-                      >
-                        {step.state === "done" ? "✓" : i + 1}
-                      </div>
-                      {i < steps.length - 1 && (
-                        <div
-                          className={`w-[2px] flex-1 ${
-                            step.state === "done" ? "bg-brand" : "bg-ink/10"
-                          }`}
-                        />
-                      )}
-                    </div>
-                    <div className={`pt-[7px] ${i < steps.length - 1 ? "pb-7" : ""}`}>
-                      <div
-                        className={`font-display text-[16px] leading-[1.2] ${
-                          step.state === "pending" ? "text-ink/35" : "text-ink"
-                        }`}
-                      >
-                        {step.label}
-                      </div>
-                      {step.at && (
-                        <div className="mt-1 font-sans text-[12px] text-ink/45">
-                          {step.at}
-                        </div>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
+          {closed && (
+            <p className="m-0 max-w-[560px] text-[17px] leading-[1.5] text-text-2 md:text-[19px]">
+              {order.status === "VENCIDO" ? B.closed.expired : B.closed.cancelled}
+            </p>
           )}
-
-          <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-5">
-            <div className="rounded-[24px] border border-ink/10 bg-white p-[clamp(20px,3vw,28px)]">
-              <div className={kicker}>{t.itemsKicker}</div>
-              <div className="mt-4 flex flex-col gap-3">
-                {items.map((it) => (
-                  <div key={it.id} className="flex items-center gap-3">
-                    <div className="relative aspect-[4/3] w-[60px] flex-none overflow-hidden rounded-[10px] bg-cream-4">
-                      {it.image && (
-                        // eslint-disable-next-line @next/next/no-img-element -- Cloudinary transforma (img())
-                        <img
-                          src={img(it.image, { w: 140 })}
-                          alt=""
-                          className="absolute inset-1 block h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain mix-blend-multiply"
-                        />
-                      )}
-                    </div>
-                    <div className="font-display min-w-0 flex-1 text-[14px] leading-[1.2] text-ink">
-                      {it.quantity}× {it.name}
-                    </div>
-                    <div className="whitespace-nowrap font-sans text-[13.5px] font-bold text-ink">
-                      {formatARS(it.unitPrice * it.quantity)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-ink/10 pt-4">
-                <span className="font-sans text-[11px] font-bold tracking-[.22em] text-ink/50">
-                  {t.total.toUpperCase()}
-                </span>
-                <span className="font-display text-[26px] font-extrabold tracking-normal text-ink">
-                  {formatARS(order.total)}
-                </span>
-              </div>
-              {order.installments > 1 && (
-                <div className="mt-2 rounded-xl bg-night px-[14px] py-[10px] font-sans text-[10px] font-bold tracking-[.14em] text-cream/60">
-                  {t
-                    .plan(order.installments, formatARS(Math.round(order.total / order.installments)))
-                    .toUpperCase()}
-                </div>
-              )}
-              {order.balanceDue > 0 && !closed && (
-                <div className="mt-2 flex justify-between gap-3 rounded-xl bg-danger-bg px-[14px] py-[10px] font-sans text-[13px] font-bold text-danger">
-                  <span>{t.balance}</span>
-                  <span>{formatARS(order.balanceDue)}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-grid-dark flex flex-col rounded-[24px] bg-night p-[clamp(20px,3vw,28px)] text-cream [--grid-size:36px]">
-              <div className="font-sans text-[11px] font-bold tracking-[.26em] text-brand">
-                {isPickup ? t.pickupKicker : t.deliveryKicker}
-              </div>
-              <div className="mt-4 font-sans text-[14px] leading-[1.65] text-cream/75">
-                {isPickup ? (
-                  <>
-                    <div className="font-display text-[18px] leading-[1.25] text-cream">
-                      {pickupLocal.address}
-                    </div>
-                    <div className="mt-1">{pickupLocal.hours}</div>
-                  </>
-                ) : (
-                  <>
-                    <div className="font-display text-[18px] leading-[1.25] text-cream">
-                      {order.deliveryAddress || t.deliveryFallback}
-                    </div>
-                    <div className="mt-1">{t.deliveryNote}</div>
-                  </>
-                )}
-              </div>
-              {isPickup && order.pickupCode && (
-                <div className="mt-4 rounded-xl border border-[rgba(94,184,56,.4)] bg-[rgba(94,184,56,.12)] px-4 py-3">
-                  <div className="font-sans text-[10px] font-bold tracking-[.14em] text-cream/60">
-                    {t.code.toUpperCase()}
-                  </div>
-                  <div className="font-display mt-[2px] text-[22px] font-extrabold tracking-[.08em] text-brand">
-                    {order.pickupCode}
-                  </div>
-                </div>
-              )}
-              <div className="mt-auto pt-5">
-                <a
-                  href={whatsappLink(runtime.whatsapp, t.waMsg(order.number))}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block rounded-full bg-brand p-[14px] text-center font-sans text-[14px] font-bold text-night hover:bg-brand-hover"
-                >
-                  {t.waCta}
-                </a>
-              </div>
-            </div>
-          </div>
+          {online && !paid && !closed && (
+            <p className="m-0 max-w-[560px] text-[17px] leading-[1.5] text-text-2">
+              {fillTemplate(B.online.pendingText, { pasarela: gateway, vence: expires ? fillTemplate(B.until, { fecha: expires }) : "" })}
+            </p>
+          )}
         </div>
-      </section>
-    </>
+
+        {isTransfer && !paid && !closed && (
+          <TransferPanel
+            id="comprobante"
+            number={order.number}
+            contact={contact}
+            total={order.total}
+            discountPct={runtime.transferDiscount}
+            hasDiscount={order.discount > 0}
+            bank={bank}
+            whatsapp={runtime.whatsapp}
+            receiptSent={!!order.transferReceiptUrl}
+          />
+        )}
+
+        {!closed && (
+          <section className="flex flex-col gap-3">
+            <Eyebrow size="md" as="h2">
+              {T.progress}
+            </Eyebrow>
+            <StepList steps={steps} done={stepsDone(timeline, isCash)} />
+          </section>
+        )}
+
+        <div className="flex gap-3 max-md:flex-col">
+          {online && !paid && !closed && (
+            <Button href={`/checkout/pagar/${order.number}?e=${encodeURIComponent(contact)}`} prefetch={false} className="max-md:w-full">
+              {B.online.retry}
+            </Button>
+          )}
+          <Button
+            href={waUrl(runtime.whatsapp, fillTemplate(T.waMsg, { número: order.number }))}
+            external
+            variant={online && !paid && !closed ? "secondary" : "primary"}
+            className="max-md:w-full"
+          >
+            {T.wa}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-4">
+        <Panel as="section" surface="paper" padding="lg" gap="lg">
+          <Eyebrow tone="ink" size="md" as="h2">
+            {T.items}
+          </Eyebrow>
+          <ul className="m-0 flex list-none flex-col gap-[14px] p-0">
+            {items.map((it) => (
+              <OrderSummaryItem
+                key={it.id}
+                image={info.imageById[it.id] ?? null}
+                name={it.name}
+                meta={[it.variantLabel, `x${it.quantity}`].filter(Boolean).join(" · ")}
+                price={formatMoney(it.unitPrice * it.quantity)}
+              />
+            ))}
+          </ul>
+          <SummaryRows tone="paper">
+            {order.discount > 0 && (
+              <>
+                <SummaryRow tone="paper" label={B.subtotal} value={formatMoney(order.subtotal)} />
+                <SummaryRow
+                  tone="paper"
+                  variant="discount"
+                  label={fillTemplate(B.discount, { off: runtime.transferDiscount })}
+                  value={`− ${formatMoney(order.discount)}`}
+                />
+              </>
+            )}
+            <SummaryRow tone="paper" label={C.payment} value={payLabel} />
+            <SummaryTotal tone="paper" label={C.total} amount={order.total} />
+          </SummaryRows>
+        </Panel>
+
+        <Panel as="section" surface="surface" padding="md" gap="sm">
+          <Eyebrow tone="yellow" size="md" as="h2">
+            {T.pickup}
+          </Eyebrow>
+          <p className="m-0 text-[20px] font-extrabold">{C.pickupPlace}</p>
+          <p className="m-0 text-[15px] leading-[1.5] text-text-2">
+            {local?.address || runtime.address}
+            <br />
+            {local?.hours || runtime.hours}
+          </p>
+          <p className="m-0 text-[15px] leading-[1.5] text-text-2">{C.pickupNote}</p>
+          {order.pickupCode && !closed && (
+            <p className="m-0 flex flex-wrap items-baseline gap-x-2 text-[13px] text-text-3">
+              {B.pickupCode}
+              <Mono size={14} tone="paper">
+                {order.pickupCode}
+              </Mono>
+            </p>
+          )}
+        </Panel>
+      </div>
+    </div>
   );
 }
