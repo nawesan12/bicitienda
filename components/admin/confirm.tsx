@@ -9,8 +9,9 @@ import {
 } from "react";
 
 /**
- * Modal de confirmación genérico del prototipo: icono circular, título,
- * mensaje y dos botones (el de acción en rojo si es destructiva). Se usa
+ * Modal de confirmación del panel con el lenguaje bt (panel #1f1d1a,
+ * título Archivo 900 @70 % y botones del handoff; la acción en rojo si
+ * es destructiva). Se usa
  * como promesa: `if (await confirm({...})) hacerLo()`.
  */
 export interface ConfirmOptions {
@@ -52,34 +53,36 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     <ConfirmContext.Provider value={confirm}>
       {children}
       {opts && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-5">
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 font-sans">
           <button
             type="button"
             aria-label="Cancelar"
             onClick={() => settle(false)}
-            className="animate-fade-in absolute inset-0 cursor-default bg-night/75 backdrop-blur-[4px]"
+            className="animate-fade-in absolute inset-0 cursor-default bg-ink-deep/80"
           />
-          <div className="animate-admin-pop relative w-[484px] max-w-[94vw] rounded-[22px] bg-cream p-8 text-center shadow-[0_40px_90px_rgba(0,0,0,.5)]">
-            <div
-              className={`mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-full text-2xl font-bold ${
-                opts.destructive
-                  ? "bg-danger-bg text-danger"
-                  : "bg-brand-pastel text-brand-deeper"
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="confirm-title"
+            className="animate-admin-pop relative flex w-[440px] max-w-full flex-col gap-[14px] rounded-card border border-line bg-surface p-6 text-paper shadow-[0_40px_90px_rgba(0,0,0,.5)] md:p-7"
+          >
+            <span
+              aria-hidden
+              className={`flex size-11 items-center justify-center rounded-full text-[20px] font-black ${
+                opts.destructive ? "bg-red text-paper" : "bg-yellow text-ink"
               }`}
             >
               {opts.icon ?? (opts.destructive ? "!" : "✓")}
-            </div>
-            <div className="font-display mt-4 text-[21px] tracking-normal text-ink">
+            </span>
+            <p id="confirm-title" className="m-0 text-[30px] font-black uppercase leading-[.95] stretch-70">
               {opts.title}
-            </div>
-            <div className="mt-2 font-sans text-[13.5px] leading-relaxed text-ink/60">
-              {opts.message}
-            </div>
-            <div className="mt-[22px] flex gap-[10px]">
+            </p>
+            <p className="m-0 text-[15px] leading-[1.5] text-text-2">{opts.message}</p>
+            <div className="mt-2 flex flex-col-reverse gap-[10px] sm:flex-row">
               <button
                 type="button"
                 onClick={() => settle(false)}
-                className="box-border flex flex-1 items-center justify-center rounded-full border-[1.5px] border-ink/20 py-[13px] font-sans text-[13.5px] font-bold text-ink transition-colors hover:border-ink"
+                className="flex flex-1 items-center justify-center rounded-btn border-[1.5px] border-line-btn px-4 py-[13px] text-[14px] font-extrabold uppercase tracking-[.06em] text-paper transition-colors duration-150 hover:border-text-4 max-md:min-h-[50px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow"
               >
                 Cancelar
               </button>
@@ -87,10 +90,8 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 type="button"
                 autoFocus
                 onClick={() => settle(true)}
-                className={`flex flex-1 items-center justify-center rounded-full py-[13px] font-sans text-[13.5px] font-bold transition-transform hover:-translate-y-[1px] ${
-                  opts.destructive
-                    ? "bg-danger text-white"
-                    : "bg-ink text-cream"
+                className={`flex flex-1 items-center justify-center rounded-btn px-4 py-[14.5px] text-[14px] font-extrabold uppercase tracking-[.06em] transition-colors duration-150 max-md:min-h-[52px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow ${
+                  opts.destructive ? "bg-red text-paper hover:bg-red-light" : "bg-yellow text-ink hover:bg-brand-hover"
                 }`}
               >
                 {opts.label}
