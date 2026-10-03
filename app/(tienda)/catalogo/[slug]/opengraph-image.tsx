@@ -53,7 +53,6 @@ export default async function Image({ params }: { params: Promise<{ slug: string
     photoUrl: p.images[0] ?? null,
     price: settings.showPrices ? p.price : null,
     oldPrice: p.oldPrice,
-    installments: settings.maxInstallments,
     transferDiscount: settings.transferDiscount,
     outOfStock: isOutOfStock(p),
     sizes: sizesOf(p.variants.filter((v) => v.active)).filter((sz) =>

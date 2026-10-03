@@ -14,7 +14,6 @@ export default async function Image() {
   const s = await getSettings();
   return siteOgImage({
     photoUrl: manifestKey(COPY.home.hero.photo),
-    installments: s.maxInstallments,
     transferDiscount: s.transferDiscount,
   });
 }

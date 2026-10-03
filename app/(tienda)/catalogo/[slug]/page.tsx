@@ -46,7 +46,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     const scope = descendantSlugs(categories, category.slug);
     const inCat = (await getVisibleProducts()).filter((p) => scope.has(p.category));
     const names = [...new Set(inCat.map((p) => brandName(brands, p.brandId)).filter((b): b is string => !!b))];
-    const { title, description } = categorySeo(category, inCat.length, names, settings.maxInstallments);
+    const { title, description } = categorySeo(category, inCat.length, names);
     const path = paths.catalog(category.pathSlug);
     return withRouteOgImage(
       pageMetadata({
@@ -65,7 +65,6 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     brand: brandName(brands, p.brandId) ?? "",
     category: chain[chain.length - 1],
     price: settings.showPrices ? p.price : null,
-    installments: settings.maxInstallments,
     outOfStock: isOutOfStock(p),
     keySpecs: p.chips.join(" · "),
   });
