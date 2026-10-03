@@ -290,8 +290,12 @@ Todas las rutas públicas viven ahí (`/`, `/catalogo`, `/checkout`, `/turnos`,
 - `StoreChrome` (`components/store/store-chrome.tsx`, **isla cliente**) muestra
   `Header` desde `lg` y `MobileHeader` (con `MobileMenu` 5c) debajo. El ítem
   activo sale de `usePathname()`: match con `hrefs.nav` y un mapa
-  categoría→grupo (`/catalogo/mtb` marca "Bicicletas"). Las fichas de
-  producto no marcan grupo.
+  categoría→grupo (`/catalogo/mtb` marca "Bicicletas"); las fichas de
+  producto marcan el grupo de su categoría (mapa path→grupo que arma
+  `StoreFrame` con `getVisibleProducts()`). El buscador del `MobileHeader`
+  (`showSearch`) solo va en home, `/catalogo` y categorías, y no en carrito,
+  ficha, turnos, presupuesto ni cuenta (como 4c–4g y 5d); se decide con
+  `usePathname()`, así que las páginas siguen estáticas.
 - **Carrito**: `useCartCount()` (zustand + localStorage, 0 hasta hidratar).
   Para sumar: `useCart().add(slug, max, variantId)`. No hay drawer: "Carrito"
   lleva a `paths.cart()` (2d).

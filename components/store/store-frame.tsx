@@ -7,8 +7,8 @@ import { WHATSAPP_PENDING } from "@/lib/config";
 import { features } from "@/lib/features";
 import { paths } from "@/lib/paths";
 import { formatArPhone } from "@/lib/phone";
-import { getCategories, getStore } from "@/lib/server/queries";
-import type { Category } from "@/lib/types";
+import { getCategories, getStore, getVisibleProducts } from "@/lib/server/queries";
+import type { Category, Product } from "@/lib/types";
 import { waUrl } from "@/lib/whatsapp";
 
 /** Grupos del nav que son categorías (los otros dos son turnos y presupuesto). */
@@ -33,17 +33,31 @@ export function storeHrefs(): StoreHrefs {
   };
 }
 
-/** Cada categoría (y sus tipos) → el grupo del nav que se marca activo. */
-function activeByPath(categories: Category[]): Record<string, StoreNavKey> {
+/**
+ * Path → grupo del nav que se marca activo: cada categoría (y sus tipos)
+ * y cada ficha de producto (por la categoría del producto: una MTB marca
+ * "Bicicletas"). También devuelve los paths de categoría, que son los
+ * únicos de /catalogo/* que llevan buscador en mobile.
+ */
+function navMaps(categories: Category[], products: Product[]) {
   const bySlug = new Map(categories.map((c) => [c.slug, c]));
-  const out: Record<string, StoreNavKey> = {};
-  for (const c of categories) {
-    let root: Category | undefined = c;
+  const groupOf = (slug: string): StoreNavKey | undefined => {
+    let root: Category | undefined = bySlug.get(slug);
     while (root?.parentSlug) root = bySlug.get(root.parentSlug);
-    const key = NAV_GROUPS.find((g) => g === root?.slug);
-    if (key) out[paths.catalog(c.pathSlug)] = key;
+    return NAV_GROUPS.find((g) => g === root?.slug);
+  };
+  const activeByPath: Record<string, StoreNavKey> = {};
+  const categoryPaths: string[] = [];
+  for (const c of categories) {
+    categoryPaths.push(paths.catalog(c.pathSlug));
+    const key = groupOf(c.slug);
+    if (key) activeByPath[paths.catalog(c.pathSlug)] = key;
   }
-  return out;
+  for (const p of products) {
+    const key = groupOf(p.category);
+    if (key) activeByPath[paths.catalog(p.slug)] = key;
+  }
+  return { activeByPath, categoryPaths };
 }
 
 /**
@@ -53,7 +67,8 @@ function activeByPath(categories: Category[]): Record<string, StoreNavKey> {
  * app/(tienda)/layout.tsx y app/not-found.tsx.
  */
 export async function StoreFrame({ children }: { children: ReactNode }) {
-  const [runtime, categories] = await Promise.all([getStore(), getCategories()]);
+  const [runtime, categories, products] = await Promise.all([getStore(), getCategories(), getVisibleProducts()]);
+  const nav = navMaps(categories, products);
   const pending = runtime.whatsapp === WHATSAPP_PENDING;
   const whatsapp = pending ? STORE_INFO.whatsapp : formatArPhone(runtime.whatsapp);
   const hrefs = storeHrefs();
@@ -62,7 +77,9 @@ export async function StoreFrame({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col bg-ink text-paper">
       <StoreChrome
         hrefs={hrefs}
-        activeByPath={activeByPath(categories)}
+        activeByPath={nav.activeByPath}
+        categoryPaths={nav.categoryPaths}
+        noSearchPrefixes={[paths.cart(), paths.appointments(), paths.quote(), paths.account()]}
         menuInfo={`WhatsApp ${whatsapp} · ${runtime.hours}`}
         accounts={features.accounts}
         accountPrefix={paths.account()}

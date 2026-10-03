@@ -17,6 +17,19 @@ export interface StoreChromeProps {
   accounts: boolean;
   /** Prefijo de las rutas de cuenta (/cuenta): ahí se revalida la sesión. */
   accountPrefix: string;
+  /** Paths de categoría: en /catalogo/* solo ellos (y la portada) llevan buscador; las fichas no (4c). */
+  categoryPaths: string[];
+  /** Rutas sin buscador en el header mobile: carrito 4d, turnos 4e, presupuesto 5d, cuenta 4f/4g. */
+  noSearchPrefixes: string[];
+}
+
+const under = (pathname: string, prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
+
+/** Buscador del header mobile: solo en home, catálogo y categorías (como 4a/4b) y donde no haya diseño que lo saque. */
+function showSearchFor(pathname: string, hrefs: StoreHrefs, categoryPaths: string[], noSearch: string[]): boolean {
+  if (noSearch.some((p) => under(pathname, p))) return false;
+  if (under(pathname, hrefs.search) && pathname !== hrefs.search) return categoryPaths.includes(pathname);
+  return true;
 }
 
 /** Ítem activo del nav según la URL (match exacto o por prefijo). */
@@ -35,7 +48,15 @@ function activeFor(pathname: string, hrefs: StoreHrefs, byPath: Record<string, S
  * server action getMyAccount(), pedida al montar y al entrar a /cuenta/*
  * (login, registro, logout cambian la sesión ahí).
  */
-export function StoreChrome({ hrefs, activeByPath, menuInfo, accounts, accountPrefix }: StoreChromeProps) {
+export function StoreChrome({
+  hrefs,
+  activeByPath,
+  menuInfo,
+  accounts,
+  accountPrefix,
+  categoryPaths,
+  noSearchPrefixes,
+}: StoreChromeProps) {
   const pathname = usePathname() ?? "/";
   const cart = useCartCount();
   const [name, setName] = useState<string | null>(null);
@@ -71,6 +92,7 @@ export function StoreChrome({ hrefs, activeByPath, menuInfo, accounts, accountPr
         cart={cart}
         accountLabel={name ?? "Mi cuenta"}
         menuInfo={menuInfo}
+        showSearch={showSearchFor(pathname, hrefs, categoryPaths, noSearchPrefixes)}
       />
     </>
   );
