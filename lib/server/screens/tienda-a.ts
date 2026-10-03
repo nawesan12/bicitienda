@@ -309,22 +309,5 @@ export function buildCatalogScreen(
 
 /* ── SEO ───────────────────────────────────────────────────── */
 
-/**
- * Las rutas viven en el route group `(tienda)`, así que Next sirve sus
- * `opengraph-image.tsx` con un sufijo de hash (`/catalogo/opengraph-image-
- * abc123`, ver getMetadataRouteSuffix de Next) y el `ogImagePath()` de
- * lib/seo.ts (sin sufijo) da 404. Sacando las imágenes explícitas de
- * `pageMetadata`, Next completa og:image y twitter:image con la URL real
- * del archivo de convención de la ruta.
- */
-export function withRouteOgImage<
-  T extends { openGraph?: object | null; twitter?: object | null },
->(meta: T): T {
-  const strip = (o: object | null | undefined) => {
-    if (!o) return o;
-    const { images: _drop, ...rest } = o as { images?: unknown };
-    void _drop;
-    return rest;
-  };
-  return { ...meta, openGraph: strip(meta.openGraph), twitter: strip(meta.twitter) };
-}
+/** Movido a lib/seo.ts; re-export para no romper imports. */
+export { withRouteOgImage } from "@/lib/seo";

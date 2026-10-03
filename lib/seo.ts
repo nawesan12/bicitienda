@@ -81,9 +81,11 @@ import type { Category } from "@/lib/types";
  *
  *     export const metadata: Metadata = { title: SEO.notFoundTitle, robots: NOINDEX };
  *
- * Imágenes OG: cada página indexable declara `openGraph.images` explícito
- * con `ogImagePath(<path público>)` (lo hace pageMetadata con `image`), así
- * la URL es la pública aunque la ruta sirva por rewrite. Los
+ * Imágenes OG: la del sitio (`ogImagePath("/")`) va explícita. Las de las
+ * rutas de `(tienda)` NO: Next les agrega un sufijo de hash por el route
+ * group, así que se dejan a la convención de archivo con
+ * `withRouteOgImage()` (pageMetadata lo aplica solo si `image.path` es un
+ * `ogImagePath(<ruta>)`). Los
  * `opengraph-image.tsx` de cada ruta llaman a los helpers de
  * lib/og/render.tsx (ver la cabecera de ese archivo).
  */
@@ -305,9 +307,50 @@ export function absoluteUrl(path: string): string {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-/** Path de la imagen OG generada para una página (`<path>/opengraph-image`). */
+/** Path de la imagen OG del sitio (app/opengraph-image.tsx, fuera de route groups). */
+export const SITE_OG_IMAGE_PATH = "/opengraph-image";
+
+/**
+ * Path "lógico" de la imagen OG de una página (`<path>/opengraph-image`).
+ *
+ * OJO: solo la del sitio (`ogImagePath("/")`, app/opengraph-image.tsx) es
+ * una URL real. Las páginas de la tienda viven en el route group
+ * `(tienda)` y Next sirve sus `opengraph-image.tsx` con un sufijo de hash
+ * (`/turnos/opengraph-image-m757wz?<hash>`, ver getMetadataRouteSuffix de
+ * Next), así que `/turnos/opengraph-image` daría 404. Por eso:
+ *   - `pageMetadata({ image: { path: ogImagePath("/turnos") } })` NO emite
+ *     og:image explícito para paths que no son el del sitio: lo deja a la
+ *     convención de archivo de la ruta (Next pone la URL con sufijo).
+ *   - Para metadata armada a mano, envolvela en `withRouteOgImage()`.
+ *   - Para JSON-LD u otros usos absolutos, usá solo `ogImagePath("/")`.
+ */
 export function ogImagePath(pagePath: string): string {
-  return pagePath === "/" ? "/opengraph-image" : `${pagePath.replace(/\/$/, "")}/opengraph-image`;
+  return pagePath === "/" ? SITE_OG_IMAGE_PATH : `${pagePath.replace(/\/$/, "")}/opengraph-image`;
+}
+
+/** true si el path es un `ogImagePath()` de ruta (no real: lleva sufijo de hash). */
+function isRouteOgImagePath(path: string): boolean {
+  return path !== SITE_OG_IMAGE_PATH && /\/opengraph-image$/.test(path);
+}
+
+/**
+ * Saca las imágenes explícitas de openGraph/twitter para que Next complete
+ * og:image y twitter:image con la URL real del `opengraph-image.tsx` de la
+ * ruta (con el sufijo de hash de los route groups). Usalo en toda página de
+ * `app/(tienda)/**` que tenga su propio `opengraph-image.tsx`:
+ *
+ *     export const metadata = withRouteOgImage(pageMetadata({ ... }));
+ */
+export function withRouteOgImage<
+  T extends { openGraph?: object | null; twitter?: object | null },
+>(meta: T): T {
+  const strip = (o: object | null | undefined) => {
+    if (!o) return o;
+    const { images: _drop, ...rest } = o as { images?: unknown };
+    void _drop;
+    return rest;
+  };
+  return { ...meta, openGraph: strip(meta.openGraph), twitter: strip(meta.twitter) };
 }
 
 /* ── Robots ────────────────────────────────────────────────── */
@@ -462,7 +505,7 @@ export function pageMetadata(seo: PageSeo): Metadata {
     alt: seo.image?.alt ?? SEO.og.defaultAlt,
     type: "image/png",
   };
-  return {
+  const meta: Metadata = {
     title: seo.absolute ? { absolute: seo.title } : seo.title,
     description: seo.description,
     alternates: { canonical: seo.path },
@@ -482,6 +525,9 @@ export function pageMetadata(seo: PageSeo): Metadata {
       images: [image],
     },
   };
+  // `<ruta>/opengraph-image` sin sufijo da 404 en el route group (tienda):
+  // se deja a la convención de archivo (ver ogImagePath).
+  return seo.image && isRouteOgImagePath(seo.image.path) ? withRouteOgImage(meta) : meta;
 }
 
 /**
