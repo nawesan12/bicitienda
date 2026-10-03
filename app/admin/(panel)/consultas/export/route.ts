@@ -5,13 +5,14 @@ import { formatDateTime } from "@/lib/format";
 import { hasAdminSession } from "@/lib/server/admin-auth";
 import { getDb, schema } from "@/lib/server/db";
 import type { Lead } from "@/lib/types";
+import { matchesLead } from "../filters";
 
 /**
  * Export CSV de Consultas (o de suscriptos con ?kind=newsletter), como el
  * botón del prototipo: comillas dobles en todo, BOM UTF-8 para que Excel
  * abra bien las tildes; las fechas van en la hora del local (timeZone de
- * lib/config.ts). `?filtro=` replica las pestañas (todas, nuevas,
- * producto, reparacion, financiacion, otras).
+ * lib/config.ts). `?filtro=` replica los filtros de la pantalla
+ * (LEAD_FILTERS de ../filters.ts).
  *
  * Protegido dos veces: el proxy corta /admin/* y acá se valida la sesión
  * de nuevo (un route handler es un endpoint propio).
@@ -24,15 +25,6 @@ function csv(rows: (string | number | null | undefined)[][]): string {
   return rows
     .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
     .join("\n");
-}
-
-const MAIN_TYPES = ["producto", "reparacion", "financiacion"];
-
-function matches(lead: Lead, filtro: string): boolean {
-  if (filtro === "nuevas") return lead.status !== "atendida";
-  if (filtro === "otras") return !MAIN_TYPES.includes(lead.type);
-  if (MAIN_TYPES.includes(filtro)) return lead.type === filtro;
-  return true;
 }
 
 function download(name: string, body: string): Response {
@@ -68,7 +60,7 @@ export async function GET(request: Request) {
     .select()
     .from(schema.leads)
     .orderBy(desc(schema.leads.ts))) as Lead[];
-  const rows = leads.filter((l) => matches(l, filtro));
+  const rows = leads.filter((l) => matchesLead(l, filtro));
   return download(
     `${store.slug}-consultas.csv`,
     csv([
@@ -78,7 +70,7 @@ export async function GET(request: Request) {
         leadTypeLabels[l.type] ?? leadTypeLabels.general,
         l.label,
         l.detail,
-        l.status,
+        l.status === "atendida" ? "Atendida" : "Sin atender",
       ]),
     ]),
   );

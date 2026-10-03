@@ -1,30 +1,25 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import {
+  CellMono,
+  EmptyState,
+  FilterChip,
+  Pill,
+  Table,
+  buttonClasses,
+  cx,
+  type PillTone,
+  type TableColumn,
+} from "@/components/bt";
+import { ResponsiveTopBar } from "@/components/bt/admin-d2/top-bar";
 import { useConfirm } from "@/components/admin/confirm";
 import { useToast } from "@/components/admin/toast";
-import {
-  btnDark,
-  btnGhost,
-  btnGreen,
-  btnX,
-  EmptyState,
-  Lead as Intro,
-  statePill,
-  tabPill,
-} from "@/components/admin/ui";
-import { cx as cn } from "@/components/admin/cx";
-import { leadTypeLabels } from "@/lib/data/content";
 import { formatDateTime } from "@/lib/format";
-import {
-  clearLeads,
-  deleteLead,
-  loadSampleLeads,
-  setLeadStatus,
-} from "@/lib/server/actions/leads";
+import { deleteLead, markLeadsAttended, setLeadStatus } from "@/lib/server/actions/leads";
 import { removeSubscriber } from "@/lib/server/actions/newsletter";
 import type { LeadStatus, LeadType } from "@/lib/types";
+import { LEAD_FILTERS, isLatePayment, matchesLead } from "./filters";
 
 interface LeadRow {
   id: string;
@@ -35,284 +30,235 @@ interface LeadRow {
   status: LeadStatus;
 }
 
-/** Pill de tipo: [fondo, texto] por tipo, los del prototipo (`LT`) + pedido. */
-const TYPE_COLORS: Record<LeadType, [string, string]> = {
-  producto: ["#15170f", "#f4f3ee"],
-  reparacion: ["#5eb838", "#0c0e0b"],
-  financiacion: ["#dff0d4", "#2f7a17"],
-  prueba: ["#fff", "#15170f"],
-  comunidad: ["#0c0e0b", "#5eb838"],
-  general: ["#f1f0e9", "rgba(21,23,15,.7)"],
-  nota: ["#f1f0e9", "rgba(21,23,15,.7)"],
-  pedido: ["#2f7a17", "#f4f3ee"],
+const TYPE: Partial<Record<LeadType, { label: string; tone: PillTone }>> = {
+  producto: { label: "Producto", tone: "line" },
+  pedido: { label: "Pedido", tone: "yellow-outline" },
+  prueba: { label: "Turno", tone: "paper" },
 };
 
-const MAIN: LeadType[] = ["producto", "reparacion", "financiacion"];
-
-const TABS: [key: string, label: string][] = [
-  ["todas", "Todas"],
-  ["nuevas", "Nuevas"],
-  ["producto", "Productos"],
-  ["reparacion", "Reparaciones"],
-  ["financiacion", "Financiación"],
-  ["otras", "Otras"],
-  ["news", "Newsletter"],
-];
-
-function match(l: LeadRow, k: string): boolean {
-  if (k === "todas") return true;
-  if (k === "nuevas") return l.status !== "atendida";
-  if (k === "otras") return !MAIN.includes(l.type);
-  return l.type === k;
+function typeOf(l: LeadRow): { label: string; tone: PillTone } {
+  if (isLatePayment(l)) return { label: "Pago tardío", tone: "red" };
+  return TYPE[l.type] ?? { label: "Otra", tone: "muted" };
 }
 
 /**
- * Consultas: cada botón de WhatsApp de la web queda registrado. Filtros,
- * Nueva ↔ Atendida, eliminar, export CSV, vaciar y datos de ejemplo; la
- * pestaña Newsletter lista los suscriptos.
+ * Consultas con el lenguaje bt: filtros en chips, tabla (cards en el
+ * celular), Sin atender ↔ Atendida con un toque, eliminar y CSV. La
+ * pestaña Newsletter aparece solo si hay suscriptos.
  */
 export function LeadsManager({
-  initialTab,
+  initialFilter,
   leads: initialLeads,
   subs: initialSubs,
 }: {
-  initialTab: string;
+  initialFilter: string;
   leads: LeadRow[];
   subs: { email: string; ts: string }[];
 }) {
-  const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
-  const [pending, startTransition] = useTransition();
-  const [tab, setTab] = useState(TABS.some(([k]) => k === initialTab) ? initialTab : "todas");
-  // Estado local optimista: la fila cambia al toque y la action confirma.
+  const [, start] = useTransition();
+  const valid = [...LEAD_FILTERS.map(([k]) => k as string), "news"];
+  const [filter, setFilter] = useState(valid.includes(initialFilter) ? initialFilter : "todas");
   const [leads, setLeads] = useState(initialLeads);
   const [subs, setSubs] = useState(initialSubs);
-  const [prevLeads, setPrevLeads] = useState(initialLeads);
-  const [prevSubs, setPrevSubs] = useState(initialSubs);
-  if (initialLeads !== prevLeads) {
-    setPrevLeads(initialLeads);
-    setLeads(initialLeads);
-  }
-  if (initialSubs !== prevSubs) {
-    setPrevSubs(initialSubs);
-    setSubs(initialSubs);
-  }
 
-  const rows = tab === "news" ? [] : leads.filter((l) => match(l, tab));
-  const empty = tab === "news" ? subs.length === 0 : rows.length === 0;
-  const emptyTitle =
-    tab === "news"
-      ? "Todavía no hay suscriptos"
-      : leads.length
-        ? "No hay consultas en este filtro"
-        : "Todavía no hay consultas registradas";
+  const news = filter === "news";
+  const rows = news ? [] : leads.filter((l) => matchesLead(l, filter));
+  const pendingInView = rows.filter((l) => l.status !== "atendida");
 
-  function toggle(l: LeadRow) {
+  const toggle = (l: LeadRow) => {
     const status: LeadStatus = l.status === "atendida" ? "nueva" : "atendida";
     setLeads((all) => all.map((x) => (x.id === l.id ? { ...x, status } : x)));
-    startTransition(async () => {
-      await setLeadStatus(l.id, status);
+    start(async () => {
+      const r = await setLeadStatus(l.id, status);
+      if (!r.ok) toast("No se pudo guardar");
     });
-  }
+  };
 
-  async function askDelete(l: LeadRow) {
+  const remove = async (l: LeadRow) => {
     const ok = await confirm({
-      icon: "✕",
       title: "Eliminar consulta",
-      message: `“${l.label}” sale de la lista de consultas.`,
+      message: `“${l.label}” se borra del registro.`,
       label: "Sí, eliminar",
       destructive: true,
     });
     if (!ok) return;
     setLeads((all) => all.filter((x) => x.id !== l.id));
-    startTransition(async () => {
+    start(async () => {
       await deleteLead(l.id);
       toast("Consulta eliminada");
     });
-  }
+  };
 
-  async function askDeleteSub(email: string) {
-    const ok = await confirm({
-      icon: "✕",
-      title: "Eliminar suscripto",
-      message: `${email} deja de recibir el newsletter.`,
-      label: "Sí, eliminar",
-      destructive: true,
+  const markAll = () => {
+    const ids = pendingInView.map((l) => l.id);
+    setLeads((all) => all.map((x) => (ids.includes(x.id) ? { ...x, status: "atendida" } : x)));
+    start(async () => {
+      await markLeadsAttended(ids);
+      toast(`${ids.length} marcadas como atendidas`);
     });
-    if (!ok) return;
-    setSubs((all) => all.filter((x) => x.email !== email));
-    startTransition(async () => {
-      await removeSubscriber(email);
-      toast("Suscripto eliminado");
-    });
-  }
+  };
 
-  async function askClear() {
-    const ok = await confirm({
-      icon: "!",
-      title: "Vaciar consultas",
-      message: "Se borran todas las consultas registradas. Los suscriptos al newsletter se mantienen.",
-      label: "Sí, vaciar",
-      destructive: true,
-    });
-    if (!ok) return;
-    setLeads([]);
-    startTransition(async () => {
-      await clearLeads();
-      toast("Consultas vaciadas");
-    });
-  }
+  const exportHref = news ? "/admin/consultas/export?kind=newsletter" : `/admin/consultas/export?filtro=${filter}`;
 
-  const exportHref =
-    tab === "news"
-      ? "/admin/consultas/export?kind=newsletter"
-      : `/admin/consultas/export?filtro=${tab}`;
+  const statusBtn = (l: LeadRow) => (
+    <button
+      type="button"
+      onClick={() => toggle(l)}
+      aria-label={l.status === "atendida" ? `Marcar sin atender: ${l.label}` : `Marcar atendida: ${l.label}`}
+      className="relative z-10 rounded-pill focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow"
+    >
+      <Pill tone={l.status === "atendida" ? "muted" : "yellow"} size="md">
+        {l.status === "atendida" ? "Atendida ✓" : "Sin atender"}
+      </Pill>
+    </button>
+  );
+  const delBtn = (l: LeadRow) => (
+    <button
+      type="button"
+      onClick={() => remove(l)}
+      aria-label={`Eliminar ${l.label}`}
+      className="relative z-10 flex size-11 items-center justify-center rounded-tag text-[14px] font-extrabold text-text-3 transition-colors duration-150 hover:text-red-light focus-visible:outline-2 focus-visible:outline-yellow lg:size-8"
+    >
+      ✕
+    </button>
+  );
+
+  const columns: TableColumn<LeadRow>[] = [
+    {
+      key: "type",
+      header: "Tipo",
+      width: "120px",
+      cell: (l) => {
+        const t = typeOf(l);
+        return (
+          <Pill tone={t.tone} size="md">
+            {t.label}
+          </Pill>
+        );
+      },
+    },
+    {
+      key: "label",
+      header: "Consulta",
+      width: "minmax(0,1fr)",
+      cell: (l) => (
+        <div className="flex min-w-0 flex-col gap-[3px]">
+          <span className={cx("font-bold", l.status === "atendida" && "text-text-2")}>{l.label}</span>
+          {l.detail && <span className="text-[13px] leading-[1.4] text-text-3">{l.detail}</span>}
+        </div>
+      ),
+    },
+    { key: "ts", header: "Cuándo", width: "136px", cell: (l) => <CellMono size={12} tone="soft">{formatDateTime(new Date(l.ts))}</CellMono> },
+    { key: "status", header: "Estado", width: "120px", cell: statusBtn },
+    { key: "del", header: "", width: "32px", cell: delBtn },
+  ];
 
   return (
-    <div className="animate-fade-in">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Intro>
-          Cada vez que alguien toca un botón de WhatsApp en la web queda
-          registrado acá: qué modelo, qué servicio y cuándo. La charla sigue en
-          WhatsApp.
-        </Intro>
-        <div className="flex flex-wrap gap-[10px]">
-          <a href={exportHref} onClick={() => toast("CSV descargado")} className={btnDark}>
-            Exportar CSV
-          </a>
-          <button type="button" onClick={askClear} className={btnGhost}>
-            Vaciar
-          </button>
-        </div>
+    <>
+      <ResponsiveTopBar
+        title="Consultas"
+        actions={
+          <>
+            {!news && pendingInView.length > 1 && (
+              <button type="button" onClick={markAll} className={buttonClasses({ variant: "secondary", size: "md" })}>
+                Marcar atendidas
+              </button>
+            )}
+            <a href={exportHref} download className={buttonClasses({ variant: "secondary", size: "md" })}>
+              Exportar
+            </a>
+          </>
+        }
+      />
+
+      <div className="flex gap-2 overflow-x-auto px-4 pt-4 [scrollbar-width:none] lg:px-10 lg:pt-[18px] [&::-webkit-scrollbar]:hidden">
+        {LEAD_FILTERS.map(([k, label]) => {
+          const n = leads.filter((l) => matchesLead(l, k)).length;
+          if (k === "pago-tardio" && n === 0) return null;
+          return (
+            <FilterChip key={k} active={filter === k} count={n} onClick={() => setFilter(k)}>
+              {label}
+            </FilterChip>
+          );
+        })}
+        {subs.length > 0 && (
+          <>
+            <span className="min-w-2 flex-1" />
+            <FilterChip active={news} count={subs.length} onClick={() => setFilter("news")}>
+              Newsletter
+            </FilterChip>
+          </>
+        )}
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {TABS.map(([k, label]) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => setTab(k)}
-            className={cn(tabPill(tab === k, true), "gap-2")}
-          >
-            {label}
-            <span className="font-sans text-[10.5px] font-bold opacity-60">
-              {k === "news" ? subs.length : leads.filter((l) => match(l, k)).length}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {empty && (
-        <EmptyState title={emptyTitle}>
-          <div className="mt-[6px] font-sans text-[13px] text-ink/55">
-            Abrí la web en otra pestaña y tocá “Consultar” en un modelo — aparece
-            acá al instante.
-          </div>
-          <button
-            type="button"
-            disabled={pending}
-            className={cn(btnGreen, "mt-4 px-4 py-[9px]")}
-            onClick={() =>
-              startTransition(async () => {
-                await loadSampleLeads();
-                setTab("todas");
-                toast("Datos de ejemplo cargados");
-                router.refresh();
-              })
-            }
-          >
-            Ver con datos de ejemplo
-          </button>
-        </EmptyState>
-      )}
-
-      {rows.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {rows.map((l) => {
-            const done = l.status === "atendida";
-            const [bg, color] = TYPE_COLORS[l.type] ?? TYPE_COLORS.general;
-            return (
-              <div
-                key={l.id}
-                className={cn(
-                  "flex flex-wrap items-center gap-[14px] rounded-[14px] border-[1.5px] px-4 py-3 transition-colors hover:border-brand",
-                  done ? "border-ink/6 bg-cream-3" : "border-ink/12 bg-white",
-                )}
-              >
-                <span
-                  className="min-w-[96px] flex-none rounded-full px-[10px] py-[6px] text-center font-sans text-[10px] font-bold tracking-[.12em]"
-                  style={{ background: bg, color }}
-                >
-                  {leadTypeLabels[l.type] ?? leadTypeLabels.general}
-                </span>
-                <div className="min-w-[200px] flex-1">
-                  <div className="font-sans text-sm font-bold">{l.label}</div>
-                  {l.detail && (
-                    <div className="mt-[2px] font-sans text-[12.5px] leading-[1.5] text-ink/60">
-                      {l.detail}
-                    </div>
-                  )}
-                </div>
-                <span className="whitespace-nowrap font-sans text-xs font-medium text-ink/45">
-                  {formatDateTime(l.ts)}
+      <div className="px-4 pt-4 pb-10 lg:px-10 lg:pt-[18px]">
+        {news ? (
+          <ul className="m-0 flex list-none flex-col overflow-hidden rounded-card border border-line p-0">
+            {subs.map((s) => (
+              <li key={s.email} className="flex items-center justify-between gap-3 border-t border-line px-[22px] py-[14px] first:border-t-0">
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-[14px] font-bold">{s.email}</span>
+                  <CellMono size={12} tone="muted">
+                    {formatDateTime(new Date(s.ts))}
+                  </CellMono>
                 </span>
                 <button
                   type="button"
-                  onClick={() => toggle(l)}
-                  className={statePill(
-                    cn(
-                      "px-[13px] py-[7px]",
-                      done
-                        ? "border-ink/15 bg-white text-ink/50"
-                        : "border-brand bg-brand-pastel text-brand-deeper",
-                    ),
-                  )}
-                >
-                  {done ? "✓ ATENDIDA" : "NUEVA"}
-                </button>
-                <button
-                  type="button"
-                  title="Eliminar"
-                  aria-label="Eliminar"
-                  onClick={() => askDelete(l)}
-                  className={btnX}
+                  aria-label={`Quitar ${s.email}`}
+                  onClick={() => {
+                    setSubs((all) => all.filter((x) => x.email !== s.email));
+                    start(async () => {
+                      await removeSubscriber(s.email);
+                      toast("Suscripto quitado");
+                    });
+                  }}
+                  className="flex size-11 items-center justify-center rounded-tag text-text-3 hover:text-red-light focus-visible:outline-2 focus-visible:outline-yellow"
                 >
                   ✕
                 </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {tab === "news" && subs.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {subs.map((s) => (
-            <div
-              key={s.email}
-              className="flex flex-wrap items-center gap-[14px] rounded-[14px] border-[1.5px] border-ink/10 bg-white px-4 py-3"
-            >
-              <span className="min-w-[96px] flex-none rounded-full bg-brand-pastel px-[10px] py-[6px] text-center font-sans text-[10px] font-bold tracking-[.12em] text-brand-deeper">
-                NEWSLETTER
-              </span>
-              <div className="min-w-[200px] flex-1 font-sans text-sm font-bold">{s.email}</div>
-              <span className="font-sans text-xs font-medium text-ink/45">
-                {formatDateTime(s.ts)}
-              </span>
-              <button
-                type="button"
-                title="Eliminar"
-                aria-label="Eliminar"
-                onClick={() => askDeleteSub(s.email)}
-                className={btnX}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+              </li>
+            ))}
+          </ul>
+        ) : rows.length === 0 ? (
+          <EmptyState
+            title={leads.length ? "Nada en este filtro" : "Todavía no hay consultas"}
+            description={
+              leads.length
+                ? "Probá con otro filtro."
+                : "Cada vez que alguien toca un botón de WhatsApp en la tienda queda registrado acá, junto con los avisos de pedidos."
+            }
+          />
+        ) : (
+          <>
+            <Table className="max-lg:hidden" caption="Consultas" columns={columns} rows={rows} getRowKey={(l) => l.id} gap={20} />
+            <ul className="m-0 flex list-none flex-col overflow-hidden rounded-card border border-line p-0 lg:hidden">
+              {rows.map((l) => {
+                const t = typeOf(l);
+                return (
+                  <li key={l.id} className="flex flex-col gap-2 border-t border-line p-4 first:border-t-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <Pill tone={t.tone} size="sm">
+                        {t.label}
+                      </Pill>
+                      <CellMono size={12} tone="muted">
+                        {formatDateTime(new Date(l.ts))}
+                      </CellMono>
+                    </div>
+                    <span className={cx("text-[15px] font-bold", l.status === "atendida" && "text-text-2")}>{l.label}</span>
+                    {l.detail && <span className="text-[14px] leading-[1.4] text-text-3">{l.detail}</span>}
+                    <div className="flex items-center justify-between">
+                      {statusBtn(l)}
+                      {delBtn(l)}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </div>
+    </>
   );
 }
