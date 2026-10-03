@@ -1,167 +1,228 @@
 # BiciTienda MDQ
 
-Tienda online de una bicicletería de Mar del Plata: catálogo con talles y
-colores, compra con retiro en el local (Mercado Pago, transferencia 10% off o
-efectivo), turnos de prueba y asesoramiento, presupuestos y cuentas de cliente.
-**Proyecto independiente**: se generó copiando `tienda-starter/` y evoluciona
-solo; no comparte código en vivo con Rodar ni con otras tiendas.
+Tienda online de una bicicletería de Mar del Plata. Tiene catálogo con talles
+y colores, compra con retiro en el local, turnos, presupuestos, cuentas de
+cliente y un admin propio con PIN.
 
-Diseño: `design_handoff_bicitienda_mdq/` (no versionado; abrir
-`BiciTienda MDQ.dc.html` con `npx serve` en esa carpeta).
+Es un **proyecto independiente**: se generó copiando `tienda-starter/` y
+evoluciona solo. No comparte código en vivo con Rodar ni con otras tiendas, y
+`rodar/` no se toca para extender esta tienda.
 
-## Estado (2026-10-02) — en construcción
+- Diseño: `design_handoff_bicitienda_mdq/` (no se versiona). Para verlo, abrí
+  `BiciTienda MDQ.dc.html` con `npx serve` en esa carpeta.
+- Plan completo, decisiones y estado: `~/.claude/plans/bicitienda-construccion.md`.
+- Salida a producción: [`DEPLOY.md`](DEPLOY.md).
 
-| Fase | Estado |
-|---|---|
-| B0 · Core: variantes talle × color, pedidos de retiro (MP / transferencia / efectivo), cuentas con recupero por mail, turnos, presupuestos → pedido, plantillas WhatsApp `wa.me`, importación CSV/XLSX, mails | ✅ (tests en `scripts/tests/`) |
-| B1a · Identidad (tokens, Archivo wdth + JetBrains Mono, logo, íconos) y datos demo (`lib/data/demo/*`, fotos en Cloudinary `bicitienda-mdq/demo/`) | ✅ |
-| B2a · Sistema de diseño (`components/bt/*`, muestra en `/bt-kit` en dev) | ✅ |
-| Ola 0 · Config real, seed demo, shells bt (tienda y admin), placeholders | ✅ |
-| Ola 1 · Pantallas públicas y admin con `components/bt` | ⏭️ |
-| B4 · Pantallas sin diseño · B5 · DEPLOY | ⏭️ |
+## Módulos
 
-**Ola 0 (cerrada):**
-- `lib/config.ts` con los datos del prototipo (`STORE_INFO`, `PAYMENT_SETTINGS`);
-  lo que el cliente no pasó queda "[… a confirmar]" y el WhatsApp es un
-  número inexistente (`WHATSAPP_PENDING`). `routes` suma carrito, turnos,
-  presupuesto, cuenta, login, registro, recupero y seguimiento (`lib/paths.ts`).
-- Seed real (`lib/data/catalog.ts` y `operations.ts` traducen `lib/data/demo/*`;
-  la operación demo vive en `lib/server/seed-demo.ts`): 13 productos con
-  variantes y stock, pedidos en todos los estados (+ uno cancelado), turnos
-  con fechas relativas a hoy (agenda de la semana actual), presupuestos en
-  todos los estados, clientes, cuenta demo, horarios (sábado solo a la mañana),
-  feriado bloqueado y plantillas WA. La demo entra solo en una base sin
-  clientes (no pisa operación real).
-- Shells: `app/(tienda)/layout.tsx` (Header/MobileHeader/Footer de bt) y
-  `app/admin/(panel)/layout.tsx` (AdminShell/AdminSidebar). Ver
-  `components/bt/README.md` → "Shells".
-- Core: sandbox de pago cerrado con `VERCEL_ENV=production` aunque haya
-  `PAYMENT_SANDBOX=1`; pago aprobado sobre un pedido cancelado → evento +
-  aviso "Pago tardío"; flags que gatean páginas, home y sitemap;
-  `seed:images` mergea el manifest (no borra las claves `pexels:*`).
-  Vencimiento de reservas online, stock al cancelar pagados y `.env.local` +
-  lock de PGlite en los scripts ya estaban en B0.
+Se prenden y se apagan con `store.features` en `lib/config.ts`.
 
-**Pendientes del cliente:** dirección, horarios de atención, WhatsApp,
-email, alias/CBU, marcas, fotos reales.
+| Módulo | Flag | Qué hace |
+|---|---|---|
+| Variantes talle × color | `variants` | Stock y libro de movimientos por variante. El selector de color aparece solo si hay más de un color. Cada talle lleva la altura sugerida. |
+| Cuentas de cliente | `accounts` | Email y contraseña, sin Google. Recupero por mail con link de un solo uso. Comprar no exige cuenta: se pide nombre, WhatsApp y email opcional. |
+| Turnos | `appointments` | Agenda a partir de horarios y bloqueos, con capacidad por slot. El cliente reprograma o cancela desde su cuenta o desde el link del turno. |
+| Presupuestos | `quotes` | Pedido de presupuesto (`P-` desde 0213). El admin cotiza y, cuando el cliente acepta, lo convierte en pedido. |
+| Pagos | `payments: { payway: false, mp: true }` + `cashPayment` | Mercado Pago Checkout Pro (hasta `settings.maxInstallments` cuotas sin interés), transferencia (10% off, reserva 24 h, comprobante adjuntable) y efectivo en el local. Sin seña (`deposit: false`). |
+| Solo retiro | `pickupOnly` | El checkout ofrece solo "Retiro en el local". |
+| Importación de planilla | `csvImport` | CSV o XLSX con plantilla, preview con los errores de cada fila y upsert por SKU. |
+| Mails | `emails` | Resend con los 14 mails de la tienda. |
+| Clientes en el admin | `admin.customers` | Ficha, historial y exportación. |
 
-## Datos demo y accesos (local)
+Las plantillas de WhatsApp (turno confirmado, pedido listo, etc.) se editan
+en Ajustes y abren `wa.me` con el mensaje armado. No hay Cloud API ni
+recordatorios automáticos.
 
-```bash
-pnpm db:migrate && pnpm db:seed   # base nueva → catálogo + operación demo
-pnpm dev
-```
+Números: pedidos `BT-` desde 10482 y presupuestos `P-` desde 0213.
 
-- Admin: `/admin`, PIN **`000000`** (solo en desarrollo, sin `ADMIN_PIN_HASH`).
-- Cuenta demo: **`juanperez@gmail.com`** / **`bicitienda-demo`** (Juan Pérez:
-  2 pedidos, turnos anteriores y el próximo).
-- Para recargar la demo con fechas de hoy: borrar `.data/pglite` (con el dev
-  server cerrado) y volver a correr migrate + seed.
+**Flags apagados**: `comparador`, `blog`, `agenda`, `asesor`, `repairs`,
+`community`, `pos`, `editorVisual`, `deposit`, `payments.payway` y
+`admin.locations` (hay un solo local). Payway sigue en el core, listo para
+prenderlo.
 
-Plan completo: `~/.claude/plans/bicitienda-construccion.md`.
+## Stack
 
----
+- Next.js 16 (App Router) con Tailwind 4 y pnpm.
+- Drizzle sobre **Neon Postgres** en producción y **PGlite** embebido en
+  local (`.data/pglite`).
+- Cloudinary para las imágenes y Resend para los mails.
+- Mercado Pago Checkout Pro por REST, sin SDK. Payway también está en el
+  core, apagado.
+- Vercel en la región `gru1` (`vercel.json`), con un cron diario.
 
-## Base heredada del starter
+Todo corre en local sin credenciales: cada integración pasa a modo real
+cuando se setea su variable.
 
+| Pieza | Sin variable | Con variable |
+|---|---|---|
+| Base | PGlite en `.data/pglite` | Neon (`DATABASE_URL`) |
+| Admin | PIN `000000` (solo en dev) | `ADMIN_PIN_HASH` + `ADMIN_SESSION_SECRET` |
+| Imágenes | `public/`, y los uploads en `.data/uploads/` | Cloudinary (`CLOUDINARY_URL`) |
+| Pagos | Sandbox local `/checkout/pago-simulado` | Mercado Pago (`MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`) |
+| Mails | Outbox en `.data/outbox/*.html` | Resend (`RESEND_API_KEY`, `MAIL_FROM`) |
 
-Plantilla base de la fábrica de tiendas. **No se edita a mano**: se regenera
-desde la tienda de referencia (`rodar/`, su HEAD commiteado) con
-`./factory/bin/tiendas make-starter`. Para crear una tienda real, desde la
-raíz de `tiendas/`:
+## Puesta en marcha local
 
 ```bash
-./factory/bin/tiendas new-store <slug> "<Marca>" [--theme base|carbono|editorial|rio]
+pnpm install
+cp .env.example .env.local     # opcional: en local todo anda sin envs
+pnpm db:migrate                # PGlite en .data/pglite
+pnpm db:seed                   # catálogo + operación demo
+pnpm dev --port 3100
 ```
 
-Stack: Next.js 16 + Tailwind 4 · Drizzle sobre Neon Postgres (PGlite en
-local) · Cloudinary para imágenes · admin con PIN · Payway (o Mercado Pago)
-· Resend · Instagram Login. Todo corre en local sin credenciales.
+- **Puerto 3100**: el script `dev` es `next dev` a secas (puerto 3000), pero
+  los links de los mails, del WhatsApp y los retornos del sandbox de pago
+  apuntan a `http://localhost:3100` (`lib/site.ts`). Usá `--port 3100`, o
+  seteá `DEV_SITE_URL` si usás otro puerto.
+- **Una sola conexión a PGlite**: dos procesos sobre `.data/pglite` la
+  corrompen. Por eso los scripts (`db:migrate`, `db:seed`, los tests) toman
+  un lock y fallan si el dev server está abierto.
+- **Auto-migrate de dev**: con `next dev` y sin `DATABASE_URL`, `getDb()`
+  aplica solo las migraciones pendientes en el primer request después de que
+  cambia `lib/server/db/migrations/meta/_journal.json`. Así una migración
+  nueva entra sin cerrar el server. Nunca corre contra Neon ni en build o
+  producción. Si falla, lo loguea y reintenta en el próximo request.
+- **Refrescar las fechas de la demo**: los turnos y pedidos demo tienen
+  fechas relativas al día del seed. Para recargarlos con fechas de hoy:
+  1. Cerrá el dev server.
+  2. `rm -rf .data/pglite`
+  3. `pnpm db:migrate && pnpm db:seed`
 
-## Qué es cada cosa
+  La operación demo entra solo en una base **sin clientes**, así que un
+  `db:seed` sobre una base con datos no la recarga.
 
-**CAPA POR TIENDA** — lo único que se toca al crear una tienda:
+### Accesos locales
 
-| Archivo | Qué define |
+- Admin: `/admin`, PIN **`000000`**. Solo funciona en desarrollo y sin
+  `ADMIN_PIN_HASH`.
+- Cuenta demo: **`juanperez@gmail.com`** / **`bicitienda-demo`** (Juan
+  Pérez, con pedidos, turnos anteriores y el próximo).
+- Mails: quedan en `.data/outbox/`.
+- Pago online: `/checkout/pago-simulado` simula un pago aprobado o
+  rechazado.
+- Cron: `curl localhost:3100/api/cron/diario` (en dev no pide header).
+
+## Rutas
+
+Los paths públicos salen de `routes` en `lib/config.ts`, y los links del core
+siempre pasan por `lib/paths.ts`.
+
+### Tienda (`app/(tienda)`)
+
+| Ruta | Pantalla |
 |---|---|
-| `lib/config.ts` | `slug`, marca, WhatsApp, alias, recargos, seña, sucursales, zona horaria, horarios schema.org, `features` (módulos, `payments` payway/mp, secciones `admin`), `routes` |
-| `app/theme.css` + `app/fonts.ts` | Identidad: tokens `@theme` y par tipográfico display/UI |
-| `app/layout.tsx` | Metadata y SEO del sitio |
-| `lib/data/catalog.ts` | Seed: marcas, categorías (`label`, `single`, `sub`, `home`, `pathSlug`) y productos |
-| `lib/data/content.ts` | `lexicon` (copy de rubro de la web, `admin` y `commerce`), seed de `content` (hero, nosotros, service, beneficios, galería, recomendaciones del test), notas, agenda, mensajes de WhatsApp, etiquetas de consultas |
-| `lib/data/texts.ts` | `TEXTS`: textos sueltos editables desde /admin → Contenido (seed); `TEXT_GROUPS` arma ese formulario |
-| `lib/data/image-manifest.json` | Path local → URL de Cloudinary. Arranca `{}`; lo escribe `pnpm seed:images` |
-| `lib/advisor.ts` | Preguntas, perfiles y `pickKey` del test "¿Cuál es para mí?" (qué producto recomienda cada perfil es contenido: `content.test`) |
-| `public/brand/` + `public/products/` | Logos (`logo-white.png`, `logo-black.png`) y fotos del seed |
-| `app/icon.png` · `apple-icon` · `opengraph-image` · `twitter-image` | Íconos y OG de la marca |
-| `.env.example` | Variables de entorno (todas opcionales en local) |
+| `/` | Home |
+| `/catalogo` · `/catalogo/[slug]` | Catálogo con filtros. El slug es una categoría o una ficha de producto. |
+| `/checkout` | Carrito con pago integrado y tus datos |
+| `/checkout/confirmacion/[numero]` | Confirmación (MP, transferencia con comprobante, efectivo) |
+| `/checkout/pagar/[numero]` | Redirige a la pasarela |
+| `/checkout/pago-simulado` | Sandbox local. Nunca se abre en producción. |
+| `/seguimiento` · `/seguimiento/[numero]` | Seguimiento por WhatsApp o email |
+| `/turnos` · `/turnos/[numero]` | Reserva de turno y gestión por link |
+| `/presupuesto` | Pedir presupuesto |
+| `/cuenta` | Mi cuenta: turno, pedidos, presupuestos y datos |
+| `/cuenta/ingresar` · `/cuenta/registro` · `/cuenta/recuperar` | Login, registro y recupero |
 
-**CORE** — todo el resto (`app/` rutas, `components/`, `lib/` salvo lo de
-arriba, `lib/server/`, `emails/`, `scripts/`, migraciones). Si encontrás un
-bug o mejora del core, arreglalo en la tienda de referencia (`rodar/`) y
-regenerá el starter: así lo heredan las tiendas nuevas.
+### Admin (`app/admin`, cerrado por `proxy.ts`)
+
+| Ruta | Sección |
+|---|---|
+| `/admin/ingresar` | Login con PIN (5 errores seguidos bloquean 15 minutos) |
+| `/admin` | Resumen: KPIs del día, turnos de hoy, pedidos por atender |
+| `/admin/pedidos` · `/admin/pedidos/[numero]` | Pedidos con máquina de estados, comprobante, WhatsApp y exportación (`/exportar`) |
+| `/admin/turnos` | Agenda semanal y diaria, turno manual, bloqueos |
+| `/admin/presupuestos` | Editor de ítems, avance de estado y crear pedido |
+| `/admin/productos` · `/admin/productos/[id]` | Productos y editor con variantes y fotos |
+| `/admin/productos/importar` · `/admin/productos/plantilla` | Importar planilla y bajar la plantilla |
+| `/admin/clientes` | Ficha, historial y exportación (`/exportar`) |
+| `/admin/consultas` | Clicks de WhatsApp y avisos (pago tardío), exportación (`/export`) |
+| `/admin/ajustes` | Local, horarios de turnos, servicios, pagos y plantillas de WhatsApp |
+
+### API y otras
+
+- `/api/mp/webhook`: IPN de Mercado Pago. Responde 404 si faltan las credenciales.
+- `/api/payway/webhook`: Payway (apagado).
+- `/api/cron/diario`: vence las reservas sin pago. Lo llama Vercel Cron.
+- `/api/leads`: registra los clicks de WhatsApp.
+- `/api/dev/revalidate`: solo en local.
+- `/admin/archivos/[kind]/[file]` y `/uploads/[...file]`: archivos locales
+  cuando no hay Cloudinary.
+- `sitemap.xml`, `robots.txt`, `manifest` y las imágenes OG.
+
+Las rutas heredadas del starter que esta tienda no usa (comparador,
+comunidad, nosotros, novedades, reparaciones; y en el admin contenido,
+comunidad, stock, sucursales, test, etc.) se están borrando. Mientras
+existan, sus flags las dejan fuera del sitio.
+
+## Estructura
+
+| Carpeta | Qué hay |
+|---|---|
+| `lib/config.ts` | Capa por tienda: datos del local, `features`, `routes`, medios de pago y entrega |
+| `lib/data/` | Seed: `catalog.ts`, `content.ts`, `texts.ts`, `operations.ts` y los datos del prototipo en `lib/data/demo/` |
+| `components/bt/` | Sistema de diseño de BiciTienda: componentes presentacionales con props tipadas, sin acceso a la base. También tiene los shells (Header, Footer, AdminSidebar). Ver [`components/bt/README.md`](components/bt/README.md) para tokens, props y decisiones. Muestra en `/bt-kit` (solo en dev). |
+| `app/(tienda)/`, `app/admin/(panel)/` | Pantallas. Los componentes propios de una sola pantalla viven junto a ella (`_components`, `_screens`). |
+| `lib/server/` | Core del servidor: pedidos, pagos, stock, turnos, presupuestos, cuentas, mails, importación y seed |
+| `lib/server/actions/` | Server actions |
+| `lib/server/screens/` | Queries que arman los datos de cada pantalla (una por área: tienda, compra, cliente, admin) |
+| `lib/server/db/` | `schema.ts`, conexión (`index.ts`) y migraciones `0000`–`0011` |
+| `emails/` | Plantillas de mail (React) |
+| `docs/screens/` | Pack de pantallas: un md por pantalla con medidas, copy, datos y componentes, más las capturas del prototipo en `prototype/`. Índice en [`docs/screens/README.md`](docs/screens/README.md). |
+| `docs/emails/` | Preview de los 14 mails (HTML, texto plano y PNG). Se abre con `docs/emails/index.html`. |
+| `scripts/` | Migrate, seed, PIN, imágenes, tests y capturas |
 
 ## Scripts
 
-| Script | Qué hace |
+| Comando | Qué hace |
 |---|---|
-| `pnpm dev` / `pnpm build` | Next |
-| `pnpm lint` | ESLint |
-| `pnpm db:migrate` | Corre las migraciones (`lib/server/db/migrations`) contra Neon si hay `DATABASE_URL`, si no contra PGlite en `.data/pglite` |
-| `pnpm db:seed` | Puebla la base desde la capa por tienda (idempotente) |
-| `pnpm db:generate` | Genera una migración nueva desde el schema (drizzle-kit) |
-| `pnpm db:studio` | Explorador de la base |
-| `pnpm admin:pin` | Genera `ADMIN_PIN_HASH` + `ADMIN_SESSION_SECRET` (acceso al admin) |
-| `pnpm optimize:images` | Originales de `public/products/src/` → WebP optimizados en `public/products/` |
-| `pnpm seed:images` | Sube fotos del seed y logos a Cloudinary (carpeta `<slug>/`) y escribe `image-manifest.json` (`--dry-run` para probar; `--pdf` suma el PDF del catálogo) |
+| `pnpm dev --port 3100` | Dev server |
+| `pnpm build` · `pnpm lint` | Build y ESLint |
+| `pnpm db:migrate` | Migraciones contra Neon si hay `DATABASE_URL`, si no contra PGlite |
+| `pnpm db:seed` | Catálogo, ajustes y contenido. En una base sin clientes, también la operación demo. |
+| `pnpm db:generate` · `pnpm db:studio` | Nueva migración desde el schema y explorador de la base |
+| `pnpm test:integration` | Tests de integración contra una PGlite temporal (`scripts/tests/`) |
+| `pnpm exec tsx scripts/emails/preview.ts` | Regenera `docs/emails/` (`--no-png` para solo HTML y TXT) |
+| `pnpm screens:prototype [ids]` | Recaptura el prototipo a `docs/screens/prototype/` (necesita red) |
+| `pnpm demo:images` | Sube las fotos demo de Pexels a Cloudinary (`bicitienda-mdq/demo/`) y las mergea al manifest (`--dry-run`, `--force`) |
+| `pnpm seed:images` | Sube fotos del seed y logos a Cloudinary (carpeta `bicitienda/`, el `store.slug`) y mergea `lib/data/image-manifest.json` |
+| `pnpm optimize:images` | Originales de `public/products/src/` → WebP |
+| `pnpm admin:pin` | Genera `ADMIN_PIN_HASH` y `ADMIN_SESSION_SECRET` |
 
-## Flujo de una tienda nueva
+## Datos que tiene que mandar el cliente
 
-1. `./factory/bin/tiendas new-store mitienda "Mi Tienda" --theme editorial`
-2. `cd mitienda && pnpm install` (pnpm comparte las libs entre todas las
-   tiendas: una sola copia física en disco)
-3. `pnpm db:migrate && pnpm db:seed && pnpm dev` — admin en `/admin` con el
-   PIN `000000` (solo en desarrollo, sin `ADMIN_PIN_HASH`).
-4. Editá la capa por tienda (tabla de arriba) con la identidad, el copy y el
-   catálogo reales. Cambios en el seed → `pnpm db:seed` de nuevo.
-5. Fotos: originales a `public/products/src/` → `pnpm optimize:images`.
-   Para producción, con `CLOUDINARY_URL`: `pnpm seed:images` (commiteá el
-   manifest) y después `pnpm db:seed`.
-6. `pnpm build` para verificar, y deploy a Vercel cuando esté aprobada
-   (Neon desde el Marketplace de Vercel, envs de `.env.example`,
-   `pnpm db:migrate && pnpm db:seed` contra Neon). La guía completa de
-   deploy es la de la tienda de referencia: `rodar/DEPLOY.md`.
+Hoy figuran como "[… a confirmar]" en la web y en el admin.
 
-## Sin credenciales (modo local)
+| Dato | Dónde se carga |
+|---|---|
+| Dirección | Admin → Ajustes → Local |
+| Horarios de atención | Ajustes → Local (texto visible). El horario de turnos va en Ajustes → Horarios para turnos. Si cambia, actualizar también `openingHours` (schema.org) en `lib/config.ts`. |
+| WhatsApp | Ajustes → Local. Hoy es un número inexistente (`WHATSAPP_PENDING` en `lib/config.ts`). |
+| CBU, titular, banco y alias | Ajustes → Pagos |
+| Marcas | Columna `marca` de la planilla de importación (crea las que falten) o el editor de producto. El seed trae una sola marca, "[Marca a confirmar]". |
+| Precios reales | Planilla de importación o Admin → Productos |
+| Fotos | Editor de producto (con `CLOUDINARY_URL`) o columna `fotos` de la planilla |
+| Email de contacto | **No tiene columna en `settings`**: se edita en `STORE_INFO.email` (`lib/data/demo/settings.ts`) y en Ajustes aparece de solo lectura. |
+| Dominio | `store.siteUrl` en `lib/config.ts` (provisorio: `bicitiendamdq.com.ar`) y `NEXT_PUBLIC_SITE_URL` |
 
-| Pieza | Sin env | Con env |
-|---|---|---|
-| Base | PGlite en `.data/pglite` | Neon (`DATABASE_URL`) |
-| Admin | PIN `000000` en dev | `ADMIN_PIN_HASH` + `ADMIN_SESSION_SECRET` |
-| Imágenes | `public/` y uploads en `.data/uploads/` | Cloudinary (`CLOUDINARY_URL`) |
-| Pagos | Sandbox local `/checkout/pago-simulado` | Payway (`PAYWAY_*`) o Mercado Pago (`MP_*`) |
-| Emails | Outbox en `.data/outbox/` | Resend |
-| Instagram | Placeholders (`igSlots`) | Botón "Conectar Instagram" en Admin → Ajustes (`IG_APP_ID`/`IG_APP_SECRET`/`IG_REDIRECT_URI`) |
+## Estado y pendientes (2026-10-03)
 
-## Multi-sucursal
+Hecho: core (B0), identidad y seed demo (B1), sistema de diseño, Ola 0
+(config, seed y shells) y Ola 1 (todas las pantallas con diseño, públicas y
+del admin), con su cierre: cron diario, cuotas reales de MP, nombre del
+checkout en cada pedido y componentes consolidados en `components/bt`.
 
-El starter viene con **dos sucursales de ejemplo** en `store.locations`
-(`lib/config.ts`): "Central" y "Puerto", con `features.admin.locations`
-prendido. La **primera de la lista es la principal**: todo el stock del seed
-entra ahí, y desde el admin se reparte entre sucursales (cada movimiento
-queda asentado en el libro de movimientos). Una tienda de un solo local
-deja una sola entrada y apaga `features.admin.locations`.
+Falta:
 
-## Rutas públicas
+- **Ola 2**: 404 y las pantallas sin diseño, más retoques. Entre los
+  retoques: editor de categorías en `/admin/productos/categorias` (lo pidió
+  el usuario; todavía no existe), header mobile sin buscador en algunas
+  rutas y borrar las piezas heredadas.
+- **Ola 3**: E2E con Playwright (compra con los 3 medios, turno,
+  presupuesto → pedido, cuenta y recupero, importación) y capturas lado a
+  lado contra el prototipo para que el usuario apruebe.
+- **Deploy**: el usuario decidió no hacerlo todavía. La guía está en
+  [`DEPLOY.md`](DEPLOY.md).
 
-Los paths públicos de las secciones de rubro salen de `routes` en
-`lib/config.ts`. El starter usa los neutros — **`/catalogo`** y
-**`/comunidad`** — que son las carpetas reales del core, así que no hace
-falta ningún rewrite. Una tienda puede definir otros (`/productos`,
-`/club`…) y `next.config` genera solo el **rewrite** hacia la ruta interna
-más el **redirect** inverso. Los links del core siempre pasan por
-`lib/paths.ts`: nunca hardcodeés estos paths.
-
-La marca placeholder del starter era **"Faro"**: en BiciTienda ya no queda
-(salvo lo que reescriba otra ola); si aparece en algo publicado, falta
-reemplazar un valor de la capa por tienda.
+El detalle de los pendientes está en el plan
+(`~/.claude/plans/bicitienda-construccion.md`, sección del 2026-10-03).
