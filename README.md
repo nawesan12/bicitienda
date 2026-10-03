@@ -181,6 +181,7 @@ existan, sus flags las dejan fuera del sitio.
 | `pnpm db:migrate` | Migraciones contra Neon si hay `DATABASE_URL`, si no contra PGlite |
 | `pnpm db:seed` | Catálogo, ajustes y contenido. En una base sin clientes, también la operación demo. |
 | `pnpm db:generate` · `pnpm db:studio` | Nueva migración desde el schema y explorador de la base |
+| `pnpm test:e2e` | E2E con Playwright sobre `.data/e2e` (cerrá `pnpm dev` antes; `PW_CHROMIUM` usa otro Chromium) |
 | `pnpm test:integration` | Tests de integración contra una PGlite temporal (`scripts/tests/`) |
 | `pnpm exec tsx scripts/emails/preview.ts` | Regenera `docs/emails/` (`--no-png` para solo HTML y TXT) |
 | `pnpm screens:prototype [ids]` | Recaptura el prototipo a `docs/screens/prototype/` (necesita red) |
@@ -212,17 +213,17 @@ Hecho: core (B0), identidad y seed demo (B1), sistema de diseño, Ola 0
 del admin), con su cierre: cron diario, cuotas reales de MP, nombre del
 checkout en cada pedido y componentes consolidados en `components/bt`.
 
+Ola 2 hecha: 404 de la tienda y del panel, error boundaries (tienda, panel
+y global), login del admin con bt, y piezas y tokens heredados del starter
+borrados.
+
 Falta:
 
-- **Ola 2**: 404 y las pantallas sin diseño, más retoques. Entre los
-  retoques: editor de categorías en `/admin/productos/categorias` (lo pidió
-  el usuario; todavía no existe), header mobile sin buscador en algunas
-  rutas y borrar las piezas heredadas.
-- **Ola 3**: E2E con Playwright (compra con los 3 medios, turno,
-  presupuesto → pedido, cuenta y recupero, importación) y capturas lado a
-  lado contra el prototipo para que el usuario apruebe.
-- **Deploy**: el usuario decidió no hacerlo todavía. La guía está en
-  [`DEPLOY.md`](DEPLOY.md).
+- **Ola 3**: hay E2E de la compra con los 3 medios (`pnpm test:e2e`, con
+  el dev server cerrado). Quedan turno, presupuesto → pedido, cuenta y
+  recupero e importación, y las capturas lado a lado contra el prototipo.
+- **Deploy**: en Vercel (`bicitienda-mdq`), producción con Neon. Ver
+  [`DEPLOY.md`](DEPLOY.md) para los datos que faltan del cliente.
 
 El detalle de los pendientes está en el plan
 (`~/.claude/plans/bicitienda-construccion.md`, sección del 2026-10-03).
