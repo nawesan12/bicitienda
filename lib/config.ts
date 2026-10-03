@@ -52,7 +52,7 @@ export const store: StoreConfig = {
   // atención al público.
   openingHours: ["Mo-Fr 10:00-13:00", "Mo-Fr 16:00-19:00", "Sa 10:00-13:00"],
   /** Tipo schema.org del negocio (JSON-LD). */
-  businessType: "BicycleStore",
+  businessType: "BikeStore",
   ventaOnline: true,
   /** PDF del catálogo en public/brand/ (o Cloudinary). null = sin link. */
   catalogPdfUrl: null,
