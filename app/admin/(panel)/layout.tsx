@@ -10,7 +10,6 @@ import {
 import { ToastProvider } from "@/components/admin/toast";
 import { features } from "@/lib/features";
 import { getAdminNavCounts } from "@/lib/server/admin-queries";
-import { appointmentsThisWeek } from "@/lib/server/screens/admin-d2";
 
 export const metadata: Metadata = {
   title: {
@@ -43,13 +42,10 @@ const nz = (n: number) => (n > 0 ? n : undefined);
  * Consultas = sin atender.
  */
 export default async function AdminPanelLayout({ children }: { children: React.ReactNode }) {
-  const [c, week] = await Promise.all([
-    getAdminNavCounts(),
-    features.appointments ? appointmentsThisWeek() : Promise.resolve(0),
-  ]);
+  const c = await getAdminNavCounts();
   const counts: AdminNavCounts = {
     pedidos: nz(c.ordersToAct),
-    turnos: nz(week),
+    turnos: features.appointments ? nz(c.appointmentsWeek) : undefined,
     presupuestos: features.quotes ? nz(c.quotesNew) : undefined,
     productos: nz(c.products),
     consultas: nz(c.leads),

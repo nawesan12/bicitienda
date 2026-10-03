@@ -1,4 +1,4 @@
-import { and, count, gte, inArray, lt } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { store } from "@/lib/config";
 import { QUOTE_PILL } from "@/components/bt/pill";
 import { formatArPhone } from "@/lib/phone";
@@ -12,7 +12,8 @@ import { STATUS_LABELS } from "@/lib/server/order-queries";
 import { customerWhatsApp, getWhatsAppTemplates } from "@/lib/server/whatsapp-templates";
 import { getDb, schema } from "@/lib/server/db";
 import { getRepairsContent } from "@/lib/server/queries";
-import { addDays, localToUtc, toLocalParts, weekdayOf } from "@/lib/zoned-time";
+import { getVariantsBySlug } from "@/lib/server/variants";
+import { toLocalParts, weekdayOf } from "@/lib/zoned-time";
 
 /**
  * Lecturas de las pantallas del admin del agente D2 (ola 1): navegación,
@@ -20,34 +21,6 @@ import { addDays, localToUtc, toLocalParts, weekdayOf } from "@/lib/zoned-time";
  * lecturas; las escrituras nuevas están en `admin-d2-actions.ts` (server
  * actions con el guard del admin).
  */
-
-/** Lunes y lunes siguiente (fechas locales) de la semana de hoy. */
-export function currentWeek(now = new Date()): { from: string; to: string } {
-  const today = toLocalParts(now, store.timeZone).date;
-  const wd = weekdayOf(today); // 0 = domingo
-  const from = addDays(today, wd === 0 ? -6 : 1 - wd);
-  return { from, to: addDays(from, 7) };
-}
-
-/**
- * Turnos activos (sin confirmar + confirmados) de la semana en curso: el
- * contador "Turnos 14" del sidebar es el de la semana, como la agenda 3b.
- */
-export async function appointmentsThisWeek(): Promise<number> {
-  const db = await getDb();
-  const { from, to } = currentWeek();
-  const [row] = await db
-    .select({ n: count() })
-    .from(schema.appointments)
-    .where(
-      and(
-        inArray(schema.appointments.status, ["pendiente", "confirmado"]),
-        gte(schema.appointments.startsAt, localToUtc(from, "00:00", store.timeZone)),
-        lt(schema.appointments.startsAt, localToUtc(to, "00:00", store.timeZone)),
-      ),
-    );
-  return row?.n ?? 0;
-}
 
 /* ── Productos (3c) ───────────────────────────────────────── */
 
@@ -188,14 +161,24 @@ export interface ProductEditorData {
 
 export async function getProductEditor(id: string): Promise<ProductEditorData | null> {
   const db = await getDb();
-  const [products, cats, settingsRows] = await Promise.all([
-    getAdminProducts(),
+  // Solo este producto (con su marca), sus variantes y su stock: no el catálogo entero.
+  const [[row], cats, [s]] = await Promise.all([
+    db
+      .select({ product: schema.products, brandName: schema.brands.name })
+      .from(schema.products)
+      .leftJoin(schema.brands, eq(schema.brands.id, schema.products.brandId))
+      .where(eq(schema.products.id, id)),
     db.select().from(schema.categories),
-    db.select().from(schema.settings),
+    db.select({ transferDiscount: schema.settings.transferDiscount }).from(schema.settings).where(eq(schema.settings.id, "main")),
   ]);
-  const p = products.find((x) => x.id === id);
-  if (!p) return null;
-  const s = settingsRows[0];
+  if (!row) return null;
+  const variantsBySlug = await getVariantsBySlug(db, { productSlugs: [row.product.slug] });
+  const p = {
+    ...row.product,
+    brandName: row.brandName ?? "",
+    categoryLabel: cats.find((c) => c.slug === row.product.category)?.label ?? row.product.category,
+    variants: variantsBySlug.get(row.product.slug) ?? [],
+  };
   const groups = cats.filter((c) => !c.parentSlug).sort((a, b) => a.order - b.order);
   // Select de categoría: cada grupo y sus tipos, en orden del menú.
   const categories = groups.flatMap((g) => [

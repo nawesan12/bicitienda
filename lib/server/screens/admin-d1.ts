@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, lt } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, like, lt, or, sql, type SQL } from "drizzle-orm";
 import type { OrderPillStatus } from "@/components/bt/pill";
 import { store } from "@/lib/config";
 import { canCancel, nextTransition, orderInstallments, orderStage, progressDone } from "@/lib/order-flow";
@@ -15,9 +15,9 @@ import {
   type AppointmentView,
 } from "@/lib/server/appointments";
 import { getDb, schema } from "@/lib/server/db";
-import { expireStaleOrders } from "@/lib/server/orders";
+import { expireStaleOrdersOnce } from "@/lib/server/orders";
 import { listQuotes, quoteWhatsAppUrl, type FullQuote } from "@/lib/server/quotes";
-import { customerWhatsApp, orderReadyWhatsApp, appointmentWhatsApp } from "@/lib/server/whatsapp-templates";
+import { appointmentMessage, customerWhatsApp, orderReadyMessage } from "@/lib/server/whatsapp-templates";
 import type { AppointmentStatus, OrderStatus, PaymentMethodId, QuoteStatus } from "@/lib/types";
 import { addDays, fromMinutes, localToUtc, toLocalParts, toMinutes, weekdayOf } from "@/lib/zoned-time";
 
@@ -174,65 +174,119 @@ export interface OrderRow {
 
 const OPEN_STATUSES: OrderStatus[] = ["PENDIENTE_PAGO", "SEÑADO", "PAGADO", "EN_PREPARACION", "LISTO_RETIRO", "ENVIADO", "ENTREGA_COORDINADA"];
 
-async function loadOrderRows(): Promise<OrderRow[]> {
-  await expireStaleOrders();
-  const db = await getDb();
-  const [rows, items] = await Promise.all([
-    db
-      .select({ order: schema.orders, name: schema.customers.name, phone: schema.customers.phone })
-      .from(schema.orders)
-      .innerJoin(schema.customers, eq(schema.orders.customerId, schema.customers.id))
-      .orderBy(desc(schema.orders.createdAt)),
-    db
-      .select({ orderId: schema.orderItems.orderId, name: schema.orderItems.name, quantity: schema.orderItems.quantity })
-      .from(schema.orderItems),
-  ]);
-  const byOrder = new Map<string, string[]>();
-  for (const it of items) {
-    const list = byOrder.get(it.orderId) ?? [];
-    list.push(it.quantity > 1 ? `${it.quantity}× ${it.name}` : it.name);
-    byOrder.set(it.orderId, list);
-  }
-  return rows.map(({ order, name, phone }) => ({
-    id: order.id,
-    number: order.number,
-    status: order.status,
-    pill: orderPillStatus(order),
-    customerName: order.customerName?.trim() || name,
-    phone,
-    itemsLabel: (byOrder.get(order.id) ?? []).join(" · "),
-    total: order.total,
-    createdAt: order.createdAt,
-    open: OPEN_STATUSES.includes(order.status),
-  }));
-}
+/** Pedidos que piden una acción del mostrador (Resumen y badge de Pedidos). */
+const ACTIONABLE: OrderStatus[] = ["PENDIENTE_PAGO", "SEÑADO", "PAGADO", "EN_PREPARACION", "LISTO_RETIRO"];
 
-function matchesQuery(r: OrderRow, q: string): boolean {
+const O = schema.orders;
+const OI = schema.orderItems;
+const C = schema.customers;
+
+/** "MTB rodado 29 · 2× Casco urbano": resumen de ítems armado en la misma query. */
+const ITEMS_LABEL = sql<string>`coalesce((
+  select string_agg(case when ${OI.quantity} > 1 then ${OI.quantity} || '× ' || ${OI.name} else ${OI.name} end, ' · ' order by ${OI.id})
+  from ${OI} where ${OI.orderId} = ${O.id}
+), '')`;
+
+/** Nombre del pedido (el del checkout) o, si no hay, el de la ficha. */
+const CUSTOMER_NAME = sql`coalesce(nullif(trim(${O.customerName}), ''), ${C.name})`;
+
+/** Búsqueda (número, cliente, ítems o WhatsApp) en SQL; undefined = sin filtro. */
+function querySql(q: string): SQL | undefined {
   const s = q.trim().toLowerCase().replace(/^#/, "");
-  if (!s) return true;
+  if (!s) return undefined;
+  const pattern = `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const digits = s.replace(/\D/g, "");
-  return (
-    r.number.toLowerCase().includes(s) ||
-    r.customerName.toLowerCase().includes(s) ||
-    r.itemsLabel.toLowerCase().includes(s) ||
-    (digits.length >= 3 && r.phone.includes(digits))
+  return or(
+    ilike(O.number, pattern),
+    sql`${CUSTOMER_NAME} ilike ${pattern}`,
+    sql`exists (select 1 from ${OI} where ${OI.orderId} = ${O.id} and ${OI.name} ilike ${pattern})`,
+    digits.length >= 3 ? like(C.phone, `%${digits}%`) : undefined,
   );
 }
 
+/** Filas del tablero en UNA query (pedido + cliente + resumen de ítems). */
+async function loadOrderRows(opts: { where?: SQL; limit?: number } = {}): Promise<OrderRow[]> {
+  const db = await getDb();
+  const base = db
+    .select({
+      id: O.id,
+      number: O.number,
+      status: O.status,
+      paymentMethod: O.paymentMethod,
+      customerName: O.customerName,
+      total: O.total,
+      createdAt: O.createdAt,
+      name: C.name,
+      phone: C.phone,
+      itemsLabel: ITEMS_LABEL,
+    })
+    .from(O)
+    .innerJoin(C, eq(O.customerId, C.id))
+    .where(opts.where)
+    .orderBy(desc(O.createdAt), desc(O.id));
+  const rows = opts.limit ? await base.limit(opts.limit) : await base;
+  return rows.map((o) => ({
+    id: o.id,
+    number: o.number,
+    status: o.status,
+    pill: orderPillStatus(o),
+    customerName: o.customerName?.trim() || o.name,
+    phone: o.phone,
+    itemsLabel: o.itemsLabel,
+    total: o.total,
+    createdAt: o.createdAt,
+    open: OPEN_STATUSES.includes(o.status),
+  }));
+}
+
+/** Pedidos por página del tablero ("Ver más" suma otra tanda). */
+export const ORDERS_PAGE = 50;
+
 /**
  * Tablero de pedidos (3a). El rango ("Últimos 7 días") recorta solo los
- * cerrados: un pedido abierto siempre aparece, aunque sea viejo.
+ * cerrados: un pedido abierto siempre aparece, aunque sea viejo. Filtros,
+ * rango y búsqueda van en SQL; los contadores de los chips salen de un
+ * COUNT agrupado por estado y medio de pago (la etapa del pill depende de
+ * los dos) y la lista trae solo `limit` filas (sin límite: el export).
  */
-export async function getOrdersBoard(opts: { filter: OrderFilter; range: OrderRange; q: string }) {
-  const all = await loadOrderRows();
-  const since = opts.range === "todo" ? null : Date.now() - Number(opts.range) * 86_400_000;
-  const inRange = all.filter((r) => matchesQuery(r, opts.q) && (r.open || !since || r.createdAt.getTime() >= since));
-  const counts = Object.fromEntries(
-    ORDER_FILTERS.map((f) => [f.key, f.pills ? inRange.filter((r) => f.pills!.includes(r.pill)).length : inRange.length]),
-  ) as Record<OrderFilter, number>;
+export async function getOrdersBoard(opts: { filter: OrderFilter; range: OrderRange; q: string; limit?: number }) {
+  await expireStaleOrdersOnce();
+  const db = await getDb();
+  const since = opts.range === "todo" ? null : new Date(Date.now() - Number(opts.range) * 86_400_000);
+  const where = and(since ? or(inArray(O.status, OPEN_STATUSES), gte(O.createdAt, since)) : undefined, querySql(opts.q));
   const pills = ORDER_FILTERS.find((f) => f.key === opts.filter)?.pills ?? null;
-  const rows = pills ? inRange.filter((r) => pills.includes(r.pill)) : inRange;
-  return { rows, counts };
+
+  const groupsQuery = db
+    .select({ status: O.status, paymentMethod: O.paymentMethod, n: count() })
+    .from(O)
+    .innerJoin(C, eq(O.customerId, C.id))
+    .where(where)
+    .groupBy(O.status, O.paymentMethod);
+  const fetchRows = (pillWhere?: SQL) =>
+    loadOrderRows({ where: and(where, pillWhere), limit: opts.limit ? opts.limit + 1 : undefined });
+
+  // "Todos": filas y contadores en paralelo. Con un chip, las filas se
+  // filtran por los pares (estado, medio) que caen en ese pill.
+  let groups: Awaited<typeof groupsQuery>;
+  let rows: OrderRow[];
+  if (!pills) {
+    [groups, rows] = await Promise.all([groupsQuery, fetchRows()]);
+  } else {
+    groups = await groupsQuery;
+    const pairs = groups.filter((g) => pills.includes(orderPillStatus(g)));
+    rows = pairs.length
+      ? await fetchRows(or(...pairs.map((g) => and(eq(O.status, g.status), eq(O.paymentMethod, g.paymentMethod)))))
+      : [];
+  }
+
+  const counts = Object.fromEntries(
+    ORDER_FILTERS.map((f) => [
+      f.key,
+      groups.filter((g) => !f.pills || f.pills.includes(orderPillStatus(g))).reduce((sum, g) => sum + g.n, 0),
+    ]),
+  ) as Record<OrderFilter, number>;
+  const hasMore = !!opts.limit && rows.length > opts.limit;
+  return { rows: hasMore ? rows.slice(0, opts.limit) : rows, counts, hasMore };
 }
 
 export interface OrderDetail {
@@ -270,7 +324,7 @@ export async function getOrderDetail(number: string): Promise<OrderDetail | null
   if (!full) return null;
   const { order, items, customer } = full;
   const first = customer.name.split(" ")[0];
-  const ready = order.status === "LISTO_RETIRO" ? await orderReadyWhatsApp(order.id) : null;
+  const ready = order.status === "LISTO_RETIRO" ? await orderReadyMessage(full) : null;
   const next = nextTransition(order);
   const receiptUrl = order.transferReceiptUrl;
   const ext = receiptUrl ? (receiptUrl.split("?")[0].split(".").pop() ?? "").toLowerCase() : "";
@@ -311,7 +365,7 @@ export async function getOrderDetail(number: string): Promise<OrderDetail | null
   };
 }
 
-/** Filas del CSV "Exportar" (mismo filtro y rango que la pantalla). */
+/** Filas del CSV "Exportar" (mismo filtro y rango que la pantalla, sin límite). */
 export async function getOrdersExport(opts: { filter: OrderFilter; range: OrderRange; q: string }) {
   const { rows } = await getOrdersBoard(opts);
   return rows;
@@ -349,23 +403,27 @@ function todayStatus(v: AppointmentView, nowMin: number): TodayStatus {
 
 /** Resumen "Hoy": KPIs del día real, turnos de hoy y pedidos por atender. */
 export async function getResumen() {
-  await expireStaleOrders();
+  await expireStaleOrdersOnce();
   const { now, date, minutes } = localNow();
   const db = await getDb();
   const dayStart = localToUtc(date, "00:00", TZ);
   const dayEnd = localToUtc(addDays(date, 1), "00:00", TZ);
-  const [ordersToday, ready, transfers, appts, rows] = await Promise.all([
+  const isToday = and(gte(O.createdAt, dayStart), lt(O.createdAt, dayEnd));
+  const isReady = eq(O.status, "LISTO_RETIRO");
+  const isTransfer = and(eq(O.status, "PENDIENTE_PAGO"), eq(O.paymentMethod, "transferencia"));
+  const [[k], appts, orders] = await Promise.all([
+    // Los tres KPIs de pedidos en una query (índices de estado y fecha).
     db
-      .select({ n: count() })
-      .from(schema.orders)
-      .where(and(gte(schema.orders.createdAt, dayStart), lt(schema.orders.createdAt, dayEnd))),
-    db.select({ n: count() }).from(schema.orders).where(eq(schema.orders.status, "LISTO_RETIRO")),
-    db
-      .select({ n: count() })
-      .from(schema.orders)
-      .where(and(eq(schema.orders.status, "PENDIENTE_PAGO"), eq(schema.orders.paymentMethod, "transferencia"))),
+      .select({
+        ordersToday: sql<number>`count(*) filter (where ${isToday})`.mapWith(Number),
+        readyForPickup: sql<number>`count(*) filter (where ${isReady})`.mapWith(Number),
+        transfersToValidate: sql<number>`count(*) filter (where ${isTransfer})`.mapWith(Number),
+      })
+      .from(O)
+      .where(or(isToday, inArray(O.status, ["LISTO_RETIRO", "PENDIENTE_PAGO"]))),
     getAppointmentsBetween(date, date, { statuses: ["pendiente", "confirmado", "asistio", "no_asistio"] }),
-    loadOrderRows(),
+    // Solo los que piden acción (no todos los pedidos de la historia).
+    loadOrderRows({ where: inArray(O.status, ACTIONABLE) }),
   ]);
   const today: TodayAppointment[] = appts.map((v) => ({
     id: v.appointment.id,
@@ -384,22 +442,21 @@ export async function getResumen() {
   }));
   // Taller: lo que más deja; va destacado arriba en el Resumen.
   const repairs = today.filter((a) => a.kind === "reparacion");
-  const actionable: OrderStatus[] = ["PENDIENTE_PAGO", "SEÑADO", "PAGADO", "EN_PREPARACION", "LISTO_RETIRO"];
   return {
     now,
     date,
     monday: mondayOf(date),
     kpis: {
-      ordersToday: ordersToday[0]?.n ?? 0,
-      readyForPickup: ready[0]?.n ?? 0,
+      ordersToday: k?.ordersToday ?? 0,
+      readyForPickup: k?.readyForPickup ?? 0,
       appointmentsToday: today.filter((a) => a.status !== "no_vino").length,
-      transfersToValidate: transfers[0]?.n ?? 0,
+      transfersToValidate: k?.transfersToValidate ?? 0,
       /** Reparaciones de hoy que siguen en pie (sin "No vino"). */
       repairsToday: repairs.filter((a) => a.status !== "no_vino").length,
     },
     today,
     repairs,
-    orders: rows.filter((r) => actionable.includes(r.status)),
+    orders,
   };
 }
 
@@ -585,7 +642,7 @@ export async function getAppointmentDetail(id: string): Promise<AppointmentDetai
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const v = await getAppointmentView(id);
   if (!v) return null;
-  const wa = await appointmentWhatsApp(id);
+  const wa = await appointmentMessage(v);
   return {
     id,
     number: v.appointment.number,
@@ -600,7 +657,7 @@ export async function getAppointmentDetail(id: string): Promise<AppointmentDetai
     phoneLabel: formatArPhone(v.customer.phone),
     status: v.appointment.status,
     internalNote: v.appointment.internalNote,
-    whatsappUrl: wa?.url ?? null,
+    whatsappUrl: wa.url,
   };
 }
 

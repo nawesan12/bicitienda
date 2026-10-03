@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import { updateTag } from "next/cache";
+import { cache } from "react";
 import { deliveryMethods, isOnlinePayment, paymentMethods, store } from "@/lib/config";
 import { formatARS, zonedParts } from "@/lib/format";
 import { canCancel, nextTransition } from "@/lib/order-flow";
@@ -704,3 +705,11 @@ export async function expireStaleOrders(): Promise<number> {
   if (stale.length) invalidatePublic("catalog", { from: "any" });
   return stale.length;
 }
+
+/**
+ * El barrido perezoso UNA vez por request (React `cache`): una pantalla
+ * que lee pedidos por varios caminos (tablero + detalle) no lo repite.
+ * Fuera de un render (actions, cron, tests) `cache` no memoiza y corre
+ * igual que `expireStaleOrders`.
+ */
+export const expireStaleOrdersOnce = cache(expireStaleOrders);

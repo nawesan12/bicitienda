@@ -1,8 +1,8 @@
 import { asc, eq } from "drizzle-orm";
 import { whatsappTemplates as seedTemplates } from "@/lib/data/operations";
-import { getAppointmentView } from "@/lib/server/appointments";
+import { getAppointmentView, type AppointmentView } from "@/lib/server/appointments";
 import { getDb, schema } from "@/lib/server/db";
-import { getOrderById } from "@/lib/server/order-queries";
+import { getOrderById, type FullOrder } from "@/lib/server/order-queries";
 import { runtimeSiteUrl } from "@/lib/site";
 import type { WhatsAppTemplateId } from "@/lib/types";
 import { renderTemplate } from "@/lib/wa-templates";
@@ -52,7 +52,11 @@ export interface WhatsAppMessage {
 /** "Turno confirmado" para un turno: {nombre} {día} {hora} {servicio} {producto} {número} {link}. */
 export async function appointmentWhatsApp(appointmentId: string): Promise<WhatsAppMessage | null> {
   const view = await getAppointmentView(appointmentId);
-  if (!view) return null;
+  return view ? appointmentMessage(view) : null;
+}
+
+/** Igual que appointmentWhatsApp, con el turno ya cargado (sin releerlo). */
+export async function appointmentMessage(view: AppointmentView): Promise<WhatsAppMessage> {
   const text = renderTemplate(await templateBody("turno_confirmado"), {
     nombre: view.customer.name.split(" ")[0],
     día: view.dayLabel,
@@ -68,7 +72,11 @@ export async function appointmentWhatsApp(appointmentId: string): Promise<WhatsA
 /** "Pedido listo" para un pedido: {producto} es el primer ítem (+ "y N más"). */
 export async function orderReadyWhatsApp(orderId: string): Promise<WhatsAppMessage | null> {
   const full = await getOrderById(orderId);
-  if (!full) return null;
+  return full ? orderReadyMessage(full) : null;
+}
+
+/** Igual que orderReadyWhatsApp, con el pedido ya cargado (sin releerlo). */
+export async function orderReadyMessage(full: FullOrder): Promise<WhatsAppMessage> {
   const [first, ...rest] = full.items;
   const producto = first
     ? `${first.name}${rest.length ? ` y ${rest.length} producto${rest.length > 1 ? "s" : ""} más` : ""}`

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AdminTopBar, BackLink, CellStack, cx, Display, EmptyState, FilterChip, QuotePill, SearchInput, Table } from "@/components/bt";
 import { features } from "@/lib/features";
 import { getQuoteDetail, getQuotesBoard, QUOTE_FILTER_DEFS, type QuoteFilter, type QuoteRowView } from "@/lib/server/screens/admin-d1";
+import { getQuoteByNumber } from "@/lib/server/quotes";
 import { QuotePanel } from "./quote-panel";
 
 export const metadata: Metadata = { title: "Presupuestos" };
@@ -32,10 +33,8 @@ export default async function AdminQuotesPage({ searchParams }: { searchParams: 
   const q = (sp.q ?? "").trim().slice(0, 80);
   const { rows, counts, full, today } = await getQuotesBoard({ filter, q });
   let selFull = full.find((f) => f.quote.number === sp.sel) ?? null;
-  if (!selFull && sp.sel) {
-    const all = await getQuotesBoard({ filter: "todos", q: "" });
-    selFull = all.full.find((f) => f.quote.number === sp.sel) ?? null;
-  }
+  // Seleccionado fuera del filtro: se busca solo ese (no la bandeja entera otra vez).
+  if (!selFull && sp.sel) selFull = await getQuoteByNumber(sp.sel);
   selFull ??= full[0] ?? null;
   const detail = selFull ? await getQuoteDetail(selFull, today) : null;
   const base: SP = { estado: filter, q };

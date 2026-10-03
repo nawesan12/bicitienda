@@ -391,7 +391,7 @@ async function main() {
   test("contadores del sidebar del admin", async () => {
     const { getAdminNavCounts } = await import("@/lib/server/admin-queries");
     const c = await getAdminNavCounts();
-    for (const k of ["ordersToAct", "appointmentsToday", "appointmentsUnconfirmed", "quotesNew", "products"] as const)
+    for (const k of ["ordersToAct", "appointmentsWeek", "quotesNew", "products", "leads"] as const)
       assert.equal(typeof c[k], "number", k);
     assert.ok(c.products > 0);
   });
@@ -1007,6 +1007,61 @@ async function main() {
     assert.equal(p3.category, parent.slug);
     for (const id of [res.id, res2.id, res3.id])
       await db.update(schema.products).set({ hidden: true }).where(eq(schema.products.id, id));
+  });
+
+  test("admin en SQL: tablero de pedidos, Resumen, consultas y clientes", async () => {
+    const d1 = await import("@/lib/server/screens/admin-d1");
+    const aq = await import("@/lib/server/admin-queries");
+    const { matchesLead, LEAD_FILTERS } = await import("@/app/admin/(panel)/consultas/filters");
+    const [{ n: total }] = (await client.query<{ n: number }>("SELECT count(*)::int AS n FROM orders")).rows;
+    assert.ok(total > 2);
+    const all = await d1.getOrdersBoard({ filter: "todos", range: "todo", q: "" });
+    assert.equal(all.counts.todos, total);
+    assert.equal(all.rows.length, total);
+    for (const f of d1.ORDER_FILTERS) {
+      if (!f.pills) continue;
+      assert.equal(all.counts[f.key], all.rows.filter((r) => f.pills!.includes(r.pill)).length, f.key);
+      const only = await d1.getOrdersBoard({ filter: f.key, range: "todo", q: "" });
+      assert.equal(only.rows.length, all.counts[f.key], f.key);
+      assert.ok(only.rows.every((r) => f.pills!.includes(r.pill)), f.key);
+    }
+    // Búsqueda: número (con # y en minúsculas), ítem y WhatsApp.
+    const one = all.rows.find((r) => r.itemsLabel)!;
+    const byNumber = await d1.getOrdersBoard({ filter: "todos", range: "todo", q: `#${one.number.toLowerCase()}` });
+    assert.deepEqual(byNumber.rows.map((r) => r.number), [one.number]);
+    const word = one.itemsLabel.split(" · ")[0].replace(/^\d+× /, "").split(" ")[0];
+    assert.ok((await d1.getOrdersBoard({ filter: "todos", range: "todo", q: word })).rows.some((r) => r.id === one.id));
+    assert.ok((await d1.getOrdersBoard({ filter: "todos", range: "todo", q: one.phone.slice(-6) })).rows.some((r) => r.id === one.id));
+    // Tope + "Ver más".
+    const page = await d1.getOrdersBoard({ filter: "todos", range: "todo", q: "", limit: 2 });
+    assert.deepEqual(page.rows.map((r) => r.id), all.rows.slice(0, 2).map((r) => r.id));
+    assert.equal(page.hasMore, true);
+    assert.equal(page.counts.todos, total);
+    // Rango: los abiertos siempre; los cerrados viejos no.
+    await client.query(`UPDATE orders SET created_at = now() - interval '40 days' WHERE id = '${all.rows[all.rows.length - 1].id}'`);
+    const old = all.rows[all.rows.length - 1];
+    const week = await d1.getOrdersBoard({ filter: "todos", range: "7", q: "" });
+    assert.equal(week.rows.some((r) => r.id === old.id), old.open);
+    // Resumen: solo los que piden acción.
+    const res = await d1.getResumen();
+    const actionable = all.rows.filter((r) => ["PENDIENTE_PAGO", "SEÑADO", "PAGADO", "EN_PREPARACION", "LISTO_RETIRO"].includes(r.status));
+    assert.deepEqual(res.orders.map((r) => r.id).sort(), actionable.map((r) => r.id).sort());
+    assert.equal(res.kpis.readyForPickup, all.rows.filter((r) => r.status === "LISTO_RETIRO").length);
+    // Consultas: contadores y filtro en SQL = los de la pantalla.
+    const leads = await db.select().from(schema.leads);
+    const L = await aq.getLeads({ filter: "todas", limit: 1 });
+    for (const [k] of LEAD_FILTERS) {
+      assert.equal(L.counts[k], leads.filter((l) => matchesLead(l, k)).length, k);
+      const f = await aq.getLeads({ filter: k, limit: 1000 });
+      assert.equal(f.leads.length, L.counts[k], k);
+    }
+    assert.equal(L.leads.length, Math.min(1, leads.length));
+    // Clientes: agregados por cliente.
+    const customers = await aq.getAdminCustomers();
+    assert.equal(customers.reduce((s, c) => s + c.ordersCount, 0), total);
+    const card = customers.find((c) => c.ordersCount > 0)!;
+    const mine = (await db.select().from(schema.orders).where(eq(schema.orders.customerId, card.id)));
+    assert.equal(card.totalSpent, mine.filter((o) => !["CANCELADO", "VENCIDO"].includes(o.status)).reduce((s, o) => s + o.paidAmount, 0));
   });
 
   /* ── Correr ───────────────────────────────────────────────── */

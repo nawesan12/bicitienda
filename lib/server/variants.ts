@@ -39,7 +39,7 @@ export async function getVariantsBySlug(
       .from(schema.productVariants)
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(asc(schema.productVariants.order), asc(schema.productVariants.id)),
-    getVariantTotals(db),
+    getVariantTotals(db, opts.productSlugs),
   ]);
   const map = new Map<string, ProductVariant[]>();
   for (const r of rows) {
@@ -174,7 +174,7 @@ export async function createVariant(
 /** Desactiva la "Único" si quedó vacía al pasar a tener talles. */
 async function retireEmptyDefault(db: Db, productSlug: string): Promise<void> {
   const id = defaultVariantId(productSlug);
-  const totals = await getVariantTotals(db);
+  const totals = await getVariantTotals(db, [productSlug]);
   if ((totals.get(id) ?? 0) > 0) return;
   await db
     .update(schema.productVariants)
@@ -246,7 +246,7 @@ export async function removeVariant(
     .from(schema.productVariants)
     .where(eq(schema.productVariants.id, variantId));
   if (!v) throw new VariantError("Variante inexistente.");
-  const totals = await getVariantTotals(db);
+  const totals = await getVariantTotals(db, [v.productSlug]);
   if ((totals.get(variantId) ?? 0) > 0)
     throw new VariantError("La variante tiene stock: llevalo a 0 antes de quitarla.");
 

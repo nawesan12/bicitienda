@@ -1,9 +1,9 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { normalizeArPhone } from "@/lib/phone";
 import { store } from "@/lib/config";
 import { getDb, schema } from "@/lib/server/db";
 import { withSnapshotName } from "@/lib/server/customers";
-import { expireStaleOrders } from "@/lib/server/orders";
+import { expireStaleOrdersOnce as expireStaleOrders } from "@/lib/server/orders";
 import type { OrderEvent, OrderStatus } from "@/lib/types";
 
 /**
@@ -24,23 +24,47 @@ export interface FullOrder {
 }
 
 async function loadFull(order: OrderRow): Promise<FullOrder | null> {
+  return (await loadFullMany([order]))[0] ?? null;
+}
+
+/**
+ * Ítems, cliente y pagos de varios pedidos en TRES queries (inArray), no
+ * tres por pedido. Respeta el orden de `orders`; los pedidos sin cliente
+ * (no debería pasar: FK) se omiten.
+ */
+async function loadFullMany(orders: OrderRow[]): Promise<FullOrder[]> {
+  if (!orders.length) return [];
   const db = await getDb();
-  const [items, [customer], pays] = await Promise.all([
+  const ids = orders.map((o) => o.id);
+  const customerIds = [...new Set(orders.map((o) => o.customerId))];
+  const [items, customers, pays] = await Promise.all([
     db
       .select()
       .from(schema.orderItems)
-      .where(eq(schema.orderItems.orderId, order.id)),
+      .where(inArray(schema.orderItems.orderId, ids))
+      .orderBy(asc(schema.orderItems.id)),
     db
       .select()
       .from(schema.customers)
-      .where(eq(schema.customers.id, order.customerId)),
+      .where(inArray(schema.customers.id, customerIds)),
     db
       .select()
       .from(schema.payments)
-      .where(eq(schema.payments.orderId, order.id)),
+      .where(inArray(schema.payments.orderId, ids)),
   ]);
-  if (!customer) return null;
-  return { order, items, customer: withSnapshotName(customer, order.customerName), payments: pays };
+  const customerById = new Map(customers.map((c) => [c.id, c]));
+  const out: FullOrder[] = [];
+  for (const order of orders) {
+    const customer = customerById.get(order.customerId);
+    if (!customer) continue;
+    out.push({
+      order,
+      items: items.filter((it) => it.orderId === order.id),
+      customer: withSnapshotName(customer, order.customerName),
+      payments: pays.filter((p) => p.orderId === order.id),
+    });
+  }
+  return out;
 }
 
 export async function getOrderById(id: string): Promise<FullOrder | null> {
@@ -49,6 +73,16 @@ export async function getOrderById(id: string): Promise<FullOrder | null> {
     .select()
     .from(schema.orders)
     .where(eq(schema.orders.id, id));
+  return order ? loadFull(order) : null;
+}
+
+/** Pedido completo por número exacto ("BT-10482"), sin normalizar. */
+export async function getOrderByNumber(number: string): Promise<FullOrder | null> {
+  const db = await getDb();
+  const [order] = await db
+    .select()
+    .from(schema.orders)
+    .where(eq(schema.orders.number, number));
   return order ? loadFull(order) : null;
 }
 
@@ -104,18 +138,18 @@ export async function getOrdersForEmail(
 ): Promise<FullOrder[] | null> {
   const gate = await getOrderForCustomer(anyOrderNumber, contact);
   if (!gate) return null;
+  return getOrdersByCustomer(gate.customer.id);
+}
+
+/** Pedidos de un cliente (ficha del CRM y "mis pedidos" por email), más recientes primero. */
+export async function getOrdersByCustomer(customerId: string): Promise<FullOrder[]> {
   const db = await getDb();
   const rows = await db
     .select()
     .from(schema.orders)
-    .where(eq(schema.orders.customerId, gate.customer.id))
+    .where(eq(schema.orders.customerId, customerId))
     .orderBy(desc(schema.orders.createdAt));
-  const result: FullOrder[] = [];
-  for (const order of rows) {
-    const full = await loadFull(order);
-    if (full) result.push(full);
-  }
-  return result;
+  return loadFullMany(rows);
 }
 
 /** "Mis pedidos" de una cuenta, más recientes primero. */
@@ -127,25 +161,7 @@ export async function getOrdersForAccount(accountId: string): Promise<FullOrder[
     .from(schema.orders)
     .where(eq(schema.orders.accountId, accountId))
     .orderBy(desc(schema.orders.createdAt));
-  const result: FullOrder[] = [];
-  for (const order of rows) {
-    const full = await loadFull(order);
-    if (full) result.push(full);
-  }
-  return result;
-}
-
-/** Pedidos de varios ids (para listas del admin). */
-export async function getOrdersByIds(ids: string[]): Promise<FullOrder[]> {
-  if (!ids.length) return [];
-  const db = await getDb();
-  const rows = await db.select().from(schema.orders).where(inArray(schema.orders.id, ids));
-  const out: FullOrder[] = [];
-  for (const o of rows) {
-    const full = await loadFull(o);
-    if (full) out.push(full);
-  }
-  return out;
+  return loadFullMany(rows);
 }
 
 /* ── Timeline pública de 4 hitos ──────────────────────────── */
