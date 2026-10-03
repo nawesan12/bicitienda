@@ -28,6 +28,7 @@ import {
   stepsDone,
 } from "../../_lib/order-view";
 import { TransferPanel } from "../../_lib/transfer-panel";
+import { orderInstallments } from "@/lib/order-flow";
 
 const C = COPY.confirmation;
 const B = BUY.confirm;
@@ -171,7 +172,7 @@ export default async function ConfirmationPage({
   /* ── Resumen ── */
   const payLabel =
     online
-      ? `${gateway}${order.installments > 1 ? ` · ${order.installments} cuotas` : ""}`
+      ? `${gateway}${orderInstallments(order) > 1 ? ` · ${orderInstallments(order)} cuotas` : ""}`
       : isTransfer && order.discount > 0
         ? `Transferencia · ${runtime.transferDiscount}% off`
         : (B.paymentLabels[method] ?? method);

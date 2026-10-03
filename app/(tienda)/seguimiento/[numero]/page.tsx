@@ -20,6 +20,7 @@ import { waUrl } from "@/lib/whatsapp";
 import { BUY } from "../../checkout/_lib/copy";
 import { approvedAt, expiryLabel, longDate, relativeStamp, stepsDone } from "../../checkout/_lib/order-view";
 import { TransferPanel } from "../../checkout/_lib/transfer-panel";
+import { orderInstallments } from "@/lib/order-flow";
 
 const T = BUY.tracking;
 const B = BUY.confirm;
@@ -109,7 +110,7 @@ export default async function TrackingPage({
 
   const payLabel =
     online
-      ? `${gateway}${order.installments > 1 ? ` · ${order.installments} cuotas` : ""}`
+      ? `${gateway}${orderInstallments(order) > 1 ? ` · ${orderInstallments(order)} cuotas` : ""}`
       : isTransfer && order.discount > 0
         ? `Transferencia · ${runtime.transferDiscount}% off`
         : (B.paymentLabels[method] ?? method);
