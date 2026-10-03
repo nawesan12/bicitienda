@@ -188,16 +188,18 @@ export function RepairServicesList({
     <div className={cx("flex flex-col gap-2", FONT)}>
       <ol className="m-0 flex list-none flex-col gap-2 p-0">
         {items.map((v, i) => (
-          <li key={i} className="flex items-center gap-[6px]">
+          <li key={i} className="flex flex-wrap items-center gap-[6px] max-sm:border-t max-sm:border-line max-sm:pt-2 max-sm:first:border-t-0 max-sm:first:pt-0">
             <span className={cx("w-6 flex-none text-right text-[12px] font-semibold text-text-3", MONO)}>{String(i + 1).padStart(2, "0")}</span>
             <input
-              className={cx(COMPACT_INPUT, "min-w-0 flex-1")}
+              className={cx(COMPACT_INPUT, "min-w-0 flex-1 max-sm:basis-[calc(100%-36px)]")}
               value={v}
               maxLength={120}
               placeholder="Ej.: Service completo"
               aria-label={`Servicio ${i + 1}`}
               onChange={(e) => onChange(items.map((x, k) => (k === i ? e.target.value : x)))}
             />
+            <span aria-hidden className="w-6 flex-none sm:hidden" />
+            <span aria-hidden className="flex-1 sm:hidden" />
             <button type="button" className={btn} aria-label={`Subir servicio ${i + 1}`} disabled={i === 0} onClick={() => move(i, -1)}>
               ↑
             </button>

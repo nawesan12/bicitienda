@@ -208,7 +208,7 @@ export function RepairsTodayCard({
         <Link
           href={newHref}
           className={cx(
-            "inline-flex min-h-11 flex-1 items-center justify-center rounded-btn bg-yellow px-4 text-[14px] font-extrabold uppercase tracking-[.02em] text-ink hover:bg-brand-hover",
+            "inline-flex min-h-11 flex-1 items-center justify-center whitespace-nowrap rounded-btn bg-yellow px-3 text-[13px] font-extrabold lg:px-4 lg:text-[14px] uppercase tracking-[.02em] text-ink hover:bg-brand-hover",
             TRANSITION,
             FOCUS,
           )}
@@ -218,7 +218,7 @@ export function RepairsTodayCard({
         <Link
           href={agendaHref}
           className={cx(
-            "inline-flex min-h-11 flex-1 items-center justify-center rounded-btn border border-line-strong px-4 text-[14px] font-extrabold uppercase tracking-[.02em] text-paper hover:border-text-4",
+            "inline-flex min-h-11 flex-1 items-center justify-center whitespace-nowrap rounded-btn border border-line-strong px-3 text-[13px] font-extrabold uppercase tracking-[.02em] text-paper hover:border-text-4 lg:px-4 lg:text-[14px]",
             TRANSITION,
             FOCUS,
           )}
