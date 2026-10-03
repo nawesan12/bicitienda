@@ -76,7 +76,7 @@ export interface Product {
   tag: string | null;
   /** Tres destacados cortos para la tarjeta del catálogo. */
   chips: string[];
-  /** Specs cargadas; la ficha las ordena con `sortSpecs` (lib/specs.ts). */
+  /** Specs cargadas, en el orden en que se muestran en la ficha. */
   specs: Spec[];
   /** Fotos: la primera es la portada. */
   images: string[];

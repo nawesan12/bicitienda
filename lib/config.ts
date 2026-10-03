@@ -12,7 +12,7 @@ import { PAYMENT_SETTINGS, STORE_INFO } from "./data/demo/settings";
  * Configuración de BiciTienda MDQ. Este archivo, `app/theme.css` (tokens),
  * `app/fonts.ts` (tipografías), `app/layout.tsx` (metadata), `lib/data/`
  * (seed y léxico; los datos del prototipo en `lib/data/demo/`),
- * `lib/advisor.ts` (test) y `public/brand/` son los únicos lugares donde
+ * y `public/brand/` son los únicos lugares donde
  * vive la marca: el resto del código es core y no sabe qué tienda es.
  *
  * Lo editable en runtime (WhatsApp, alias, recargos, venta online…) vive

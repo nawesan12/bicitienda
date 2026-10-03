@@ -541,7 +541,7 @@ export const content: SiteContent = {
     },
   ],
   gallery: [null, null, null, null],
-  // Una entrada por perfil de TEST_PROFILES (lib/advisor.ts).
+  // Test "¿Cuál es para mí?" del core (flag `asesor`, apagado).
   test: {
     hogar_alto: { id: "mtb-rodado-29-doble-suspension", why: "Doble suspensión para salir a la sierra." },
     hogar: { id: "mtb-rodado-29-21-vel-aluminio", why: "La más vendida: firme y liviana para todos los días." },

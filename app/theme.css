@@ -3,13 +3,8 @@
    Negro domina; rojo = ofertas/urgencia; amarillo = acciones/selección.
    Nada más. (design_handoff_bicitienda_mdq/README.md → Design Tokens)
 
-   Dos familias de tokens:
-   1. Los del handoff (ink, surface*, line*, paper, text-2..4, yellow,
-      red, red-light, card-*): son los que usan components/bt/**.
-   2. Los nombres del core (brand*, night, cream*, chip, body, danger*):
-      se conservan para que los componentes de components/store y
-      components/ui sigan compilando y se vean coherentes, mapeados a
-      la paleta de BiciTienda.
+   Los tokens son los del handoff (ink, surface*, line*, paper,
+   text-2..4, yellow, brand-hover, red, red-light, card-*).
    ───────────────────────────────────────────────────────────── */
 @theme {
   /* ── Paleta del handoff ─────────────────────────────────── */
@@ -25,8 +20,6 @@
   --color-line-btn: #4a453e; /* botón secundario, upload punteado */
   --color-line-muted: #5a554c; /* checkbox vacío, pill "Rechazado"/"Borrador" */
   --color-paper: #f4efe4; /* texto principal sobre oscuro; cuerpo de la card */
-  /* OJO: text-2/text-3 existían en el core con valores para fondo claro;
-     ahora son los del handoff (secundario/apagado sobre oscuro). */
   --color-text-2: #cfc8bb; /* texto secundario */
   --color-text-3: #8d867a; /* labels apagados, placeholders */
   --color-text-4: #6f675a; /* eyebrows mono sobre paper */
@@ -42,31 +35,7 @@
   --color-card-meta: #6f675a; /* "CATEGORÍA / MARCA" mono sobre paper */
   --color-agenda-empty: #221f1c; /* borde de celda vacía de la agenda */
 
-  /* ── Nombres del core, mapeados a BiciTienda ────────────── */
-  --color-brand: #ffd21f;
-  --color-brand-hover: #ffdc4d;
-  /* Acento legible sobre fondos claros (paper). */
-  --color-brand-deep: #7a6200;
-  --color-brand-deeper: #5c4a00;
-  --color-brand-pastel: #fff3c2;
-
-  --color-night: #0b0a09;
-
-  /* Fondos claros del core → tonos paper. */
-  --color-cream: #f4efe4;
-  --color-cream-2: #e8e1d3;
-  --color-cream-3: #faf7f0;
-  --color-cream-4: #f7f3ea;
-  --color-cream-5: #e8e1d3;
-  --color-chip: #ebe5d8;
-  --color-line-3: #c9c0ae;
-
-  --color-body: #4c463d; /* texto corrido sobre claro */
-
-  /* Semánticos */
-  --color-danger: #d7261e;
-  --color-danger-bg: #fbe4e1;
-  --color-danger-line: #d7261e;
+  --color-brand-hover: #ffdc4d; /* hover del amarillo */
 
   /* ── Radios (rounded-tag, rounded-btn, …) ───────────────── */
   --radius-tag: 4px; /* tags de producto */
@@ -162,17 +131,6 @@ html {
 @utility selected-option {
   background-color: rgb(255 210 31 / 0.08);
   border-color: var(--color-yellow);
-}
-
-/* Compat core: `.font-display` es el display condensado de la marca.
-   En la capa components para que las utilidades (font-extrabold,
-   tracking-*, stretch-*) lo puedan pisar. */
-@layer components {
-  .font-display {
-    font-weight: 900;
-    font-stretch: 66%;
-    text-transform: uppercase;
-  }
 }
 
 /* Toda la tienda y el admin son oscuros: fondo ink, texto paper, y el
