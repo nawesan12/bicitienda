@@ -4,8 +4,8 @@ import { cx } from "./cx";
 import { FOCUS, FONT, TRANSITION } from "./styles";
 
 /* ── CalloutLink ──────────────────────────────────────────────
-   Banner-link horizontal del carrito ("¿Querés probar la MTB antes de
-   pagar?" → Reservar prueba). bg #1f1d1a, borde #2b2824, r10, 22×24.
+   Banner-link horizontal del carrito ("¿Tu bici necesita un service?"
+   → Sacar turno en el taller). bg #1f1d1a, borde #2b2824, r10, 22×24.
    Título 800 18, texto 15 #cfc8bb, CTA 800 14 uppercase .06em amarillo.
    ──────────────────────────────────────────────────────────── */
 

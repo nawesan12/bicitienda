@@ -10,7 +10,7 @@ import { FOCUS, FONT, TRANSITION } from "./styles";
  * - primary: amarillo #ffd21f / tinta #121110.
  * - secondary: transparente, borde 1.5 #4a453e, texto paper.
  * - outline-paper: como secondary con borde #f4efe4 (CTA mobile del hero,
- *   "Reservar una prueba", "Pedir presupuesto" del menú).
+ *   "Pedir presupuesto" del menú).
  * - danger: secondary con texto #ff6a5c ("Rechazar", "Cancelar pedido").
  * - ink: tinta sobre paneles amarillos ("Confirmar turno", "Reprogramar").
  * - ink-outline: borde tinta sobre paneles amarillos ("Cancelar").

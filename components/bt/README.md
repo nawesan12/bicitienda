@@ -181,7 +181,7 @@ se exporta desde `index.ts` (salvo las islas que tocan `lib/`); lo
   `stacked` (datos bancarios, pago en el local, sandbox): etiqueta 700 12 uppercase arriba, valor 800 17 (mono 600 15 con `mono`), `action` a la derecha (`CopyButton`).
 
 **Bloques** (`blocks.tsx`, exportado)
-- `CalloutLink` `{ href, title, text?, cta }`: banner-link del carrito ("¿Querés probar la MTB antes de pagar?").
+- `CalloutLink` `{ href, title, text?, cta }`: banner-link del carrito ("¿Tu bici necesita un service?" → turno del taller).
 - `InfoBox` `{ title, children? }`: caja con borde #3a362f r8 (retiro del carrito).
 - `SuccessMark` `{ tone: done|waiting|muted, symbol? }`: círculo 88 (72) de 2e; 2e solo diseña el ✓ amarillo, `waiting`/`muted` son nuestras.
 - `NumberedSteps` `{ items: {n, title, text?}[] }`: "Cómo sigue" (5a), filas 44 | 1fr con número amarillo 30 @70.
@@ -228,7 +228,6 @@ se exporta desde `index.ts` (salvo las islas que tocan `lib/`); lo
 | Home 2a/4a | `app/(tienda)/_components/home.tsx` | `HomeHero`, `CategoryStrip`, `HowItWorks` |
 | Catálogo 2b/4b | `app/(tienda)/catalogo/_screens/catalog-browser.tsx`, `price-range.tsx` | `CatalogBrowser`, `PriceRangeSlider` |
 | Ficha 2c/4c | `app/(tienda)/catalogo/_screens/product-gallery.tsx`, `product-purchase.tsx` | `ProductPhotos`/`ProductGallery`/`ProductCarousel`, `ProductPurchase` |
-| Turnos 2f | `app/(tienda)/turnos/selected-product-row.tsx` | `SelectedProductRow` ("Bici a probar" + "Cambiar") |
 | Mi cuenta 2g | `app/(tienda)/cuenta/account-nav.tsx` | `AccountNav`, `ACCOUNT_NAV_ITEM` (mobile usa `SegmentedControl`) |
 | Resumen 2i/4h | `app/admin/(panel)/today-card.tsx` | `TodayAppointmentCard` (`status: hecho|ahora|confirmado|sin_confirmar|no_vino`) |
 | Turnos 3b | `app/admin/(panel)/turnos/agenda.tsx` | `WeekNav`, `Legend`, `AgendaCell`, `WeekAgenda` |
@@ -239,12 +238,12 @@ se exporta desde `index.ts` (salvo las islas que tocan `lib/`); lo
 ### Decisiones por área
 
 **Tienda (A)**
-- **Filtros del catálogo en el navegador.** La página es estática/ISR: el server manda todos los productos del grupo y `CatalogBrowser` filtra, ordena y pagina. El estado vive en la URL (`?tipo=&rodado=&talle=&min=&max=&prueba=1&orden=&q=&pagina=`): se escribe con `history.replaceState` (con debounce, por el slider) y se lee con `useSearchParams` dentro de un `Suspense` chico.
-- **Rodados y talles**: los del prototipo (12…29, S–XL) más los que haya en los datos; sin productos quedan deshabilitados. Rodado, Talle y "Se puede probar" solo si el grupo tiene bicis. "Tipo" solo con más de un tipo.
+- **Filtros del catálogo en el navegador.** La página es estática/ISR: el server manda todos los productos del grupo y `CatalogBrowser` filtra, ordena y pagina. El estado vive en la URL (`?tipo=&rodado=&talle=&min=&max=&orden=&q=&pagina=`): se escribe con `history.replaceState` (con debounce, por el slider) y se lee con `useSearchParams` dentro de un `Suspense` chico.
+- **Rodados y talles**: los del prototipo (12…29, S–XL) más los que haya en los datos; sin productos quedan deshabilitados. Rodado y Talle solo si el grupo tiene bicis. "Tipo" solo con más de un tipo.
 - **Orden**: Más vendidas (orden del seed), Menor precio, Mayor precio, Más nuevos.
 - **Drawer de filtros (sin diseño)**: pantalla completa sobre ink, título 900 30 @70, ✕ de 44, pie con "Limpiar" + "Ver N modelos". Escape cierra.
 - **Ficha**: talle inicial = el de más stock; color inicial = el primero con stock en ese talle. "Quedan N en talle X" es el stock de la variante elegida. Sin stock: botón deshabilitado y celda en rojo claro. "Agregar al carrito" suma y lleva a `/checkout`.
-- **Links de turnos**: "Reservar una prueba" → `/turnos?servicio=prueba&producto=<slug>`; ayuda de talle → `/turnos?servicio=asesoramiento&producto=<slug>`.
+- **Links de turnos**: "¿Ya tenés bici? Service en nuestro taller →" → `/reparaciones`; ayuda de talle → `/turnos?servicio=asesoramiento`.
 - **Relacionados**: de una bici, accesorios ("Sumale a tu bici"); del resto, su mismo grupo. Solo desktop.
 - **Retiro** en productos que no son bicis: "Sin cargo, listo para llevar".
 
@@ -255,7 +254,6 @@ se exporta desde `index.ts` (salvo las islas que tocan `lib/`); lo
 
 **Cliente (C)**
 - **Sábado a la tarde**: la agenda sale de `schedule_rules` vía `fetchAvailability`; en "Tarde" se ve "Ese día no hay turnos a la tarde.".
-- **Talle a probar**: se agrupan los colores de cada talle; se manda la primera variante con stock de ese talle.
 - **Login**: labels visibles en Email/Contraseña también en mobile; Nombre/WhatsApp con placeholder + `aria-label`. Sin Google ni divisor "o".
 - **Presupuesto mobile** respeta 5d: sin "Para qué bici", "Presupuesto aproximado" ni email. Con sesión se prellenan los datos.
 - **Fotos del presupuesto**: se achican en el navegador (hasta 1600 px) para que las 4 entren en el 1 MB por request de las server actions.
