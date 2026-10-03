@@ -310,7 +310,7 @@ export const COPY = {
       viewDay: "Día",
       block: "Bloquear horario",
       manual: "+ Turno manual",
-      legend: { prueba: "Prueba de bici", asesoramiento: "Asesoramiento", unconfirmed: "Sin confirmar" },
+      legend: { reparacion: "Taller · reparación", asesoramiento: "Asesoramiento", unconfirmed: "Sin confirmar" },
       exampleNote: "Horarios de ejemplo · a confirmar",
       detail: { when: "Cuándo", detail: "Detalle", whatsapp: "WhatsApp", status: "Estado" },
       confirmWhatsApp: "Confirmar por WhatsApp",
@@ -334,7 +334,7 @@ export const COPY = {
       searchPlaceholder: "Buscar por nombre o SKU",
       import: "Importar planilla",
       create: "+ Nuevo producto",
-      columns: ["Producto", "Categoría", "Precio", "Stock por talle", "Prueba", "Estado"],
+      columns: ["Producto", "Categoría", "Precio", "Stock por talle", "Estado"],
       edit: {
         back: "← Productos",
         viewInStore: "Ver en la tienda",
@@ -357,7 +357,6 @@ export const COPY = {
         toggles: {
           published: "Publicado en la tienda",
           featured: "Destacado en el home",
-          testRide: "Disponible para prueba",
           hideWhenOut: "Ocultar si no hay stock",
         },
         preview: "Así se ve en la tienda",

@@ -69,7 +69,7 @@ export default async function AdminProductosPage({
     },
     {
       key: "status",
-      header: T.columns[T.columns.length - 1],
+      header: T.columns[4],
       width: "112px",
       cell: (r) => <ProductPill status={r.status} size="md" />,
     },

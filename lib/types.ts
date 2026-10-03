@@ -99,8 +99,6 @@ export interface Product {
   sku: string | null;
   /** Rodado para el filtro del catálogo ("29", "27.5", "700c"…). null = no aplica. */
   rodado: string | null;
-  /** Se puede reservar una prueba en el local (turno con producto). */
-  testRide: boolean;
   /** Sin stock en ninguna variante → no aparece en la web. */
   hideWhenOut: boolean;
   /** "borrador" no aparece en la web aunque no esté oculto. */
@@ -1161,9 +1159,9 @@ export interface SeedVariant {
  */
 export type SeedProduct = Omit<
   Product,
-  "sku" | "rodado" | "testRide" | "hideWhenOut" | "status" | "variants"
+  "sku" | "rodado" | "hideWhenOut" | "status" | "variants"
 > &
-  Partial<Pick<Product, "sku" | "rodado" | "testRide" | "hideWhenOut" | "status">> & {
+  Partial<Pick<Product, "sku" | "rodado" | "hideWhenOut" | "status">> & {
     variants?: SeedVariant[];
   };
 

@@ -157,9 +157,9 @@ export interface DemoAppointment {
   time: string; // HH:MM
   customer: DemoCustomerRef;
   service: ServiceKey;
-  /** Lo que el cliente cuenta / bici a probar ("MTB R29 · talle M"). */
+  /** Lo que el cliente cuenta ("Cambio cambia mal · frenos flojos"). */
   detail: string;
-  /** Bici a probar (solo prueba, si se identifica en el catálogo). */
+  /** Sin uso (era la bici de la prueba, que ya no se ofrece). */
   productSlug: string | null;
   size: Talle | null;
   status: DemoAppointmentStatus;
