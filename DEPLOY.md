@@ -52,7 +52,8 @@ viejo, se borra.
 
 ## 2. Base: Neon
 
-1. En el proyecto: **Storage → Create Database → Neon** (plan free). Elegí
+1. Desde el **Marketplace de Vercel** (decisión del usuario): en el proyecto,
+   **Storage → Create Database → Neon** (plan free). Elegí
    la región **AWS São Paulo (`sa-east-1`)**, la más cerca de las funciones
    en `gru1`. Neon inyecta `DATABASE_URL` en el proyecto.
 2. Traé la URL a local para los scripts: `vercel env pull .env.local`, o
@@ -116,6 +117,20 @@ clientes fallan con "Falta CUSTOMER_SESSION_SECRET.". Cambiarla cierra las
 sesiones de los clientes.
 
 ## 5. Imágenes: Cloudinary
+
+> **Cuenta del cliente, se crea más adelante.** Por ahora las fotos demo
+> (`bicitienda-mdq/demo/`) viven en la cuenta de Cloudinary del desarrollador
+> y las URLs de `lib/data/image-manifest.json` apuntan ahí. Cuando el cliente
+> tenga su cuenta:
+> 1. cambiar `CLOUDINARY_URL` en Vercel y en `.env.local` por la del cliente;
+> 2. si todavía se usan fotos demo, `pnpm demo:images` y `pnpm seed:images`,
+>    commitear el manifest y redeployar;
+> 3. las fotos que ya se hayan subido desde el admin quedan en la cuenta
+>    vieja: re-subirlas o importar el catálogo real con sus fotos;
+> 4. recién ahí borrar `bicitienda-mdq/` de la cuenta del desarrollador.
+>
+> Hasta entonces, producción puede usar la cuenta del desarrollador: sin
+> `CLOUDINARY_URL` los uploads no persisten en Vercel.
 
 1. Dashboard de Cloudinary → API Keys → "API environment variable" →
    `CLOUDINARY_URL` en Vercel y en `.env.local`.
@@ -189,6 +204,18 @@ sesiones de los clientes.
 - Región: `gru1` (`vercel.json`). La base de Neon, en `sa-east-1`.
 
 ## 9. Dominio y DNS
+
+> **El dominio todavía no está comprado.** Mientras tanto:
+> - `NEXT_PUBLIC_SITE_URL=https://<proyecto>.vercel.app`, para que los links
+>   de los mails, el WhatsApp y los retornos de MP no apunten a un dominio que
+>   no existe (`store.siteUrl` dice `bicitiendamdq.com.ar`).
+> - El webhook de MP apunta a `https://<proyecto>.vercel.app/api/mp/webhook`.
+> - **Resend no puede mandar mails a clientes sin un dominio verificado**:
+>   con el remitente de prueba (`onboarding@resend.dev`) solo le llegan al
+>   dueño de la cuenta. Hasta tener el dominio, los mails de clientes no
+>   salen (los pedidos y los turnos funcionan igual).
+>
+> Cuando lo compres, seguí los pasos de abajo y el 4.
 
 1. Primer deploy: push a `main`. Revisar el build en Vercel.
 2. Vercel → Domains: agregar el dominio (y `www` con redirect) y apuntar el
