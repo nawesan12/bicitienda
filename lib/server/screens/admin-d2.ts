@@ -1,6 +1,11 @@
 import { and, count, gte, inArray, lt } from "drizzle-orm";
 import { store } from "@/lib/config";
-import { getAdminProducts } from "@/lib/server/admin-queries";
+import { QUOTE_PILL } from "@/components/bt/pill";
+import { formatArPhone } from "@/lib/phone";
+import { getAdminCustomers, getAdminProducts, type AdminCustomer } from "@/lib/server/admin-queries";
+import { getCustomerDetail } from "@/lib/server/admin-crm";
+import { STATUS_LABELS } from "@/lib/server/order-queries";
+import { customerWhatsApp } from "@/lib/server/whatsapp-templates";
 import { getDb, schema } from "@/lib/server/db";
 import { addDays, localToUtc, toLocalParts, weekdayOf } from "@/lib/zoned-time";
 
@@ -228,5 +233,136 @@ export async function getProductEditor(id: string): Promise<ProductEditorData | 
     categories,
     transferDiscount: s?.transferDiscount ?? 10,
     maxInstallments: s?.maxInstallments ?? 6,
+  };
+}
+
+/* ── Clientes (3e) ────────────────────────────────────────── */
+
+/** "Hoy", "Ayer", "Hace 3 días", "Hace 1 semana", "Hace 2 meses". */
+export function relativeDay(at: Date | null, now = new Date()): string {
+  if (!at) return "—";
+  const a = toLocalParts(at, store.timeZone).date;
+  const b = toLocalParts(now, store.timeZone).date;
+  const days = Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+  if (days <= 0) return "Hoy";
+  if (days === 1) return "Ayer";
+  if (days < 7) return `Hace ${days} días`;
+  if (days < 30) {
+    const w = Math.floor(days / 7);
+    return `Hace ${w} ${w === 1 ? "semana" : "semanas"}`;
+  }
+  if (days < 365) {
+    const m = Math.floor(days / 30);
+    return `Hace ${m} ${m === 1 ? "mes" : "meses"}`;
+  }
+  const y = Math.floor(days / 365);
+  return `Hace ${y} ${y === 1 ? "año" : "años"}`;
+}
+
+const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const WEEKDAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+export interface CustomerListRow extends AdminCustomer {
+  phoneLabel: string;
+  lastContactLabel: string;
+}
+
+export type HistoryKind = "pedido" | "turno" | "presupuesto";
+
+export interface HistoryItem {
+  kind: HistoryKind;
+  text: string;
+  at: string;
+  href?: string;
+}
+
+export interface CustomerCard {
+  id: string;
+  name: string;
+  /** "Cliente desde marzo 2025". */
+  since: string;
+  email: string | null;
+  phoneLabel: string;
+  whatsappUrl: string;
+  hasAccount: boolean;
+  orders: number;
+  appointments: number;
+  quotes: number;
+  spent: number;
+  history: HistoryItem[];
+  /** Tiene turnos pero ningún pedido (variante 3e). */
+  appointmentsOnly: boolean;
+}
+
+export function customerRows(all: AdminCustomer[], q?: string): CustomerListRow[] {
+  const needle = q?.trim().toLowerCase();
+  const digits = needle?.replace(/\D/g, "");
+  return all
+    .filter(
+      (c) =>
+        !needle ||
+        c.name.toLowerCase().includes(needle) ||
+        (c.email ?? "").toLowerCase().includes(needle) ||
+        (!!digits && digits.length >= 3 && c.phone.includes(digits)),
+    )
+    .map((c) => ({ ...c, phoneLabel: formatArPhone(c.phone), lastContactLabel: relativeDay(c.lastContactAt) }));
+}
+
+export async function getCustomersScreen(opts: { q?: string; c?: string }) {
+  const all = await getAdminCustomers();
+  const rows = customerRows(all, opts.q);
+  const selectedId = rows.find((r) => r.id === opts.c)?.id ?? rows[0]?.id ?? null;
+  const card = selectedId ? await getCustomerCard(selectedId) : null;
+  return { rows, total: all.length, card };
+}
+
+export async function getCustomerCard(id: string): Promise<CustomerCard | null> {
+  const d = await getCustomerDetail(id);
+  if (!d) return null;
+  const c = d.customer;
+  const created = toLocalParts(c.createdAt, store.timeZone).date;
+  const [y, m] = created.split("-").map(Number);
+  const longMonth = new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString("es-AR", { month: "long", timeZone: "UTC" });
+  const history: HistoryItem[] = [
+    ...d.orders.map((o) => ({
+      kind: "pedido" as const,
+      text: [`#${o.order.number}`, o.items.map((i) => i.name).join(" + "), STATUS_LABELS[o.order.status]]
+        .filter(Boolean)
+        .join(" · "),
+      at: o.order.createdAt.toISOString(),
+      href: `/admin/pedidos/${o.order.number}`,
+    })),
+    ...d.appointments.map((a) => {
+      const [, mm, dd] = a.date.split("-").map(Number);
+      return {
+        kind: "turno" as const,
+        text: `${a.service.name} · ${WEEKDAYS[weekdayOf(a.date)]} ${dd} ${MONTHS[mm - 1]} ${a.time}${
+          ["cancelado", "no_asistio"].includes(a.appointment.status) ? ` · ${a.appointment.status === "cancelado" ? "Cancelado" : "No vino"}` : ""
+        }`,
+        at: a.appointment.startsAt.toISOString(),
+      };
+    }),
+    ...d.quotes.map((q) => ({
+      kind: "presupuesto" as const,
+      text: [q.quote.number, q.quote.title || q.quote.detail.slice(0, 60), QUOTE_PILL[q.quote.status]?.label]
+        .filter(Boolean)
+        .join(" · "),
+      at: q.quote.createdAt.toISOString(),
+    })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
+  return {
+    id: c.id,
+    name: c.name,
+    since: `Cliente desde ${longMonth} ${y}`,
+    email: c.email,
+    phoneLabel: formatArPhone(c.phone),
+    whatsappUrl: customerWhatsApp(c.phone),
+    hasAccount: d.hasAccount,
+    orders: d.orders.length,
+    appointments: d.appointments.length,
+    quotes: d.quotes.length,
+    spent: d.totalSpent,
+    history,
+    appointmentsOnly: d.orders.length === 0 && d.appointments.length > 0,
   };
 }
