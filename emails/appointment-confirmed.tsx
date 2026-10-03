@@ -29,8 +29,8 @@ export interface AppointmentConfirmedData {
   dayLabel: string;
   /** "17:30". */
   time: string;
-  /** Producto a probar ("MTB rodado 29 · Talle M"), si aplica. */
-  product: string | null;
+  /** Turno del taller (reparación / service): suma el paso "Traé la bici". */
+  repair?: boolean;
   priceNote: string;
   address: string;
   hours: string;
@@ -76,7 +76,6 @@ export function AppointmentConfirmedEmail(data: AppointmentConfirmedData) {
               tone: "yellow",
               sub: `${data.dayLabel.charAt(0).toUpperCase()}${data.dayLabel.slice(1)} · ${duration} min`,
             },
-            ...(data.product ? [{ label: "Bici", value: data.product }] : []),
             {
               label: "Dónde",
               value: data.mapsUrl ? (
@@ -100,8 +99,13 @@ export function AppointmentConfirmedEmail(data: AppointmentConfirmedData) {
         title="Para tu turno"
         steps={[
           { title: "Llegá 5 minutos antes", body: `Así aprovechás los ${duration} minutos completos.` },
-          ...(data.product
-            ? [{ title: "Vení con ropa cómoda", body: "Si es una prueba, salís a dar una vuelta con la bici." }]
+          ...(data.repair
+            ? [
+                {
+                  title: "Traé la bici",
+                  body: "La revisamos y te pasamos el presupuesto por WhatsApp antes de tocar nada.",
+                },
+              ]
             : []),
           { title: "¿No podés venir?", body: <>Reprogramalo o cancelalo desde el link, o avisanos por WhatsApp.</> },
         ]}

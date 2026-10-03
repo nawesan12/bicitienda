@@ -370,7 +370,7 @@ export async function sendAppointmentConfirmedEmail(appointmentId: string): Prom
         serviceName: view.service.name,
         dayLabel: view.dayLabel,
         time: view.time,
-        product: view.productLabel,
+        repair: view.service.id === "reparacion",
         priceNote: view.service.priceNote,
         address: local.address,
         hours: local.hours,
