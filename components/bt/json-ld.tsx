@@ -28,6 +28,8 @@ import type { Category, Product, ProductVariant, StoreConfig } from "@/lib/types
  *                                breadcrumbLd([…, { name: p.name, path: paths.catalog(p.slug) }]),
  *                              ]} />
  *   - Turnos / presupuesto:    <JsonLd data={breadcrumbLd([{ name: "Sacar turno", path: "/turnos" }])} />
+ *   - Taller (/reparaciones):  <JsonLd data={[repairServiceLd(runtime, rep.services, …), breadcrumbLd(…)]} />
+ *     (y el home suma `{ repairs: rep.services }` a localBusinessLd: hasOfferCatalog)
  */
 
 /* ── Tipos ─────────────────────────────────────────────────── */
@@ -227,7 +229,13 @@ export function siteLd(s: LdStore = store): LdGraph {
 export function localBusinessLd(
   s: LdStore = store,
   products: Pick<Product, "price">[] = [],
-  opts: { photo?: string | null; region?: string; postalCode?: string } = {},
+  opts: {
+    photo?: string | null;
+    region?: string;
+    postalCode?: string;
+    /** Trabajos del taller (content.rep.services): van como hasOfferCatalog. */
+    repairs?: { services: string[]; name: string; path: string };
+  } = {},
 ): LdDocument {
   const [street, cityPart] = s.address.split(" · ");
   const locality = cityPart ?? s.city.split(",")[0];
@@ -262,11 +270,52 @@ export function localBusinessLd(
     parentOrganization: { "@id": ORG_ID },
     currenciesAccepted: "ARS",
     paymentAccepted: paymentMethods.map((p) => p.name).join(", "),
+    ...(opts.repairs?.services.length ? { hasOfferCatalog: repairCatalog(opts.repairs) } : {}),
     ...(prices.length
       ? {
           priceRange: `$${Math.min(...prices).toLocaleString("es-AR")} – $${Math.max(...prices).toLocaleString("es-AR")}`,
         }
       : {}),
+  };
+}
+
+/**
+ * Catálogo de trabajos del taller: un Offer por servicio, sin precio (se
+ * presupuesta por WhatsApp), cada uno un Service de reparación de bicis.
+ */
+function repairCatalog(r: { services: string[]; name: string; path: string }): LdNode {
+  return {
+    "@type": "OfferCatalog",
+    name: r.name,
+    url: absoluteUrl(r.path),
+    itemListElement: r.services.map((name) => ({
+      "@type": "Offer",
+      itemOffered: { "@type": "Service", name, serviceType: r.name, provider: { "@id": LOCAL_ID } },
+    })),
+  };
+}
+
+/**
+ * Service del taller (/reparaciones): reparación y service de bicicletas
+ * en el local, con la lista de trabajos como hasOfferCatalog. Sin precios.
+ */
+export function repairServiceLd(
+  s: LdStore,
+  services: string[],
+  r: { name: string; description: string; path: string },
+): LdDocument {
+  const locality = s.address.split(" · ")[1] ?? s.city.split(",")[0];
+  return {
+    "@context": CONTEXT,
+    "@type": "Service",
+    "@id": `${absoluteUrl(r.path)}#servicio`,
+    name: r.name,
+    serviceType: r.name,
+    description: r.description,
+    url: absoluteUrl(r.path),
+    provider: { "@type": businessType(s.businessType), "@id": LOCAL_ID, name: s.brandName, url: SITE_URL },
+    areaServed: { "@type": "City", name: locality },
+    ...(services.length ? { hasOfferCatalog: repairCatalog({ services, name: r.name, path: r.path }) } : {}),
   };
 }
 
