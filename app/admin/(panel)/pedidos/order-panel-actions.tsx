@@ -81,7 +81,7 @@ export function OrderPanelActions({
       target="_blank"
       rel="noopener noreferrer"
       title={whatsappIsTemplate ? "Abre WhatsApp con el mensaje “Pedido listo”" : "Abre el chat de WhatsApp con el cliente"}
-      className={cx(buttonClasses({ variant: "secondary", size: "sm" }), "min-w-0 flex-1 justify-center whitespace-normal! px-2! text-center leading-[1.15]", page && "max-lg:min-h-[50px] max-lg:w-full max-lg:text-[15px]")}
+      className={cx(buttonClasses({ variant: "secondary", size: "sm" }), "min-w-0 flex-1 justify-center whitespace-normal px-2 text-center leading-[1.15]", page && "max-lg:min-h-[50px] max-lg:w-full max-lg:text-[15px]")}
     >
       Avisar por WhatsApp
     </a>
@@ -118,7 +118,7 @@ export function OrderPanelActions({
           <div className="flex gap-[10px] max-lg:hidden">
             {wa}
             {canCancel && (
-              <Button variant="danger" size="sm" className="min-w-0 flex-1 whitespace-normal! px-2! leading-[1.15]" onClick={() => setAsk("cancel")}>
+              <Button variant="danger" size="sm" className="min-w-0 flex-1 whitespace-normal px-2 leading-[1.15]" onClick={() => setAsk("cancel")}>
                 Cancelar pedido
               </Button>
             )}
@@ -128,7 +128,7 @@ export function OrderPanelActions({
         <div className="flex gap-[10px]">
           {wa}
           {canCancel && (
-            <Button variant="danger" size="sm" className="min-w-0 flex-1 whitespace-normal! px-2! leading-[1.15]" onClick={() => setAsk("cancel")}>
+            <Button variant="danger" size="sm" className="min-w-0 flex-1 whitespace-normal px-2 leading-[1.15]" onClick={() => setAsk("cancel")}>
               Cancelar pedido
             </Button>
           )}

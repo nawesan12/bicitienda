@@ -31,6 +31,7 @@ export const ADMIN_HREFS: Record<AdminSection, string> = {
   presupuestos: "#presupuestos",
   productos: "#productos",
   clientes: "#clientes",
+  consultas: "#consultas",
   ajustes: "#ajustes",
 };
 

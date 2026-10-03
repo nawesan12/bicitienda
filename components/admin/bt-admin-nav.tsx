@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AdminMobileHeader, ADMIN_NAV, type AdminSection } from "@/components/bt/admin";
-import { BrandLockup } from "@/components/bt/brand";
+import { AdminMobileHeader, AdminSidebar, ADMIN_NAV, hasAdminCount, type AdminSection } from "@/components/bt/admin";
 import { cx } from "@/components/bt/cx";
 import { FOCUS, FONT, MONO, TRANSITION } from "@/components/bt/styles";
 import { logout } from "@/lib/server/actions/session";
@@ -12,17 +11,13 @@ import { logout } from "@/lib/server/actions/session";
 /**
  * Navegación del panel (AdminSidebar.dc.html + menú mobile propio).
  *
- * Suma "Consultas" a las secciones del bt (ahí caen los leads de los
- * botones de WhatsApp y el aviso de pago tardío), entre Clientes y
- * Ajustes. Las secciones heredadas del starter (comunidad, contenido,
- * nosotros, novedades, sucursales, test, stock) siguen existiendo como
- * rutas pero no se enlazan.
- *
- * El sidebar replica los estilos de `AdminSidebar` (bt) porque ese
- * componente tiene la lista de secciones fija.
+ * Las secciones y sus rótulos salen de `ADMIN_NAV` (bt), "Consultas"
+ * incluida (ahí caen los leads de los botones de WhatsApp y el aviso de
+ * pago tardío). El desktop es el `AdminSidebar` de bt con los ítems y
+ * los contadores que arma el layout.
  */
 
-export type PanelSection = AdminSection | "consultas";
+export type PanelSection = AdminSection;
 
 /** Secciones del panel → ruta. */
 export const ADMIN_HREFS: Record<PanelSection, string> = {
@@ -36,16 +31,7 @@ export const ADMIN_HREFS: Record<PanelSection, string> = {
   ajustes: "/admin/ajustes",
 };
 
-const label = (k: AdminSection) => ADMIN_NAV.find((n) => n.key === k)?.label ?? k;
-
-const PANEL_NAV: { key: PanelSection; label: string }[] = [
-  ...(["resumen", "pedidos", "turnos", "presupuestos", "productos", "clientes"] as const).map((k) => ({
-    key: k,
-    label: label(k),
-  })),
-  { key: "consultas", label: "Consultas" },
-  { key: "ajustes", label: label("ajustes") },
-];
+const PANEL_NAV = ADMIN_NAV;
 
 export type AdminNavCounts = Partial<Record<PanelSection, number | string>>;
 
@@ -68,7 +54,7 @@ function visible(hidden: PanelSection[] = []) {
   return PANEL_NAV.filter((n) => !hidden.includes(n.key));
 }
 
-const hasCount = (c: number | string | undefined) => c !== undefined && c !== "" && c !== 0;
+const hasCount = hasAdminCount;
 
 /** "Salir": cierra la sesión del PIN (server action) y vuelve al login. */
 function LogoutButton({ className }: { className?: string }) {
@@ -89,65 +75,23 @@ function LogoutButton({ className }: { className?: string }) {
   );
 }
 
-/** Sidebar desktop (≥ lg), 240 px: mismo lenguaje que `AdminSidebar`. */
+/** Sidebar desktop (≥ lg): el `AdminSidebar` de bt, fijo al hacer scroll. */
 export function AdminDesktopNav({ counts, storeHref, hidden }: AdminNavProps) {
   const active = activeSection(usePathname() ?? "/admin");
   return (
     <div className="border-r border-line bg-ink-deep max-lg:hidden">
-    <aside
-      className={cx(
-        "sticky top-0 box-border flex h-dvh w-[239px] flex-none flex-col gap-1 overflow-y-auto px-[18px] py-7 text-paper",
-        FONT,
-      )}
-    >
-      <BrandLockup
-        href={ADMIN_HREFS.resumen}
-        logoSize={40}
-        wordmarkSize="sidebar"
-        gap="gap-[10px]"
-        className="flex-none px-2 pb-7"
+      <AdminSidebar
+        items={visible(hidden).map((n) => ({ ...n, href: ADMIN_HREFS[n.key], count: counts[n.key] }))}
+        active={active}
+        homeHref={ADMIN_HREFS.resumen}
+        storeHref={storeHref}
+        className="sticky top-0 h-dvh w-[239px] overflow-y-auto border-r-0 bg-transparent"
+        footer={
+          <div className="border-t border-line pt-1">
+            <LogoutButton />
+          </div>
+        }
       />
-      <nav aria-label="Admin" className="flex flex-col gap-1">
-        {visible(hidden).map((n) => {
-          const on = n.key === active;
-          const count = counts[n.key];
-          return (
-            <Link
-              key={n.key}
-              href={ADMIN_HREFS[n.key]}
-              aria-current={on ? "page" : undefined}
-              className={cx(
-                "flex items-center justify-between rounded-btn p-3 text-[14px] font-bold uppercase tracking-[.06em]",
-                on ? "bg-yellow text-ink" : "text-text-2 hover:bg-paper/4 hover:text-paper",
-                TRANSITION,
-                FOCUS,
-              )}
-            >
-              {n.label}
-              {hasCount(count) && (
-                <span className={cx("text-[12px] font-semibold tracking-normal", MONO)}>{count}</span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="flex-1" />
-      <a
-        href={storeHref}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={cx(
-          "rounded-btn p-3 text-[13px] font-bold uppercase tracking-[.06em] text-text-3 hover:text-yellow",
-          TRANSITION,
-          FOCUS,
-        )}
-      >
-        Ver tienda ↗
-      </a>
-      <div className="border-t border-line pt-1">
-        <LogoutButton />
-      </div>
-    </aside>
     </div>
   );
 }

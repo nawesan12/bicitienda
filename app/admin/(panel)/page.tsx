@@ -74,7 +74,6 @@ export default async function AdminResumenPage({ searchParams }: { searchParams:
       {/* ── 2i desktop ── */}
       <div className="max-lg:hidden">
         <AdminTopBar
-          className="gap-5"
           title={`Hoy · ${title.long}`}
           search={{ action: "/admin/pedidos", placeholder: "Buscar pedido o cliente", width: 300 }}
           actions={
@@ -116,7 +115,7 @@ export default async function AdminResumenPage({ searchParams }: { searchParams:
 
       {/* ── 4h mobile ── */}
       <div className="flex flex-col gap-[18px] px-4 pb-7 pt-[18px] lg:hidden">
-        <Display size="admin" className="leading-[.88]">
+        <Display size="admin">
           Hoy · {title.short}
         </Display>
         <KpiGrid columns={2}>

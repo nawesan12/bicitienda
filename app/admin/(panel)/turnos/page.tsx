@@ -180,10 +180,10 @@ export default async function AdminTurnosPage({ searchParams }: { searchParams: 
   const closeHref = hrefWith(base, { dia: dayView ? sp.dia : undefined });
   const toolbar = (cls: string) => (
     <div className={cls}>
-      <Button variant="secondary" size="md" href={hrefWith(base, { bloquear: "1" })} className="whitespace-nowrap max-lg:min-w-0 max-lg:flex-1 max-lg:whitespace-normal! max-lg:px-2!">
+      <Button variant="secondary" size="md" href={hrefWith(base, { bloquear: "1" })} className="whitespace-nowrap max-lg:min-w-0 max-lg:flex-1 max-lg:whitespace-normal max-lg:px-2">
         Bloquear horario
       </Button>
-      <Button variant="primary" size="md" href={hrefWith(base, { nuevo: "1", dia: day })} className="whitespace-nowrap max-lg:min-w-0 max-lg:flex-1 max-lg:whitespace-normal! max-lg:px-2!">
+      <Button variant="primary" size="md" href={hrefWith(base, { nuevo: "1", dia: day })} className="whitespace-nowrap max-lg:min-w-0 max-lg:flex-1 max-lg:whitespace-normal max-lg:px-2">
         + Turno manual
       </Button>
     </div>

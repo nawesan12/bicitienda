@@ -287,7 +287,7 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
                 value={f.description}
                 onChange={(e) => set("description", e.target.value)}
                 rows={3}
-                className="min-h-[84px] text-text-2"
+                className="text-text-2"
                 maxLength={4000}
               />
             </Field>
@@ -302,7 +302,7 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
                   inputMode="numeric"
                   value={f.price}
                   placeholder="A consultar"
-                  className="!text-[17px] !font-extrabold"
+                  className="text-[17px] font-extrabold max-md:text-[17px]"
                   onChange={(e) => set("price", digits(e.target.value) ? formatMoney(Number(digits(e.target.value))) : "")}
                 />
               </Field>

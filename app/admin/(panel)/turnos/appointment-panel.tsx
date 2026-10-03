@@ -119,7 +119,7 @@ export function AppointmentPanel({ appt, times }: { appt: AppointmentDetail; tim
           onChange={(e) => setNote(e.target.value)}
           onBlur={saveNote}
           maxLength={1000}
-          className="min-h-[72px] border-line-strong text-[14px]"
+          className="border-line-strong text-[14px]"
         />
       </label>
       <FormError>{!dialog ? error : null}</FormError>

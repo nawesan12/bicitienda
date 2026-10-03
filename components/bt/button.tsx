@@ -50,14 +50,14 @@ const OUTLINED: Record<ButtonVariant, boolean> = {
 const VARIANT: Record<ButtonVariant, string> = {
   primary: "bg-yellow text-ink hover:bg-brand-hover",
   secondary:
-    "border-[1.5px] border-line-btn text-paper hover:border-text-4 hover:bg-paper/40",
+    "border-[1.5px] border-line-btn text-paper hover:border-text-4 hover:bg-paper/4",
   "outline-paper":
-    "border-[1.5px] border-paper text-paper hover:bg-paper/60",
+    "border-[1.5px] border-paper text-paper hover:bg-paper/6",
   danger:
-    "border-[1.5px] border-line-btn text-red-light hover:border-text-4 hover:bg-red-light/60",
+    "border-[1.5px] border-line-btn text-red-light hover:border-text-4 hover:bg-red-light/6",
   ink: "bg-ink text-yellow hover:bg-surface-3",
   "ink-outline":
-    "border-[1.5px] border-ink text-ink hover:bg-ink/60",
+    "border-[1.5px] border-ink text-ink hover:bg-ink/6",
 };
 
 /** [relleno, bordeado] — el bordeado descuenta el 1.5 px del borde. */

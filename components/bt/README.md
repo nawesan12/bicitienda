@@ -48,7 +48,13 @@ tamaño del logo).
 
 Quedan como valores arbitrarios, a propósito: tamaños de letra (`text-[15px]`…),
 paddings exactos (`py-[17px]`…), tracking (`.06em`/`.08em`) y las opacidades
-`bg-paper/4`, `bg-ink/6` y `bg-red-light/6` de los hover.
+`bg-paper/4` (sidebar, botón secundario, fila de tabla), `bg-paper/6`
+(outline-paper), `bg-ink/6` y `bg-red-light/6` de los hover.
+
+**`cx`** (`cx.ts`) une clases y las pasa por `tailwind-merge` (configurado con
+los radios, el spacing y `stretch-*` de `theme.css`): una clase de `className`
+le gana a la del componente si son de la misma propiedad, sin `!`. Font-size y
+`leading-*` no compiten (en Tailwind 4 `text-[…]` no pisa el line-height).
 
 ## Breakpoints
 
@@ -148,8 +154,9 @@ también controlados.
 
 **Admin** (`admin.tsx`)
 - `AdminShell` `{ sidebar, children }` (grilla 240 | 1fr, min-h 980).
-- `AdminSidebar` `{ active: AdminSection, hrefs: Record<AdminSection,string>, counts?, storeHref, homeHref?, footer? }`.
-  Sin "Usuarios" ni bloque de usuario: el admin entra con PIN. `footer` sirve para "Salir".
+- `AdminSidebar` `{ items: {key, label, href, count?}[], active, storeHref, homeHref?, footer? }`.
+  `ADMIN_NAV` da el orden y los rótulos (Resumen … Clientes, Consultas, Ajustes). Sin "Usuarios" ni
+  bloque de usuario: el admin entra con PIN. `footer` sirve para "Salir". Contador vacío o 0 = no se muestra.
 - `AdminTopBar` `{ title, back?, search?: {action, placeholder, width: 280|300}, actions?, children? }`.
 - `AdminMobileHeader` `{ label="Mostrador", homeHref?, menuHref?, menu? }`.
 

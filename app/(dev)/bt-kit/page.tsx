@@ -7,6 +7,7 @@ import {
   AdminMobileHeader,
   AdminShell,
   AdminSidebar,
+  ADMIN_NAV,
   AdminTopBar,
   AppointmentPill,
   BrandLockup,
@@ -558,7 +559,7 @@ export default function BtKitPage() {
               <Input size="sm" defaultValue="30 a 45 días" />
             </Field>
             <Field label="Con transferencia (auto)">
-              <Input size="sm" readOnly value="$ 440.910 · −10%" className="border-dashed bg-transparent! font-extrabold text-red-light" />
+              <Input size="sm" readOnly value="$ 440.910 · −10%" className="border-dashed bg-transparent font-extrabold text-red-light" />
             </Field>
           </div>
         </Panel>
@@ -933,8 +934,11 @@ export default function BtKitPage() {
             sidebar={
               <AdminSidebar
                 active="pedidos"
-                hrefs={ADMIN_HREFS}
-                counts={{ pedidos: 7, turnos: 14, presupuestos: 2, productos: 124 }}
+                items={ADMIN_NAV.map((n) => ({
+                  ...n,
+                  href: ADMIN_HREFS[n.key],
+                  count: ({ pedidos: 7, turnos: 14, presupuestos: 2, productos: 124 } as Record<string, number>)[n.key],
+                }))}
                 storeHref="/"
               />
             }

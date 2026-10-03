@@ -128,7 +128,7 @@ export function TurnosDialogs({
             <Input name="note" size="sm" placeholder="MTB rodado 29 · talle M" />
           </Field>
           <Field label="Nota interna" optional>
-            <Textarea name="internalNote" size="sm" rows={2} className="min-h-[72px]" />
+            <Textarea name="internalNote" size="sm" rows={2} />
           </Field>
           <FormError>{error}</FormError>
           <div className="flex flex-wrap justify-end gap-[10px]">

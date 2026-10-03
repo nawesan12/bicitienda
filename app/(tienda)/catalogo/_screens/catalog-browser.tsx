@@ -282,10 +282,11 @@ export function CatalogBrowser(props: CatalogBrowserProps) {
         value={f.orden}
         onChange={(e) => update({ orden: e.target.value as SortKey })}
         className={cx(
-          "block w-full cursor-pointer appearance-none rounded-btn border border-line-strong bg-surface pr-9 font-semibold text-paper outline-none focus:border-yellow",
+          "block w-full cursor-pointer appearance-none rounded-btn border border-line-strong bg-surface font-semibold text-paper outline-none focus:border-yellow",
           FONT,
           TRANSITION,
           cls,
+          "pr-9",
         )}
       >
         {SORTS.map((s) => (
@@ -355,7 +356,7 @@ export function CatalogBrowser(props: CatalogBrowserProps) {
         >
           {nFilters ? copy.mobileButton.replace("{n}", String(nFilters)) : copy.mobileButton.replace(" · {n}", "")}
         </button>
-        {sortSelect("min-h-12 px-3 text-center text-[14px] font-bold max-md:text-[16px] [text-align-last:center]", "orden-m")}
+        {sortSelect("min-h-12 px-3 text-center text-[14px] max-md:text-[16px] [text-align-last:center]", "orden-m")}
       </div>
       {chips.length > 0 && (
         <div className="flex gap-[6px] overflow-x-auto px-4 pt-3 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">

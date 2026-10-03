@@ -113,7 +113,7 @@ export function Table<T>({
               "relative grid items-center border-t border-line text-[14px]",
               compact ? "px-[18px] py-[10px]" : "px-[22px] py-[18px]",
               compact ? GAP[12] : GAP[gap],
-              (href || onRowClick) && "cursor-pointer hover:bg-paper/25",
+              (href || onRowClick) && "cursor-pointer hover:bg-paper/4",
               selected && SELECTED_ROW,
               TRANSITION,
             )}

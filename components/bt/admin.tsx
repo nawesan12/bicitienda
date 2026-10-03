@@ -21,8 +21,10 @@ export type AdminSection =
   | "presupuestos"
   | "productos"
   | "clientes"
+  | "consultas"
   | "ajustes";
 
+/** Secciones del panel en orden ("Consultas" no está en el handoff: va entre Clientes y Ajustes). */
 export const ADMIN_NAV: { key: AdminSection; label: string }[] = [
   { key: "resumen", label: "Resumen" },
   { key: "pedidos", label: "Pedidos" },
@@ -30,31 +32,41 @@ export const ADMIN_NAV: { key: AdminSection; label: string }[] = [
   { key: "presupuestos", label: "Presupuestos" },
   { key: "productos", label: "Productos" },
   { key: "clientes", label: "Clientes" },
+  { key: "consultas", label: "Consultas" },
   { key: "ajustes", label: "Ajustes" },
 ];
 
-export interface AdminSidebarProps {
-  active: AdminSection;
-  hrefs: Record<AdminSection, string>;
-  /** Contadores a la derecha ("Pedidos 7"). Vacío = sin contador. */
-  counts?: Partial<Record<AdminSection, number | string>>;
+export interface AdminNavItem<K extends string = string> {
+  key: K;
+  label: ReactNode;
+  href: string;
+  /** Contador a la derecha ("Pedidos 7"). Vacío o 0 = sin contador. */
+  count?: number | string;
+}
+
+export interface AdminSidebarProps<K extends string = string> {
+  /** Ítems del nav (ver `ADMIN_NAV` para el orden y los rótulos). */
+  items: AdminNavItem<K>[];
+  active: K;
   /** Link "Ver tienda ↗" (abre en otra pestaña). */
   storeHref: string;
+  /** Link del logo (por defecto, el primer ítem). */
   homeHref?: string;
   /** Slot debajo de "Ver tienda" (ej. botón Salir). */
   footer?: ReactNode;
   className?: string;
 }
 
-export function AdminSidebar({
+export const hasAdminCount = (c: number | string | undefined) => c !== undefined && c !== "" && c !== 0;
+
+export function AdminSidebar<K extends string>({
+  items,
   active,
-  hrefs,
-  counts = {},
   storeHref,
   homeHref,
   footer,
   className,
-}: AdminSidebarProps) {
+}: AdminSidebarProps<K>) {
   return (
     <aside
       className={cx(
@@ -64,33 +76,32 @@ export function AdminSidebar({
       )}
     >
       <BrandLockup
-        href={homeHref ?? hrefs.resumen}
+        href={homeHref ?? items[0]?.href ?? "/"}
         logoSize={40}
         wordmarkSize="sidebar"
         gap="gap-[10px]"
         className="flex-none px-2 pb-7"
       />
       <nav aria-label="Admin" className="flex flex-col gap-1">
-        {ADMIN_NAV.map((n) => {
+        {items.map((n) => {
           const on = n.key === active;
-          const count = counts[n.key];
           return (
             <Link
               key={n.key}
-              href={hrefs[n.key]}
+              href={n.href}
               aria-current={on ? "page" : undefined}
               className={cx(
                 "flex items-center justify-between rounded-btn p-3 text-[14px] font-bold uppercase tracking-[.06em]",
                 on
                   ? "bg-yellow text-ink"
-                  : "text-text-2 hover:bg-paper/40 hover:text-paper",
+                  : "text-text-2 hover:bg-paper/4 hover:text-paper",
                 TRANSITION,
                 FOCUS,
               )}
             >
               {n.label}
-              {count !== undefined && count !== "" && (
-                <span className={cx("text-[12px] font-semibold tracking-normal", MONO)}>{count}</span>
+              {hasAdminCount(n.count) && (
+                <span className={cx("text-[12px] font-semibold tracking-normal", MONO)}>{n.count}</span>
               )}
             </Link>
           );

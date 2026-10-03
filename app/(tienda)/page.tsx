@@ -78,7 +78,7 @@ export default async function HomePage() {
             <TextLink
               href={paths.catalog()}
               tone="yellow"
-              className="flex-none py-3 text-[13px] font-bold tracking-[.06em] uppercase lg:py-0 lg:text-[14px] lg:tracking-[.08em]"
+              className="flex-none py-3 lg:py-0"
             >
               <span className="lg:hidden">{COPY.home.featured.ctaMobile}</span>
               <span className="max-lg:hidden">{COPY.home.featured.cta}</span>

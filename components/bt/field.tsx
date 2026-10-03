@@ -121,7 +121,7 @@ export function Select({ surface = "panel", size = "md", invalid, className, chi
     <span className="relative block min-w-0">
       <select
         aria-invalid={invalid || undefined}
-        className={controlClasses(surface, size, invalid, cx("cursor-pointer appearance-none pr-9", className))}
+        className={controlClasses(surface, size, invalid, cx("cursor-pointer appearance-none", className, "pr-9"))}
         {...rest}
       >
         {children}
