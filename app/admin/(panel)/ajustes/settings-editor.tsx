@@ -1,358 +1,403 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import {
-  AutoField,
-  parseMoney,
-  parsePct,
-  useDebouncedSave,
-} from "@/components/admin/autosave";
+import { Button, Field, Input, Panel, PanelTitle, Pill, Select, Toggle, cx } from "@/components/bt";
+import { ScheduleDayRow, SettingsSubNav, WhatsAppTemplateCard } from "@/components/bt/admin-d2/settings";
+import { ResponsiveTopBar } from "@/components/bt/admin-d2/top-bar";
 import { useToast } from "@/components/admin/toast";
-import {
-  btnDanger,
-  btnDark,
-  Card,
-  CardGrid,
-  CardTitle,
-  Hint,
-  inputCls,
-  Label,
-  ToggleRow,
-} from "@/components/admin/ui";
-import { cx as cn } from "@/components/admin/cx";
-import { formatARS, formatDateTime, formatNumber } from "@/lib/format";
+import { COPY } from "@/lib/data/demo/copy";
+import { features } from "@/lib/features";
+import { adminPatchService, adminSaveAgendaSettings, adminSaveScheduleRules } from "@/lib/server/actions/admin-appointments";
 import { patchSettings, type SettingsPatch } from "@/lib/server/actions/settings";
+import { adminResetWhatsAppTemplate, adminSaveWhatsAppTemplate } from "@/lib/server/actions/whatsapp";
+import type { SettingsScreen } from "@/lib/server/screens/admin-d2";
 
-/* Rutas del OAuth de Instagram (iguales a las de lib/server/instagram.ts, que
-   es server-only y no se puede importar desde este componente). */
-const INSTAGRAM_CONNECT_PATH = "/api/auth/instagram/start";
-const INSTAGRAM_DISCONNECT_PATH = "/api/auth/instagram/disconnect";
+const T = COPY.admin.settings;
+const DAYS: Record<number, string> = { 0: "Domingo", 1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes", 6: "Sábado" };
 
-interface Settings {
-  whatsapp: string;
-  address: string;
-  hours: string;
-  showPrices: boolean;
-  ventaOnline: boolean;
-  r3: number;
-  r6: number;
-  transferDiscount: number;
-  instagram: string;
-  tiktok: string;
-  mapsUrl: string;
-  transferAlias: string;
-  depositPct: number;
-  depositMinTotal: number;
-  reservationHours: number;
-  localShippingCost: number;
+/** "[Dirección a confirmar]" y similares: se muestran como placeholder. */
+const PENDING = /\[[^\]]*a confirmar\]/i;
+const WA_PENDING = "5492230000000";
+const shown = (v: string) => (PENDING.test(v) || v === WA_PENDING ? "" : v);
+const placeholderOf = (v: string, fallback: string) => (PENDING.test(v) ? v : fallback);
+
+/** "10:00 – 13:00" / "10-13" / "10:00 a 13:00" → { start, end } o null; "" = cerrado. */
+function parseRange(v: string): { start: string; end: string } | null | "" {
+  const t = v.trim();
+  if (!t || /^cerrado$/i.test(t)) return "";
+  const m = /^(\d{1,2})(?::(\d{2}))?\s*(?:–|-|a|al)\s*(\d{1,2})(?::(\d{2}))?$/i.exec(t);
+  if (!m) return null;
+  const hh = (h: string, mm?: string) => `${h.padStart(2, "0")}:${mm ?? "00"}`;
+  const start = hh(m[1], m[2]);
+  const end = hh(m[3], m[4]);
+  if (start >= end || end > "23:59") return null;
+  return { start, end };
 }
 
-/** Estado de la conexión con Instagram (OAuth) que arma la página. */
-interface InstagramState {
-  connected: boolean;
-  source: "oauth" | "env" | null;
-  username: string | null;
-  /** ISO; null si el token no vence o vino del env. */
-  expiresAt: string | null;
-  /** IG_APP_ID, IG_APP_SECRET e IG_REDIRECT_URI están cargadas. */
-  canConnect: boolean;
-  /** `?ig=` con el que volvió el OAuth: ok | error | desconectado. */
-  result: string | null;
-  reason: string | null;
-}
+const NOTICE = [0, 60, 120, 240, 720, 1440, 2880];
+const noticeLabel = (m: number) => (m === 0 ? "Sin mínimo" : m < 60 ? `${m} min` : m % 1440 === 0 && m >= 1440 ? `${m / 1440} ${m === 1440 ? "día" : "días"}` : `${m / 60} ${m === 60 ? "hora" : "horas"}`);
+const withCurrent = (list: number[], v: number) => (list.includes(v) ? list : [...list, v].sort((a, b) => a - b));
 
-/** Motivos de `?ig=error&motivo=` del callback, en criollo. */
-const IG_ERRORS: Record<string, string> = {
-  cancelado: "Cancelaste la conexión en Instagram",
-  sesion: "La sesión del panel venció: ingresá de nuevo y reintentá",
-  estado: "El pedido de conexión venció: reintentá",
-  config: "Faltan las credenciales de la app de Meta en el servidor",
-  token: "Instagram rechazó el código: reintentá",
-  "token-largo": "No se pudo obtener el token de larga duración",
-  perfil: "No se pudo leer el perfil de la cuenta",
-  db: "No se pudo guardar la conexión",
-};
-
-/** Monto del ejemplo de financiación del prototipo. */
-const EXAMPLE = 3_000_000;
-
-/**
- * Ajustes, fiel al prototipo: contacto, comportamiento de la web (precios y
- * venta online), financiación Payway (Plan MiPyME) con ejemplo en vivo y
- * redes. Abajo, los ajustes del e-commerce del core (alias, seña, reserva,
- * envío). Todo se guarda solo.
- */
-export function SettingsEditor({
-  settings: s,
-  instagram: ig,
-}: {
-  settings: Settings;
-  instagram: InstagramState;
-}) {
+export function SettingsEditor({ data }: { data: SettingsScreen }) {
+  const router = useRouter();
   const toast = useToast();
+  const [saving, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
-  // Vuelta del OAuth de Instagram: avisa y limpia el ?ig= de la URL.
+  const [base, setBase] = useState(data);
+  const [s, setS] = useState(data);
+  const dirty = JSON.stringify(s) !== JSON.stringify(base);
+  const setLocal = (k: keyof SettingsScreen["local"], v: string) => setS((x) => ({ ...x, local: { ...x.local, [k]: v } }));
+  const setPay = <K extends keyof SettingsScreen["payments"]>(k: K, v: SettingsScreen["payments"][K]) =>
+    setS((x) => ({ ...x, payments: { ...x.payments, [k]: v } }));
+  const setAgenda = (k: keyof SettingsScreen["agenda"], v: number) => setS((x) => ({ ...x, agenda: { ...x.agenda, [k]: v } }));
+  const setDay = (wd: number, patch: Partial<SettingsScreen["schedule"][number]>) =>
+    setS((x) => ({ ...x, schedule: x.schedule.map((d) => (d.weekday === wd ? { ...d, ...patch } : d)) }));
+
   useEffect(() => {
-    if (!ig.result) return;
-    if (ig.result === "ok") toast("Instagram conectado: el feed aparece en el inicio");
-    else if (ig.result === "desconectado") toast("Instagram desconectado");
-    else toast(IG_ERRORS[ig.reason ?? ""] ?? "No se pudo conectar Instagram");
-    window.history.replaceState(null, "", window.location.pathname);
-  }, [ig.result, ig.reason, toast]);
-  const [, startTransition] = useTransition();
-  const [showPrices, setShowPrices] = useState(s.showPrices);
-  const [ventaOnline, setVentaOnline] = useState(s.ventaOnline);
-  const [rates, setRates] = useState({
-    r3: String(s.r3),
-    r6: String(s.r6),
-    dto: String(s.transferDiscount),
-  });
-  const ratesSave = useDebouncedSave<SettingsPatch>((v) => patchSettings(v));
-  const save = (patch: SettingsPatch) => patchSettings(patch);
-  const field = inputCls();
+    if (!dirty) return;
+    const h = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [dirty]);
 
-  const r3 = parsePct(rates.r3);
-  const r6 = parsePct(rates.r6);
-  const dto = parsePct(rates.dto);
-  const finEx = `3 × ${formatARS((EXAMPLE * (1 + r3 / 100)) / 3)} · 6 × ${formatARS(
-    (EXAMPLE * (1 + r6 / 100)) / 6,
-  )} · transferencia ${formatARS(EXAMPLE * (1 - dto / 100))}`;
-
-  function setRate(key: "r3" | "r6" | "dto", raw: string) {
-    const clean = raw.replace(/[^\d.,]/g, "");
-    const next = { ...rates, [key]: clean };
-    setRates(next);
-    ratesSave.schedule({
-      r3: parsePct(next.r3),
-      r6: parsePct(next.r6),
-      transferDiscount: parsePct(next.dto),
-    });
-  }
-
-  function toggle(key: "showPrices" | "ventaOnline", on: boolean, msg: string) {
-    if (key === "showPrices") setShowPrices(on);
-    else setVentaOnline(on);
-    startTransition(async () => {
-      const res = await save({ [key]: on });
-      toast(res.ok ? msg : res.error);
-    });
-  }
-
-  const rateInput = (key: "r3" | "r6" | "dto", label: string, ph: string) => (
-    <div className="flex flex-col justify-between">
-      <Label>{label}</Label>
-      <input
-        value={rates[key]}
-        inputMode="decimal"
-        placeholder={ph}
-        aria-label={label}
-        onChange={(e) => setRate(key, e.target.value)}
-        onBlur={() => void ratesSave.flush()}
-        className={cn(field, "mt-[6px] w-full text-center text-[15px] font-bold")}
-      />
-    </div>
+  // Validación de rangos (para marcar los inputs en rojo).
+  const bad = Object.fromEntries(
+    s.schedule.map((d) => [d.weekday, { am: d.open && parseRange(d.am) === null, pm: d.open && parseRange(d.pm) === null }]),
   );
+
+  function save() {
+    setError(null);
+    if (Object.values(bad).some((b) => b.am || b.pm)) return setError("Revisá los horarios: usá el formato 10:00 – 13:00 o dejalo vacío (cerrado).");
+    start(async () => {
+      // 1) Local y pagos.
+      const patch: SettingsPatch = {};
+      const L = s.local;
+      const B = base.local;
+      if (L.address !== B.address && L.address.trim()) patch.address = L.address;
+      if (L.whatsapp !== B.whatsapp && L.whatsapp.trim()) patch.whatsapp = L.whatsapp;
+      if (L.instagram !== B.instagram) patch.instagram = L.instagram;
+      if (L.hours !== B.hours && L.hours.trim()) patch.hours = L.hours;
+      const P = s.payments;
+      const BP = base.payments;
+      if (P.transferDiscount !== BP.transferDiscount) patch.transferDiscount = P.transferDiscount;
+      if (P.maxInstallments !== BP.maxInstallments) patch.maxInstallments = P.maxInstallments;
+      if (P.transferAlias !== BP.transferAlias && P.transferAlias.trim()) patch.transferAlias = P.transferAlias;
+      if (P.transferCbu !== BP.transferCbu) patch.transferCbu = P.transferCbu;
+      if (P.transferHolder !== BP.transferHolder) patch.transferHolder = P.transferHolder;
+      if (P.transferBank !== BP.transferBank) patch.transferBank = P.transferBank;
+      if (P.reservationHours !== BP.reservationHours) patch.reservationHours = P.reservationHours;
+      if (P.cashEnabled !== BP.cashEnabled) patch.cashEnabled = P.cashEnabled;
+      if (P.cashReservationHours !== BP.cashReservationHours) patch.cashReservationHours = P.cashReservationHours;
+      if (Object.keys(patch).length) {
+        const r = await patchSettings(patch);
+        if (!r.ok) return setError(r.error);
+      }
+      // 2) Horario semanal.
+      if (JSON.stringify(s.schedule) !== JSON.stringify(base.schedule)) {
+        const rules = s.schedule.flatMap((d) =>
+          !d.open
+            ? []
+            : [parseRange(d.am), parseRange(d.pm)].flatMap((r) =>
+                r && typeof r === "object" ? [{ weekday: d.weekday, startTime: r.start, endTime: r.end }] : [],
+              ),
+        );
+        const r = await adminSaveScheduleRules(rules);
+        if (!r.ok) return setError(r.error);
+      }
+      // 3) Reglas de la agenda.
+      if (JSON.stringify(s.agenda) !== JSON.stringify(base.agenda)) {
+        const { slotCapacity, minNoticeMin, maxDaysAhead } = s.agenda;
+        const r = await adminSaveAgendaSettings({ slotCapacity, minNoticeMin, maxDaysAhead });
+        if (!r.ok) return setError(r.error);
+      }
+      // 4) Servicios.
+      for (const sv of s.services) {
+        const before = base.services.find((x) => x.id === sv.id);
+        if (before && before.active !== sv.active) {
+          const r = await adminPatchService(sv.id, { active: sv.active });
+          if (!r.ok) return setError(r.error);
+        }
+      }
+      // 5) Plantillas.
+      for (const t of s.templates) {
+        const before = base.templates.find((x) => x.id === t.id);
+        if (before && before.body !== t.body) {
+          const r = await adminSaveWhatsAppTemplate(t.id, t.body);
+          if (!r.ok) return setError(r.error);
+        }
+      }
+      setBase(s);
+      toast("Ajustes guardados");
+      router.refresh();
+    });
+  }
+
+  const saveBtn = (
+    <Button variant="primary" size="md" onClick={save} disabled={saving}>
+      {saving ? "Guardando…" : "Guardar cambios"}
+    </Button>
+  );
+  const g = s.payments.gateway;
+  const sections = [
+    { id: "local", label: "Local" },
+    ...(features.appointments ? [{ id: "turnos", label: "Turnos" }] : []),
+    { id: "pagos", label: "Pagos" },
+    { id: "notificaciones", label: "Notificaciones" },
+  ];
 
   return (
-    <CardGrid className="animate-fade-in">
-      <Card>
-        <CardTitle>Contacto y links</CardTitle>
-        <Label>WHATSAPP (SOLO NÚMEROS, CON 54)</Label>
-        <AutoField
-          initial={s.whatsapp}
-          inputMode="tel"
-          transform={(v) => v.replace(/\D/g, "")}
-          onSave={(v) => save({ whatsapp: v })}
-          onSaved={() => toast("WhatsApp actualizado en toda la web")}
-          className={field}
-        />
-        <Label>DIRECCIÓN</Label>
-        <AutoField initial={s.address} onSave={(v) => save({ address: v })} className={field} />
-        <Label>HORARIOS</Label>
-        <AutoField initial={s.hours} onSave={(v) => save({ hours: v })} className={field} />
-      </Card>
-
-      <Card className="gap-[14px]">
-        <CardTitle>Comportamiento de la web</CardTitle>
-        <ToggleRow
-          label="Mostrar precios en la web"
-          on={showPrices}
-          onClick={() =>
-            toggle(
-              "showPrices",
-              !showPrices,
-              showPrices ? "Precios ocultos: todo deriva a WhatsApp" : "Precios visibles en la web",
-            )
-          }
-        />
-        <ToggleRow
-          label="Venta online"
-          on={ventaOnline}
-          onClick={() =>
-            toggle(
-              "ventaOnline",
-              !ventaOnline,
-              ventaOnline
-                ? "Venta online apagada: todo deriva a WhatsApp"
-                : "Venta online activada",
-            )
-          }
-        />
-        <Hint>
-          Con los precios ocultos, todos los modelos muestran “Consultar” y derivan a
-          WhatsApp. Con la venta online apagada la web no muestra el carrito ni
-          “Comprar”: es 100% WhatsApp.
-        </Hint>
-      </Card>
-
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-[10px]">
-          <CardTitle>Financiación</CardTitle>
-          <span className="rounded-full bg-night px-[10px] py-1 font-sans text-[9.5px] font-bold tracking-[.14em] text-brand">
-            PAYWAY · PLAN MIPYME
-          </span>
-        </div>
-        <div className="font-sans text-[12.5px] leading-[1.6] text-ink/55">
-          La web calcula sola las cuotas de cada modelo. Cargá el recargo de cada plan
-          (0 = sin recargo).
-        </div>
-        <div className="grid grid-cols-3 gap-[10px]">
-          {rateInput("r3", "3 CUOTAS (%)", "0")}
-          {rateInput("r6", "6 CUOTAS (%)", "0")}
-          {rateInput("dto", "DTO. TRANSF. (%)", "5")}
-        </div>
-        <div className="rounded-xl bg-cream px-4 py-[14px] font-sans text-[12.5px] font-medium leading-[1.7]">
-          <span className="text-ink/50">Ej. sobre {formatARS(EXAMPLE)} →</span> {finEx}
-        </div>
-      </Card>
-
-      <Card>
-        <CardTitle>Redes y mapa</CardTitle>
-        <Label>INSTAGRAM</Label>
-        <AutoField
-          initial={s.instagram ? `https://www.instagram.com/${s.instagram}/` : ""}
-          onSave={(v) => save({ instagram: v })}
-          className={field}
-        />
-        <InstagramFeed ig={ig} />
-        <Label>TIKTOK</Label>
-        <AutoField
-          initial={s.tiktok ? `https://www.tiktok.com/@${s.tiktok}` : ""}
-          onSave={(v) => save({ tiktok: v })}
-          className={field}
-        />
-        <Label>LINK DE GOOGLE MAPS (“CÓMO LLEGAR”)</Label>
-        <AutoField initial={s.mapsUrl} onSave={(v) => save({ mapsUrl: v })} className={field} />
-      </Card>
-
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-[10px]">
-          <CardTitle>Venta online</CardTitle>
-          <span className="rounded-full bg-brand-pastel px-[10px] py-1 font-sans text-[9.5px] font-bold tracking-[.14em] text-brand-deeper">
-            CARRITO Y CHECKOUT
-          </span>
-        </div>
-        <div className="font-sans text-[12.5px] leading-[1.6] text-ink/55">
-          Cómo se cobran los pedidos de la web: transferencia con descuento, reserva
-          con seña y envío dentro de la ciudad.
-        </div>
-        <Label>ALIAS PARA TRANSFERENCIAS</Label>
-        <AutoField
-          initial={s.transferAlias}
-          onSave={(v) => save({ transferAlias: v })}
-          className={cn(field, "font-bold tracking-[.06em]")}
-        />
-        <div className="grid grid-cols-2 gap-[10px] [&>div]:flex [&>div]:flex-col [&>div]:justify-between">
-          <div>
-            <Label>SEÑA (%)</Label>
-            <AutoField<number>
-              initial={String(s.depositPct)}
-              inputMode="decimal"
-              transform={parsePct}
-              onSave={(v) => save({ depositPct: v })}
-              className={cn(field, "mt-[6px] w-full text-center text-[15px] font-bold")}
-            />
-          </div>
-          <div>
-            <Label>SEÑA DESDE ($)</Label>
-            <AutoField<number>
-              initial={formatNumber(s.depositMinTotal)}
-              inputMode="numeric"
-              transform={(v) => parseMoney(v) ?? 0}
-              onSave={(v) => save({ depositMinTotal: v })}
-              className={cn(field, "mt-[6px] w-full text-center text-[15px] font-bold")}
-            />
-          </div>
-          <div>
-            <Label>RESERVA SIN PAGO (HS)</Label>
-            <AutoField<number>
-              initial={String(s.reservationHours)}
-              inputMode="numeric"
-              transform={(v) => parseMoney(v) ?? 1}
-              onSave={(v) => save({ reservationHours: Math.max(1, v) })}
-              className={cn(field, "mt-[6px] w-full text-center text-[15px] font-bold")}
-            />
-          </div>
-          <div>
-            <Label>ENVÍO EN LA CIUDAD ($)</Label>
-            <AutoField<number>
-              initial={formatNumber(s.localShippingCost)}
-              inputMode="numeric"
-              transform={(v) => parseMoney(v) ?? 0}
-              onSave={(v) => save({ localShippingCost: v })}
-              className={cn(field, "mt-[6px] w-full text-center text-[15px] font-bold")}
-            />
-          </div>
-        </div>
-        <Hint>
-          La seña se ofrece en pedidos desde ese total y se cobra online. Una reserva por
-          transferencia o efectivo se cancela sola si no se acredita en ese plazo.
-        </Hint>
-      </Card>
-    </CardGrid>
-  );
-}
-
-/** Conexión del feed de Instagram (OAuth) dentro de "Redes y mapa". */
-function InstagramFeed({ ig }: { ig: InstagramState }) {
-  if (ig.connected) {
-    return (
-      <div className="flex flex-wrap items-center justify-between gap-[10px] rounded-xl bg-cream px-4 py-3">
-        <div className="font-sans text-[12.5px] leading-[1.6]">
-          <span className="font-bold text-brand-deep">● Feed conectado</span>
-          {ig.username ? ` como @${ig.username}` : " (token del servidor)"}
-          {ig.expiresAt && (
-            <span className="text-ink/50">
-              {" "}
-              · se renueva solo · vence {formatDateTime(new Date(ig.expiresAt))}
+    <>
+      <ResponsiveTopBar
+        title="Ajustes"
+        actions={
+          <>
+            <span className={cx("font-mono text-[12px] font-semibold", dirty ? "text-yellow" : "text-text-3")} aria-live="polite">
+              {dirty ? "Cambios sin guardar" : "Todo guardado"}
             </span>
-          )}
+            {saveBtn}
+          </>
+        }
+        mobileActions={null}
+      />
+      {error && (
+        <p role="alert" className="mx-4 mt-4 mb-0 rounded-box border border-red-light/60 px-4 py-3 text-[14px] font-semibold text-red-light lg:mx-10">
+          {error}
+        </p>
+      )}
+
+      <div className="grid items-start gap-5 px-4 pt-4 pb-28 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-7 lg:px-10 lg:pt-6 lg:pb-10">
+        <SettingsSubNav items={sections} className="max-lg:sticky max-lg:top-[69px] max-lg:z-20 max-lg:-mx-4 max-lg:bg-ink max-lg:px-4 max-lg:py-2" />
+
+        <div className="flex min-w-0 flex-col gap-5">
+          {/* A. Local */}
+          <div id="local" className="min-w-0 scroll-mt-28">
+          <Panel surface="surface" padding="lg" as="section">
+            <PanelTitle>{T.local.title}</PanelTitle>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label={T.local.address}>
+                <Input value={shown(s.local.address)} placeholder={placeholderOf(s.local.address, "Calle 123, Mar del Plata")} onChange={(e) => setLocal("address", e.target.value)} maxLength={160} />
+              </Field>
+              <Field label={T.local.whatsapp}>
+                <Input inputMode="tel" value={shown(s.local.whatsapp)} placeholder="[Número a confirmar]" onChange={(e) => setLocal("whatsapp", e.target.value)} maxLength={30} />
+              </Field>
+              <Field label={T.local.email} hint="Lo cargamos nosotros en la configuración de la tienda.">
+                <Input value={shown(s.local.email)} placeholder={placeholderOf(s.local.email, "—")} disabled readOnly />
+              </Field>
+              <Field label={T.local.instagram}>
+                <Input value={s.local.instagram} placeholder="@bicitiendamdq" onChange={(e) => setLocal("instagram", e.target.value)} maxLength={200} />
+              </Field>
+              <Field label="Horarios de atención" hint="Se ven en el pie de la web." className="md:col-span-2">
+                <Input value={shown(s.local.hours)} placeholder={placeholderOf(s.local.hours, "Lun a vie 10–13 y 16–19 · Sáb 10–13")} onChange={(e) => setLocal("hours", e.target.value)} maxLength={120} />
+              </Field>
+            </div>
+          </Panel>
+          </div>
+
+          <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+            {/* B1. Horarios para turnos */}
+            {features.appointments && (
+              <div id="turnos" className="min-w-0 scroll-mt-28">
+              <Panel surface="surface" padding="lg" as="section">
+                    <PanelTitle action={<span className="font-mono text-[12px] font-semibold text-text-3 max-sm:hidden">EJ. 10:00 – 13:00</span>}>{T.schedule.title}</PanelTitle>
+                <div className="flex flex-col">
+                  {s.schedule.map((d) => (
+                    <ScheduleDayRow
+                      key={d.weekday}
+                      day={DAYS[d.weekday]}
+                      open={d.open}
+                      am={d.am}
+                      pm={d.pm}
+                      invalid={bad[d.weekday]}
+                      closedLabel={T.schedule.closed}
+                      onOpen={(v) => setDay(d.weekday, { open: v, ...(v && !d.am && !d.pm ? { am: "10:00 – 13:00" } : {}) })}
+                      onAm={(v) => setDay(d.weekday, { am: v })}
+                      onPm={(v) => setDay(d.weekday, { pm: v })}
+                    />
+                  ))}
+                </div>
+                <div className="grid gap-[10px] sm:grid-cols-3">
+                  <Field label={T.appointments.perSlot}>
+                    <Select value={s.agenda.slotCapacity} onChange={(e) => setAgenda("slotCapacity", Number(e.target.value))}>
+                      {withCurrent([1, 2, 3, 4, 5], s.agenda.slotCapacity).map((n) => (
+                        <option key={n} value={n}>{`${n} ${n === 1 ? "turno" : "turnos"}`}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label={T.appointments.notice}>
+                    <Select value={s.agenda.minNoticeMin} onChange={(e) => setAgenda("minNoticeMin", Number(e.target.value))}>
+                      {withCurrent(NOTICE, s.agenda.minNoticeMin).map((m) => (
+                        <option key={m} value={m}>{noticeLabel(m)}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label={T.appointments.maxDays}>
+                    <Select value={s.agenda.maxDaysAhead} onChange={(e) => setAgenda("maxDaysAhead", Number(e.target.value))}>
+                      {withCurrent([7, 14, 30, 60, 90], s.agenda.maxDaysAhead).map((n) => (
+                        <option key={n} value={n}>{`${n} días`}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+                <p className="m-0 text-[13px] leading-[1.5] text-text-3">
+                  Turnos cada {s.agenda.slotMinutes} min. Cerrado = dejá el horario vacío. Feriados y bloqueos puntuales: desde Turnos → Bloquear horario.
+                </p>
+              </Panel>
+              </div>
+            )}
+
+            <div className="flex min-w-0 flex-col gap-5">
+              {/* B2. Servicios */}
+              {features.appointments && s.services.length > 0 && (
+                <Panel surface="surface" padding="lg" gap="md" as="section">
+                  <PanelTitle>{T.services}</PanelTitle>
+                  {s.services.map((sv) => (
+                    <Toggle
+                      key={sv.id}
+                      label={sv.name}
+                      description={sv.note}
+                      checked={sv.active}
+                      onChange={(e) => setS((x) => ({ ...x, services: x.services.map((y) => (y.id === sv.id ? { ...y, active: e.target.checked } : y)) }))}
+                    />
+                  ))}
+                </Panel>
+              )}
+
+              {/* B3. Pagos */}
+              <div id="pagos" className="min-w-0 scroll-mt-28">
+              <Panel surface="surface" padding="lg" gap="md" as="section">
+                    <PanelTitle>{T.payments.title}</PanelTitle>
+                {g && (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[15px] font-extrabold">{g.name}</span>
+                      {g.state === "conectado" ? (
+                        <Pill tone="yellow" size="lg">{T.payments.mpConnected}</Pill>
+                      ) : g.state === "prueba" ? (
+                        <Pill tone="yellow-outline" size="lg">Modo prueba</Pill>
+                      ) : (
+                        <Pill tone="red-outline" size="lg">Sin configurar</Pill>
+                      )}
+                    </div>
+                    {g.state !== "conectado" && (
+                      <span className="text-[13px] leading-[1.45] text-text-3">
+                        {g.state === "prueba"
+                          ? "Sin credenciales: los pagos online van al simulador. Las credenciales se cargan en el servidor, no acá."
+                          : "Faltan las credenciales en el servidor: el pago online no aparece en el checkout."}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-[10px]">
+                  <Field label={T.payments.transferOff}>
+                    <span className="relative block">
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={90}
+                        value={s.payments.transferDiscount}
+                        onChange={(e) => setPay("transferDiscount", Math.max(0, Math.min(90, Number(e.target.value) || 0)))}
+                        className="pr-9"
+                      />
+                      <span aria-hidden className="pointer-events-none absolute top-1/2 right-[14px] -translate-y-1/2 text-[15px] text-text-3">%</span>
+                    </span>
+                  </Field>
+                  <Field label={T.payments.installments}>
+                    <Select value={s.payments.maxInstallments} onChange={(e) => setPay("maxInstallments", Number(e.target.value))}>
+                      {withCurrent([1, 3, 6, 9, 12], s.payments.maxInstallments).map((n) => (
+                        <option key={n} value={n}>{n === 1 ? "Sin cuotas" : `Hasta ${n}`}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+                <Field label="Alias">
+                  <Input value={shown(s.payments.transferAlias)} placeholder={placeholderOf(s.payments.transferAlias, "bicitienda.mdq")} onChange={(e) => setPay("transferAlias", e.target.value)} maxLength={60} />
+                </Field>
+                <Field label="CBU / CVU">
+                  <Input inputMode="numeric" value={shown(s.payments.transferCbu)} placeholder={placeholderOf(s.payments.transferCbu, "22 números")} onChange={(e) => setPay("transferCbu", e.target.value)} maxLength={40} />
+                </Field>
+                <div className="grid grid-cols-2 gap-[10px]">
+                  <Field label="Titular">
+                    <Input value={shown(s.payments.transferHolder)} placeholder={placeholderOf(s.payments.transferHolder, "Nombre y apellido")} onChange={(e) => setPay("transferHolder", e.target.value)} maxLength={120} />
+                  </Field>
+                  <Field label="Banco">
+                    <Input value={shown(s.payments.transferBank)} placeholder={placeholderOf(s.payments.transferBank, "Banco")} onChange={(e) => setPay("transferBank", e.target.value)} maxLength={80} />
+                  </Field>
+                </div>
+                <Field label="Reserva por transferencia" hint="Si no llega el comprobante, el pedido vence y el stock vuelve.">
+                  <Select value={s.payments.reservationHours} onChange={(e) => setPay("reservationHours", Number(e.target.value))}>
+                    {withCurrent([12, 24, 48, 72], s.payments.reservationHours).map((n) => (
+                      <option key={n} value={n}>{`${n} horas`}</option>
+                    ))}
+                  </Select>
+                </Field>
+                {s.payments.cashFeature && (
+                  <>
+                    <Toggle label={T.payments.cash} checked={s.payments.cashEnabled} onChange={(e) => setPay("cashEnabled", e.target.checked)} />
+                    {s.payments.cashEnabled && (
+                      <Field label="Reserva en efectivo">
+                        <Select
+                          value={s.payments.cashReservationHours ?? ""}
+                          onChange={(e) => setPay("cashReservationHours", e.target.value ? Number(e.target.value) : null)}
+                        >
+                          <option value="">No vence</option>
+                          {withCurrent([24, 48, 72], s.payments.cashReservationHours ?? 24).map((n) => (
+                            <option key={n} value={n}>{`${n} horas`}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                    )}
+                  </>
+                )}
+              </Panel>
+              </div>
+            </div>
+          </div>
+
+          {/* C. Mensajes de WhatsApp */}
+          <div id="notificaciones" className="min-w-0 scroll-mt-28">
+          <Panel surface="surface" padding="lg" as="section">
+            <PanelTitle action={<span className="text-[13px] text-text-3 max-md:hidden">{T.templates.hint}</span>}>{T.templates.title}</PanelTitle>
+            <p className="m-0 text-[14px] leading-[1.5] text-text-2">
+              Desde el turno o el pedido tocás “WhatsApp” y se abre el chat con este texto listo para mandar. Campos: {"{nombre} {día} {hora} {servicio} {producto} {número} {link}"}.
+            </p>
+            <div className="grid gap-3 md:grid-cols-2">
+              {s.templates.map((t) => (
+                <WhatsAppTemplateCard
+                  key={t.id}
+                  name={t.name}
+                  when={t.when}
+                  value={t.body}
+                  onChange={(v) => setS((x) => ({ ...x, templates: x.templates.map((y) => (y.id === t.id ? { ...y, body: v } : y)) }))}
+                  footer={
+                    <button
+                      type="button"
+                      className="self-start rounded-[2px] text-[12px] font-bold uppercase tracking-[.08em] text-text-3 hover:text-paper focus-visible:outline-2 focus-visible:outline-yellow"
+                      onClick={async () => {
+                        await adminResetWhatsAppTemplate(t.id);
+                        toast("Texto original restaurado");
+                        router.refresh();
+                      }}
+                    >
+                      ↺ Volver al texto original
+                    </button>
+                  }
+                />
+              ))}
+            </div>
+          </Panel>
+          </div>
         </div>
-        {ig.source === "oauth" && (
-          <form action={INSTAGRAM_DISCONNECT_PATH} method="post">
-            <button type="submit" className={btnDanger}>
-              Desconectar
-            </button>
-          </form>
-        )}
       </div>
-    );
-  }
-  if (!ig.canConnect) {
-    return (
-      <Hint>
-        El feed del inicio usa fotos de ejemplo. Para mostrar el real faltan
-        IG_APP_ID, IG_APP_SECRET e IG_REDIRECT_URI en el servidor.
-      </Hint>
-    );
-  }
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-[10px] rounded-xl bg-cream px-4 py-3">
-      <Hint>Conectá la cuenta para mostrar las últimas publicaciones en el inicio.</Hint>
-      {/* <a> y no <Link>: es una redirección del servidor a Instagram. */}
-      <a href={INSTAGRAM_CONNECT_PATH} className={btnDark}>
-        Conectar Instagram
-      </a>
-    </div>
+
+      {dirty && (
+        <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-line bg-ink-deep px-4 py-3 lg:hidden">
+          <span className="flex-1 font-mono text-[12px] font-semibold text-yellow">Cambios sin guardar</span>
+          {saveBtn}
+        </div>
+      )}
+    </>
   );
 }

@@ -2,10 +2,14 @@ import { and, count, gte, inArray, lt } from "drizzle-orm";
 import { store } from "@/lib/config";
 import { QUOTE_PILL } from "@/components/bt/pill";
 import { formatArPhone } from "@/lib/phone";
-import { getAdminCustomers, getAdminProducts, type AdminCustomer } from "@/lib/server/admin-queries";
+import { STORE_INFO } from "@/lib/data/demo/settings";
+import { features } from "@/lib/features";
+import { getAdminCustomers, getAdminProducts, getAdminSettings, type AdminCustomer } from "@/lib/server/admin-queries";
+import { getAppointmentServices, getScheduleRules } from "@/lib/server/appointments";
+import { isGatewayConfigured, isPaymentSandboxAllowed } from "@/lib/server/payment-availability";
 import { getCustomerDetail } from "@/lib/server/admin-crm";
 import { STATUS_LABELS } from "@/lib/server/order-queries";
-import { customerWhatsApp } from "@/lib/server/whatsapp-templates";
+import { customerWhatsApp, getWhatsAppTemplates } from "@/lib/server/whatsapp-templates";
 import { getDb, schema } from "@/lib/server/db";
 import { addDays, localToUtc, toLocalParts, weekdayOf } from "@/lib/zoned-time";
 
@@ -364,5 +368,90 @@ export async function getCustomerCard(id: string): Promise<CustomerCard | null> 
     spent: d.totalSpent,
     history,
     appointmentsOnly: d.orders.length === 0 && d.appointments.length > 0,
+  };
+}
+
+/* ── Ajustes (3f) ─────────────────────────────────────────── */
+
+export interface SettingsScreen {
+  local: { address: string; whatsapp: string; email: string; instagram: string; hours: string };
+  /** Día 0–6 (domingo = 0) → franjas de mañana y tarde ("10:00 – 13:00" o ""). */
+  schedule: { weekday: number; open: boolean; am: string; pm: string }[];
+  agenda: { slotCapacity: number; minNoticeMin: number; maxDaysAhead: number; slotMinutes: number };
+  services: { id: string; name: string; note: string; active: boolean }[];
+  payments: {
+    gateway: { name: string; state: "conectado" | "prueba" | "sin_configurar" } | null;
+    transferDiscount: number;
+    maxInstallments: number;
+    transferAlias: string;
+    transferCbu: string;
+    transferHolder: string;
+    transferBank: string;
+    reservationHours: number;
+    cashEnabled: boolean;
+    cashReservationHours: number | null;
+    cashFeature: boolean;
+  };
+  templates: { id: "turno_confirmado" | "pedido_listo"; name: string; when: string; body: string }[];
+}
+
+export async function getSettingsScreen(): Promise<SettingsScreen> {
+  const [s, rules, services, templates] = await Promise.all([
+    getAdminSettings(),
+    getScheduleRules(),
+    getAppointmentServices(),
+    getWhatsAppTemplates(),
+  ]);
+  const schedule = [1, 2, 3, 4, 5, 6, 0].map((wd) => {
+    const day = rules.filter((r) => r.weekday === wd && r.active);
+    const am = day.find((r) => r.startTime < "14:00");
+    const pm = day.find((r) => r.startTime >= "14:00");
+    const fmt = (r?: { startTime: string; endTime: string }) => (r ? `${r.startTime} – ${r.endTime}` : "");
+    return { weekday: wd, open: day.length > 0, am: fmt(am), pm: fmt(pm) };
+  });
+  const method = store.features.payments.payway ? "payway" : store.features.payments.mp ? "mercadopago" : null;
+  const gateway = method
+    ? {
+        name: method === "payway" ? "Payway" : "Mercado Pago",
+        state: isGatewayConfigured(method)
+          ? ("conectado" as const)
+          : isPaymentSandboxAllowed()
+            ? ("prueba" as const)
+            : ("sin_configurar" as const),
+      }
+    : null;
+  return {
+    local: {
+      address: s.address,
+      whatsapp: s.whatsapp,
+      email: STORE_INFO.email,
+      instagram: s.instagram ? `@${s.instagram}` : "",
+      hours: s.hours,
+    },
+    schedule,
+    agenda: { slotCapacity: s.slotCapacity, minNoticeMin: s.minNoticeMin, maxDaysAhead: s.maxDaysAhead, slotMinutes: s.slotMinutes },
+    services: services.map((x) => ({
+      id: x.id,
+      name: x.name,
+      note: [`${x.durationMin} min`, x.priceNote.toLowerCase()].filter(Boolean).join(" · "),
+      active: x.active,
+    })),
+    payments: {
+      gateway,
+      transferDiscount: s.transferDiscount,
+      maxInstallments: s.maxInstallments,
+      transferAlias: s.transferAlias,
+      transferCbu: s.transferCbu,
+      transferHolder: s.transferHolder,
+      transferBank: s.transferBank,
+      reservationHours: s.reservationHours,
+      cashEnabled: s.cashEnabled,
+      cashReservationHours: s.cashReservationHours,
+      cashFeature: features.cashPayment,
+    },
+    templates: templates
+      .filter((t) => t.id === "turno_confirmado" || t.id === "pedido_listo")
+      .sort((a, b) => (a.id === "turno_confirmado" ? -1 : b.id === "turno_confirmado" ? 1 : 0))
+      .map((t) => ({ id: t.id as "turno_confirmado" | "pedido_listo", name: t.name, when: t.trigger, body: t.body })),
   };
 }

@@ -15,9 +15,9 @@ import { FOCUS, FONT, TRANSITION } from "../styles";
 export function ResponsiveTopBar({
   mobileActions,
   ...props
-}: AdminTopBarProps & { mobileActions?: ReactNode }) {
+}: AdminTopBarProps & { mobileActions?: ReactNode | null }) {
   const { title, back, search, actions, children } = props;
-  const mActions = mobileActions ?? actions;
+  const mActions = mobileActions !== undefined ? mobileActions : actions;
   return (
     <>
       <AdminTopBar {...props} className={cx("max-lg:hidden", props.className)} />
