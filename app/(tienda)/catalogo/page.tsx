@@ -1,6 +1,5 @@
 import { paths } from "@/lib/paths";
-import { SEO, pageMetadata } from "@/lib/seo";
-import { withRouteOgImage } from "@/lib/server/screens/tienda-a";
+import { SEO, pageMetadata, withRouteOgImage } from "@/lib/seo";
 import { CatalogScreenView } from "./_screens/catalog-screen";
 
 /**

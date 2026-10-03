@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { isOutOfStock } from "@/lib/pricing";
 import { paths } from "@/lib/paths";
-import { SEO, categorySeo, pageMetadata, productSeo } from "@/lib/seo";
-import { brandName, categoryChain, descendantSlugs, withRouteOgImage } from "@/lib/server/screens/tienda-a";
+import { SEO, categorySeo, pageMetadata, productSeo, withRouteOgImage } from "@/lib/seo";
+import { brandName, categoryChain, descendantSlugs } from "@/lib/server/screens/tienda-a";
 import {
   getBrands,
   getCategories,
