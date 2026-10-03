@@ -21,9 +21,9 @@ export const appointmentServices = SERVICES.map((s, i) => ({
   name: s.name,
   description: s.description,
   durationMin: s.durationMin,
-  priceNote: "Se paga en el local",
-  // Solo la prueba de bici lleva el modelo a probar.
-  allowsProduct: s.key === "prueba",
+  priceNote: s.priceNote,
+  // Sin prueba de bici: ningún servicio lleva producto (columna sin uso).
+  allowsProduct: false,
   active: s.active,
   order: i,
 }));

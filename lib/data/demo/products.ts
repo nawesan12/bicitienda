@@ -11,15 +11,14 @@ import type {
 
 /**
  * Productos demo: `BIKES` (9) y `ACC` (4) del prototipo, con el stock por
- * talle de `STK`, el SKU, el estado y la disponibilidad para prueba que
- * calcula `adminVals()` (3c).
+ * talle de `STK`, el SKU y el estado que calcula `adminVals()` (3c).
+ * Sin "Disponible para prueba": la tienda ya no ofrece pruebas de bici.
  *
  * Reglas del prototipo que se respetan:
  *  - SKU = 'BT-' + cat.slice(0,3).toUpperCase() + '-' + (1040 + i*7),
  *    con `i` = posición en [...BIKES, ...ACC] (BT-MTB-1040, BT-GRA-1061…).
  *  - Bicis con 4 talles S/M/L/XL y la altura sugerida de 3d; la infantil
  *    es talle "Único"; los accesorios van por "Unidades" (variante "Único").
- *  - "Disponible para prueba" = bici y no es la Gravel (i !== 3).
  *  - Borrador = la Urbana vintage (i === 7). "Sin stock" no es un estado
  *    guardado: se deriva del stock (Gravel y Remera quedan en 0).
  *  - Destacados del home ("Lo más pedido en el mostrador"):
@@ -29,8 +28,8 @@ import type {
  *  - Tag "Nueva" (Gravel) vs "Nuevo" (casco) y el README ("Nuevo"):
  *    se normaliza a "Nuevo".
  *  - La Gravel figura sin stock y sin prueba en 3c, pero hay un pedido
- *    "Armando" (#BT-10480) y un turno de prueba (a5) con ella: se respeta
- *    3c (stock 0, sin prueba); pedido y turno quedan como históricos.
+ *    "Armando" (#BT-10480) con ella: se respeta 3c (stock 0); el pedido
+ *    queda como histórico.
  *  - SKU: la ficha (2c) muestra "BT-MTB29-21" y las variantes de 3d
  *    "BT-MTB29-21-S", que no siguen la fórmula de 3c. Se usa la fórmula de
  *    3c para el producto y `<sku>-<talle>` (+ `-<color>` si hay varios)
@@ -145,7 +144,6 @@ function buildVariants(row: Row, sku: string, i: number): DemoVariant[] {
 }
 
 export const PRODUCTS: DemoProduct[] = [...BIKES, ...ACC].map((row, i) => {
-  const isBike = i < BIKES.length;
   const sku = "BT-" + row.cat.slice(0, 3).toUpperCase() + "-" + String(1040 + i * 7);
   return {
     slug: row.slug,
@@ -158,7 +156,6 @@ export const PRODUCTS: DemoProduct[] = [...BIKES, ...ACC].map((row, i) => {
     tag: row.tag ?? null,
     photos: i === 0 ? [P.mtb29, P.mtb29Doble, P.galeria3, P.galeria4] : [row.photo],
     rodado: row.rodado ?? null,
-    testRide: isBike && i !== 3,
     status: i === 7 ? "borrador" : "publicado",
     featured: FEATURED.has(i),
     hideWhenOut: false,

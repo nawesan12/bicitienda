@@ -87,7 +87,8 @@ function toSeedProduct(p: DemoProduct, i: number): SeedProduct {
     createdAt: `2026-09-${String(30 - i).padStart(2, "0")}`,
     sku: p.sku,
     rodado: p.rodado,
-    testRide: p.testRide,
+    // Sin pruebas de bici: la columna queda sin uso.
+    testRide: false,
     hideWhenOut: p.hideWhenOut,
     status: p.status,
     variants: p.variants.map((v) => ({

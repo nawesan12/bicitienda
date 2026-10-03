@@ -238,7 +238,8 @@ export async function runSeed(
       createdAt: p.createdAt,
       sku: p.sku ?? null,
       rodado: p.rodado ?? null,
-      testRide: p.testRide ?? false,
+      // Sin pruebas de bici: la columna queda sin uso.
+      testRide: false,
       hideWhenOut: p.hideWhenOut ?? false,
       status: p.status ?? "publicado",
     };
