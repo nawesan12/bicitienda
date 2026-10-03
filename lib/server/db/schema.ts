@@ -275,7 +275,7 @@ export const settings = pgTable("settings", {
   cashReservationHours: integer("cash_reservation_hours"),
   /** Efectivo en el local habilitado en el checkout. */
   cashEnabled: boolean("cash_enabled").notNull().default(true),
-  /** Tope de cuotas sin interés que se ofrecen en Mercado Pago. */
+  /** Tope de cuotas que se ofrecen en Mercado Pago. */
   maxInstallments: integer("max_installments").notNull().default(6),
   /** Turnos: duración de cada slot, turnos por slot, anticipación y horizonte. */
   slotMinutes: integer("slot_minutes").notNull().default(30),

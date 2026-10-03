@@ -19,7 +19,7 @@ export const TEXTS: SiteTexts = {
   "test_t": "¿Cuál es para mí?",
   "test_d": "Contestá tres preguntas y te recomendamos el producto justo.",
   "cuotas_t": "Calculadora de cuotas",
-  "cuotas_d": "Mirá cómo queda cada producto en 3 o 6 cuotas con tarjeta o con transferencia.",
+  "cuotas_d": "Mirá cómo queda cada producto con tarjeta o con transferencia.",
   "cmp_t": "Comparador",
   "cmp_d": "Elegí productos con “+ VS” y miralos lado a lado, spec por spec.",
   "blog_kicker": "NOVEDADES Y GUÍAS",

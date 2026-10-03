@@ -65,7 +65,7 @@ export async function createPreference(
       external_reference: order.number,
       items,
       ...(email ? { payer: { email } } : {}),
-      // Tope de cuotas sin interés (Ajustes → Pagos). El cliente elige en
+      // Tope de cuotas (Ajustes → Pagos). El cliente elige en
       // Checkout Pro; las reales se leen del pago al conciliar.
       ...(opts.maxInstallments
         ? { payment_methods: { installments: opts.maxInstallments } }

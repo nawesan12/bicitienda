@@ -278,23 +278,6 @@ export interface Lexicon {
     specsTitle: string;
     stockAlert: string;
   };
-  financing: {
-    /** "6 cuotas MiPyME de $X" (tarjetas). */
-    cardSub: (cuota: string) => string;
-    box6: string;
-    box3: string;
-    /** "TRANSFERENCIA −5%". */
-    boxTransfer: (pct: number) => string;
-    boxNote: string;
-    modalTitle: string;
-    modalSub: string;
-    modal6: string;
-    modal3: string;
-    /** "Transferencia (5% off)". */
-    modalTransfer: (pct: number) => string;
-    modalCta: string;
-    modalNote: string;
-  };
   compare: {
     title: string;
     sub: string;
@@ -449,10 +432,6 @@ export interface CommerceLexicon {
     less: string;
     more: string;
     subtotal: string;
-    /** Bloque oscuro del pie: "6 CUOTAS MIPYME". */
-    box6: string;
-    /** Bloque pastel del pie: "TRANSFERENCIA −5%". */
-    boxTransfer: (pct: number) => string;
     cta: string;
     note: string;
   };

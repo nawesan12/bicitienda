@@ -120,23 +120,6 @@ export const lexicon: Lexicon = {
     specsTitle: "ESPECIFICACIONES",
     stockAlert: "Avisame por email",
   },
-  financing: {
-    cardSub: (cuota) => `6 cuotas de ${cuota}`,
-    box6: "6 CUOTAS",
-    box3: "3 CUOTAS",
-    boxTransfer: (pct) => `TRANSFERENCIA −${pct}%`,
-    boxNote:
-      "Cuotas con tarjeta de crédito · consultá bancos y tarjetas adheridas.",
-    modalTitle: "Calculadora de cuotas",
-    modalSub:
-      "Elegí un producto y mirá cómo queda en 3 o 6 cuotas.",
-    modal6: "6 cuotas de",
-    modal3: "3 cuotas de",
-    modalTransfer: (pct) => `Transferencia (${pct}% off)`,
-    modalCta: "Consultar financiación por WhatsApp",
-    modalNote:
-      "Cuotas con tarjeta de crédito. Consultá bancos y tarjetas adheridas.",
-  },
   compare: {
     title: "Comparador",
     sub: "Hasta 3 productos lado a lado: lo esencial con barras y la ficha técnica completa.",
@@ -270,8 +253,6 @@ export const lexicon: Lexicon = {
       less: "Restar una unidad",
       more: "Sumar una unidad",
       subtotal: "Subtotal",
-      box6: "6 CUOTAS",
-      boxTransfer: (pct) => `TRANSFERENCIA −${pct}%`,
       cta: "Iniciar compra →",
       note: "Elegís retiro o envío y el medio de pago en el paso siguiente.",
     },
@@ -475,13 +456,11 @@ export const content: SiteContent = {
   heroPhoto: { prodId: "mtb-rodado-29-21-vel-aluminio", url: manifestKey(DEMO_PHOTOS.hero) },
   marquee: [
     "MERCADO PAGO",
-    "6 CUOTAS SIN INTERÉS",
     "10% OFF POR TRANSFERENCIA",
     "EFECTIVO EN EL LOCAL",
     "RETIRO EN EL LOCAL",
   ],
   stats: [
-    { num: "6", label: "CUOTAS SIN INTERÉS" },
     { num: "10%", label: "OFF TRANSFERENCIA" },
     { num: "30'", label: "PRUEBA EN EL LOCAL" },
   ],
@@ -491,7 +470,7 @@ export const content: SiteContent = {
       "[Texto a confirmar] Una bicicletería de Mar del Plata: te asesoramos, te la armamos y te la entregamos ajustada a tu altura.",
     paras: [
       "Elegís online o pasás a probarla antes con un turno.",
-      "Pagás como quieras: Mercado Pago en cuotas, transferencia o efectivo en el local.",
+      "Pagás como quieras: Mercado Pago, transferencia o efectivo en el local.",
       "La retirás armada: te avisamos por WhatsApp cuando está lista.",
     ],
     pillars: [

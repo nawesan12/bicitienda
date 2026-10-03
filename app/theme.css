@@ -37,7 +37,7 @@
   /* Extras de la product card clara (cuerpo bg-paper) y la agenda. */
   --color-card-photo: #e8e1d3; /* fondo de la foto de la card */
   --color-card-dash: #c9c0ae; /* divisor punteado de la card */
-  --color-card-cuotas: #4c463d; /* "6 x $ … sin interés" */
+  --color-card-cuotas: #4c463d; /* texto secundario sobre paper (summary, order) */
   --color-card-transfer: #b81d16; /* "$ … por transferencia" sobre paper */
   --color-card-meta: #6f675a; /* "CATEGORÍA / MARCA" mono sobre paper */
   --color-agenda-empty: #221f1c; /* borde de celda vacía de la agenda */

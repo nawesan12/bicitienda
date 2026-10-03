@@ -75,7 +75,6 @@ le gana a la del componente si son de la misma propiedad, sin `!`. Font-size y
 - `Mono` `{ size: 10–14, tone: muted|paper|soft|ink, uppercase?, as? }` (600).
 - `Price` `{ amount, size: inline|card-sm|card|related|panel|total|product, tone?, prefix? }`.
 - `formatMoney(n)` = `'$ ' + Math.round(n).toLocaleString('es-AR')`;
-  `installmentsLabel(price, 6)` = "6 x $ 81.650 sin interés";
   `transferLabel(price, 10)` = "$ 440.910 por transferencia".
 
 **Marca** (`brand.tsx`)
@@ -140,17 +139,18 @@ también controlados.
 - `EmptyState` `{ title, description?, eyebrow?, action?, size: sm|md }`.
 
 **Product cards** (`product-card.tsx`)
-- `ProductCard` `{ href, name, category, brand?, image: {src,alt?}, price, tag?: {label,tone?}, installments=6, transferDiscountPct=10, layout: responsive|desktop|mobile, imageAspect: auto|square|4/3, addAction?, hideAdd? }`.
+- `ProductCard` `{ href, name, category, brand?, image: {src,alt?}, price, tag?: {label,tone?}, transferDiscountPct=10, layout: responsive|desktop|mobile, imageAspect: auto|square|4/3, addAction?, hideAdd? }`.
   Toda la card es link; `addAction` (botón "+" real, cliente) queda por encima. Para
-  estilarlo: `PRODUCT_CARD_ADD_CLASSES`.
-- `RelatedProductCard` `{ href, name, image, price }`; `PriceBox` `{ price, installments, transferDiscountPct }`.
+  estilarlo: `PRODUCT_CARD_ADD_CLASSES`. Sin línea de cuotas (la tienda no
+  promociona un plan fijo; las cuotas de Mercado Pago se eligen al pagar).
+- `RelatedProductCard` `{ href, name, image, price }`; `PriceBox` `{ price, transferDiscountPct }`.
 
 **Chrome de la tienda**
 - `Header` `{ hrefs: StoreHrefs, active?: StoreNavKey, cart?, account?="Cuenta", searchPlaceholder?, searchDefault? }`.
   `StoreHrefs = { home, cart, account, search, nav: Record<bicicletas|accesorios|repuestos|importados|presupuesto|turnos, string> }`.
 - `MobileHeader` (cliente) `{ hrefs, cart?, active?, showSearch?, open?|defaultOpen?, onOpenChange?, accountLabel?, menuInfo?, menuMode: overlay|inline, lockScroll? }`.
 - `MobileMenu` `{ hrefs, active?, accountLabel?, info? }` (5c).
-- `Footer` `{ homeHref, address, hours, whatsapp, whatsappHref?, socials?, installments?, transferDiscountPct? }`.
+- `Footer` `{ homeHref, address, hours, whatsapp, whatsappHref?, socials?, transferDiscountPct? }` (tira de 3 celdas: Mercado Pago · % off · retiro).
 
 **Admin** (`admin.tsx`)
 - `AdminShell` `{ sidebar, children }` (grilla 240 | 1fr, min-h 980).
@@ -308,8 +308,8 @@ Todas las rutas públicas viven ahí (`/`, `/catalogo`, `/checkout`, `/turnos`,
   `paths.appointments()`, buscador → GET `paths.catalog()?q=`, cuenta →
   `paths.account()` (o `paths.tracking()` sin `features.accounts`).
 - Footer: dirección, horarios, WhatsApp (formateado; "[Número a confirmar]"
-  mientras el número sea el placeholder `WHATSAPP_PENDING`), Instagram,
-  cuotas (`settings.maxInstallments`) y % off (`settings.transferDiscount`).
+  mientras el número sea el placeholder `WHATSAPP_PENDING`), Instagram y
+  % off (`settings.transferDiscount`).
 - Placeholder de pantallas pendientes: `UnderConstruction`
   (`components/store/under-construction.tsx`).
 

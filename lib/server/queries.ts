@@ -336,7 +336,7 @@ export interface RuntimeStore extends StoreConfig {
   onlineReservationMinutes: number;
   /** Efectivo en el local habilitado desde Ajustes. */
   cashEnabled: boolean;
-  /** Tope de cuotas sin interés de Mercado Pago. */
+  /** Tope de cuotas de Mercado Pago (Checkout Pro). */
   maxInstallments: number;
   /** Cuenta para transferir (además del alias): CBU/CVU, titular y banco. */
   transferCbu: string;

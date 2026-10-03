@@ -72,13 +72,13 @@ export interface DemoOrder {
 }
 
 export const ORDERS: DemoOrder[] = [
-  { id: "#BT-10482", client: "Juan Pérez", items: "MTB R29 21v · Casco urbano", pay: "MP · 6 cuotas", status: "pagado", total: 544800 },
+  { id: "#BT-10482", client: "Juan Pérez", items: "MTB R29 21v · Casco urbano", pay: "Mercado Pago", status: "pagado", total: 544800 },
   { id: "#BT-10481", client: "Lucía Gómez", items: "Urbana R28 canasto", pay: "Transferencia", status: "transf_pendiente", total: 323910 },
   { id: "#BT-10480", client: "Martín Ruiz", items: "Gravel 700c 2x9", pay: "MP · 1 pago", status: "armando", total: 899900 },
   { id: "#BT-10479", client: "Sofía Díaz", items: "Infantil R16 · Casco infantil", pay: "Efectivo", status: "paga_local", total: 219800 },
-  { id: "#BT-10477", client: "Diego Sosa", items: "Kit luces · Remera ciclismo", pay: "MP · 3 cuotas", status: "listo", total: 67800 },
+  { id: "#BT-10477", client: "Diego Sosa", items: "Kit luces · Remera ciclismo", pay: "Mercado Pago", status: "listo", total: 67800 },
   { id: "#BT-10475", client: "Carla Méndez", items: "Paseo R26 guardabarros", pay: "Transferencia", status: "listo", total: 287910 },
-  { id: "#BT-10471", client: "Pablo Ferreyra", items: "MTB R29 doble suspensión", pay: "MP · 6 cuotas", status: "retirado", total: 1249900 },
+  { id: "#BT-10471", client: "Pablo Ferreyra", items: "MTB R29 doble suspensión", pay: "Mercado Pago", status: "retirado", total: 1249900 },
   { id: "#BT-10468", client: "Ana Torres", items: "Casco MTB con visera", pay: "Transferencia", status: "cancelado", total: 71910 },
 ];
 

@@ -52,28 +52,6 @@ export function transferPrice(rates: PricingRates, price: number): number {
   return Math.round(price * (1 - (rates.transferDiscount || 0) / 100));
 }
 
-/**
- * Valor de cada cuota del Plan MiPyME: price × (1 + r/100) / n, redondeado
- * al peso como en el handoff.
- */
-export function installmentPrice(
-  rates: PricingRates,
-  price: number,
-  n: Installments,
-): number {
-  return Math.round((price * (1 + surchargePct(rates, n) / 100)) / n);
-}
-
-/** 6 cuotas MiPyME: price × (1 + r6/100) / 6. */
-export function cuota6(rates: PricingRates, price: number): number {
-  return installmentPrice(rates, price, 6);
-}
-
-/** 3 cuotas MiPyME: price × (1 + r3/100) / 3. */
-export function cuota3(rates: PricingRates, price: number): number {
-  return installmentPrice(rates, price, 3);
-}
-
 /** Monto de la seña para reservar: total × depositRate, redondeado al mil. */
 export function depositAmount(rates: PricingRates, total: number): number {
   return Math.round((total * rates.depositRate) / 1000) * 1000;

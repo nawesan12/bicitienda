@@ -42,7 +42,7 @@ export const store: StoreConfig = {
   tiktok: null,
   transferAlias: PAYMENT_SETTINGS.alias,
   transferDiscount: PAYMENT_SETTINGS.transferDiscountPct, // % off por transferencia
-  r3: 0, // cuotas sin interés (Mercado Pago, hasta settings.maxInstallments)
+  r3: 0, // sin recargo: las cuotas de Mercado Pago se eligen en Checkout Pro
   r6: 0,
   address: `${STORE_INFO.address} · ${STORE_INFO.city}`,
   hours: STORE_INFO.hours,
@@ -185,7 +185,7 @@ const allPaymentMethods: PaymentMethod[] = [
   {
     id: "mercadopago",
     name: "Mercado Pago",
-    detail: "Tarjeta de crédito, débito o dinero en cuenta. Hasta 6 cuotas sin interés.",
+    detail: "Tarjeta de crédito, débito o dinero en cuenta.",
     transferDiscount: false,
     // Las cuotas se eligen en Checkout Pro (tope: settings.maxInstallments)
     // y se leen del pago al conciliar.

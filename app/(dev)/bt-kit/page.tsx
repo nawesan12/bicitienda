@@ -457,7 +457,7 @@ export default function BtKitPage() {
         <Sub title="RadioCard · Cómo pagás (2d)">
           <Panel padding="lg" className="max-w-[480px]" gap="md">
             <Eyebrow size="md">1 · Cómo pagás</Eyebrow>
-            <RadioCard name="pay" value="mp" defaultChecked title="Mercado Pago" description="Tarjeta de crédito, débito o dinero en cuenta. Hasta 6 cuotas sin interés." />
+            <RadioCard name="pay" value="mp" defaultChecked title="Mercado Pago" description="Tarjeta de crédito, débito o dinero en cuenta." />
             <RadioCard name="pay" value="transf" title="Transferencia · 10% off" description="Te pasamos el CBU al confirmar. Reservamos el stock 24 hs." />
             <RadioCard name="pay" value="cash" title="Efectivo en el local" description="Reservás online y pagás cuando la retirás." />
           </Panel>

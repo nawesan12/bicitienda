@@ -66,7 +66,7 @@ const settingsPatchSchema = z
     transferBank: z.string().trim().max(80),
     /** Efectivo en el local habilitado en el checkout. */
     cashEnabled: z.boolean(),
-    /** Tope de cuotas sin interés de Mercado Pago (1 = sin cuotas). */
+    /** Tope de cuotas de Mercado Pago (1 = sin cuotas). */
     maxInstallments: z.number().int().min(1).max(24),
     /** Horas que se guarda una reserva en efectivo. null = no vence. */
     cashReservationHours: z.number().int().min(1).max(24 * 30).nullable(),

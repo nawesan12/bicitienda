@@ -95,7 +95,7 @@ export const PAYMENT_SETTINGS = {
   mercadoPago: { enabled: true, connected: true },
   /** "Off transferencia: 10 %". */
   transferDiscountPct: 10,
-  /** "Cuotas sin interés: Hasta 6". */
+  /** Tope de cuotas de Mercado Pago ("Hasta 6"). */
   maxInstallments: 6,
   /** "Reservamos el stock 24 hs" (transferencia). */
   transferReservationHours: 24,
