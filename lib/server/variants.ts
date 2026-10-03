@@ -100,7 +100,7 @@ export interface VariantInput {
   active?: boolean;
 }
 
-function autoSku(productSlug: string, productSku: string | null, v: VariantInput): string {
+export function autoSku(productSlug: string, productSku: string | null, v: VariantInput): string {
   const parts = [(productSku || productSlug).toUpperCase()];
   parts.push(v.size === SINGLE_SIZE ? "U" : slugify(v.size, 12).toUpperCase());
   if (v.color) parts.push(slugify(v.color, 16).toUpperCase());

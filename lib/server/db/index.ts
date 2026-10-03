@@ -1,3 +1,4 @@
+import type { BatchItem } from "drizzle-orm/batch";
 import type { drizzle as drizzleNeon } from "drizzle-orm/neon-http";
 import type { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import * as schema from "./schema";
@@ -141,6 +142,31 @@ async function ensureLocalMigrations(db: Db): Promise<void> {
   };
   globalForMigrations.__storeDbMigrations = state;
   return state.done;
+}
+
+/**
+ * Escrituras atómicas en UN solo viaje a la base, con los dos drivers:
+ *
+ *   - Neon HTTP: `db.batch([...])` (una transacción no interactiva: todas
+ *     las sentencias o ninguna, en un solo request).
+ *   - PGlite: `transaction()` (en proceso, sin red).
+ *
+ * `build` arma las sentencias con el handle que recibe (la transacción en
+ * PGlite): no tiene que leer nada — todo lo que dependa de lecturas se
+ * calcula ANTES, en memoria. Sin sentencias no hace nada.
+ */
+export async function atomicWrites(db: Db, build: (q: Db) => BatchItem<"pg">[]): Promise<void> {
+  if ("batch" in db && typeof db.batch === "function") {
+    const items = build(db);
+    if (!items.length) return;
+    await (db as ReturnType<typeof drizzleNeon<typeof schema>>).batch(
+      items as [BatchItem<"pg">, ...BatchItem<"pg">[]],
+    );
+    return;
+  }
+  await (db as ReturnType<typeof drizzlePglite<typeof schema>>).transaction(async (tx) => {
+    for (const q of build(tx as unknown as Db)) await q;
+  });
 }
 
 /** La conexión (promesa compartida). Usar: `const db = await getDb()`. */

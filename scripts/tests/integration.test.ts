@@ -850,6 +850,44 @@ async function main() {
     assert.equal(rem.price, 42900);
   });
 
+  test("importación masiva (300 filas): en lote, slugs únicos, idempotente y la 'Único' vacía se desactiva", async () => {
+    const rows = ["sku_producto;nombre;categoria;marca;precio;talle;color;stock"];
+    let withStock = 0;
+    for (let i = 0; i < 100; i++)
+      for (const [j, t] of ["S", "M", "L"].entries()) {
+        const n = (i + j) % 4;
+        if (n) withStock++;
+        rows.push(j === 0 ? `LOTE-${i};Lote ${i % 40};mtb;Marca lote ${i % 3};${1000 + i};${t};;${n}` : `LOTE-${i};;;;;${t};;${n}`);
+      }
+    const csv = Buffer.from(rows.join("\n"));
+    const p1 = await importer.commitProductImport(csv);
+    assert.ok(p1.ok, JSON.stringify(p1.errors));
+    assert.deepEqual(p1.summary, { productsNew: 100, productsUpdated: 0, variantsNew: 300, variantsUpdated: 0, stockChanges: withStock });
+    const lote = await client.query<{ slug: string }>("SELECT slug FROM products WHERE sku LIKE 'LOTE-%'");
+    assert.equal(new Set(lote.rows.map((r) => r.slug)).size, 100);
+    assert.ok(lote.rows.some((r) => r.slug === "lote-0-2") && lote.rows.some((r) => r.slug === "lote-0-3"));
+    const [brands] = (await client.query<{ n: number }>("SELECT count(*)::int AS n FROM brands WHERE name LIKE 'Marca lote %'")).rows;
+    assert.equal(brands.n, 3);
+    const movesOf = async () =>
+      (await client.query<{ n: number }>("SELECT count(*)::int AS n FROM stock_movements WHERE reason = 'importacion' AND product_slug LIKE 'lote-%'")).rows[0].n;
+    assert.equal(await movesOf(), withStock);
+    const [units] = (await client.query<{ n: number }>("SELECT sum(qty)::int AS n FROM product_stock WHERE product_slug LIKE 'lote-%'")).rows;
+    assert.equal(units.n, rows.slice(1).reduce((s, r) => s + Number(r.split(";").pop()), 0));
+    const p2 = await importer.commitProductImport(csv);
+    assert.deepEqual(p2.summary, { productsNew: 0, productsUpdated: 0, variantsNew: 0, variantsUpdated: 0, stockChanges: 0 });
+    assert.equal(await movesOf(), withStock, "re-import idempotente");
+
+    // Sin talles → con talles: la "Único" vacía se desactiva; con stock queda.
+    const head = "sku_producto;nombre;categoria;precio;talle;stock\n";
+    assert.ok((await importer.commitProductImport(Buffer.from(`${head}UNI-1;Uni uno;mtb;100;;0\nUNI-2;Uni dos;mtb;100;;2`))).ok);
+    assert.ok((await importer.commitProductImport(Buffer.from(`${head}UNI-1;;;;M;1\nUNI-2;;;;M;1`))).ok);
+    const defs = await client.query<{ sku: string; active: boolean }>(
+      "SELECT sku, active FROM product_variants WHERE sku IN ('UNI-1-U', 'UNI-2-U') ORDER BY sku",
+    );
+    assert.deepEqual(defs.rows, [{ sku: "UNI-1-U", active: false }, { sku: "UNI-2-U", active: true }]);
+    await client.query("UPDATE products SET hidden = true WHERE sku LIKE 'LOTE-%' OR sku LIKE 'UNI-%'");
+  });
+
   /* ── Cierre Ola 1 · core ──────────────────────────────────── */
   test("nombre del checkout: el pedido/turno guarda el suyo; la ficha se actualiza", async () => {
     const { getOrderById } = await import("@/lib/server/order-queries");
