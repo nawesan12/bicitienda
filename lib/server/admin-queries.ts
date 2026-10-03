@@ -1,4 +1,6 @@
-import { asc, count, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { store } from "@/lib/config";
+import { addDays, localToUtc, toLocalParts } from "@/lib/zoned-time";
 import { products as seedProducts } from "@/lib/data/catalog";
 import { getDb, schema } from "@/lib/server/db";
 import {
@@ -298,7 +300,11 @@ export async function getAdminStats() {
 /** Contadores para los badges de la navegación del panel. */
 export async function getAdminNavCounts() {
   const db = await getDb();
-  const [prod, art, ag, ord, leads] = await Promise.all([
+  // "Hoy" en la zona del local (el server corre en UTC en Vercel).
+  const today = toLocalParts(new Date(), store.timeZone).date;
+  const dayStart = localToUtc(today, "00:00", store.timeZone);
+  const dayEnd = localToUtc(addDays(today, 1), "00:00", store.timeZone);
+  const [prod, art, ag, ord, act, leads, apToday, apPending, qNew] = await Promise.all([
     db.select({ n: count() }).from(schema.products),
     db.select({ n: count() }).from(schema.articles),
     db.select({ n: count() }).from(schema.agendaEvents),
@@ -308,17 +314,60 @@ export async function getAdminNavCounts() {
       .where(inArray(schema.orders.status, PENDING_ORDER_STATUSES)),
     db
       .select({ n: count() })
+      .from(schema.orders)
+      .where(inArray(schema.orders.status, ACTIONABLE_ORDER_STATUSES)),
+    db
+      .select({ n: count() })
       .from(schema.leads)
       .where(ne(schema.leads.status, "atendida")),
+    db
+      .select({ n: count() })
+      .from(schema.appointments)
+      .where(
+        and(
+          inArray(schema.appointments.status, ["pendiente", "confirmado"]),
+          gte(schema.appointments.startsAt, dayStart),
+          lt(schema.appointments.startsAt, dayEnd),
+        ),
+      ),
+    db
+      .select({ n: count() })
+      .from(schema.appointments)
+      .where(
+        and(eq(schema.appointments.status, "pendiente"), gte(schema.appointments.startsAt, new Date())),
+      ),
+    db
+      .select({ n: count() })
+      .from(schema.quoteRequests)
+      .where(eq(schema.quoteRequests.status, "nuevo")),
   ]);
   return {
     products: prod[0]?.n ?? 0,
     articles: art[0]?.n ?? 0,
     agenda: ag[0]?.n ?? 0,
     orders: ord[0]?.n ?? 0,
+    /** Pedidos para accionar: cobrar, armar o entregar (incluye listos). */
+    ordersToAct: act[0]?.n ?? 0,
     leads: leads[0]?.n ?? 0,
+    /** Turnos de hoy que siguen activos (sin confirmar + confirmados). */
+    appointmentsToday: apToday[0]?.n ?? 0,
+    /** Turnos futuros sin confirmar. */
+    appointmentsUnconfirmed: apPending[0]?.n ?? 0,
+    /** Presupuestos nuevos (sin cotizar). */
+    quotesNew: qNew[0]?.n ?? 0,
   };
 }
+
+export type AdminNavCounts = Awaited<ReturnType<typeof getAdminNavCounts>>;
+
+/** Pedidos abiertos que piden una acción del mostrador (Sidebar → Pedidos). */
+export const ACTIONABLE_ORDER_STATUSES: OrderStatus[] = [
+  "PENDIENTE_PAGO",
+  "SEÑADO",
+  "PAGADO",
+  "EN_PREPARACION",
+  "LISTO_RETIRO",
+];
 
 /**
  * Pedidos que esperan una acción del local: cobrar, saldar la seña,

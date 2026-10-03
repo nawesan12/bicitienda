@@ -153,6 +153,54 @@ también controlados.
 - `AdminTopBar` `{ title, back?, search?: {action, placeholder, width: 280|300}, actions?, children? }`.
 - `AdminMobileHeader` `{ label="Mostrador", homeHref?, menuHref?, menu? }`.
 
+## Shells (ola 0)
+
+Las páginas **no** arman el chrome: lo ponen los layouts. Cada pantalla solo
+renderiza su contenido.
+
+**Tienda pública — `app/(tienda)/layout.tsx`** (route group: no cambia las URLs).
+Todas las rutas públicas viven ahí (`/`, `/catalogo`, `/checkout`, `/turnos`,
+`/presupuesto`, `/cuenta/*`, `/seguimiento`…). El layout usa
+`StoreFrame` (`components/store/store-frame.tsx`, server, estático): lee
+`getStore()` + `getCategories()` (cacheados por tag) y renderiza
+`<StoreChrome>` + `<main id="contenido">` + `<Footer>`. `app/not-found.tsx`
+(fuera del grupo) se envuelve en `StoreFrame` a mano.
+
+- `StoreChrome` (`components/store/store-chrome.tsx`, **isla cliente**) muestra
+  `Header` desde `lg` y `MobileHeader` (con `MobileMenu` 5c) debajo. El ítem
+  activo sale de `usePathname()`: match con `hrefs.nav` y un mapa
+  categoría→grupo (`/catalogo/mtb` marca "Bicicletas"). Las fichas de
+  producto no marcan grupo.
+- **Carrito**: `useCartCount()` (zustand + localStorage, 0 hasta hidratar).
+  Para sumar: `useCart().add(slug, max, variantId)`. No hay drawer: "Carrito"
+  lleva a `paths.cart()` (2d).
+- **Cuenta**: la isla llama a la server action `getMyAccount()` al montar y
+  en cada pantalla de `/cuenta/*`; muestra el primer nombre o "Cuenta" /
+  "Mi cuenta". Así ninguna página pública se vuelve dinámica por la sesión.
+- **Links**: `storeHrefs()` (exportada de `store-frame.tsx`) arma los
+  `StoreHrefs` desde `lib/paths.ts` (`routes` de `lib/config.ts`): grupos →
+  `/catalogo/<grupo>`, presupuesto → `paths.quote()`, turnos →
+  `paths.appointments()`, buscador → GET `paths.catalog()?q=`, cuenta →
+  `paths.account()` (o `paths.tracking()` sin `features.accounts`).
+- Footer: dirección, horarios, WhatsApp (formateado; "[Número a confirmar]"
+  mientras el número sea el placeholder `WHATSAPP_PENDING`), Instagram,
+  cuotas (`settings.maxInstallments`) y % off (`settings.transferDiscount`).
+- Placeholder de pantallas pendientes: `UnderConstruction`
+  (`components/store/under-construction.tsx`).
+
+**Admin — `app/admin/(panel)/layout.tsx`** (dinámico; `/admin/ingresar` queda
+afuera). `AdminShell` con `AdminDesktopNav` (≥ lg) y `AdminMobileNav`
+(< lg, `AdminMobileHeader` + sidebar desplegable), ambos en
+`components/admin/bt-admin-nav.tsx` (islas cliente solo para la sección
+activa por URL). Secciones y rutas: `ADMIN_HREFS` (Resumen `/admin`, Pedidos,
+Turnos, Presupuestos, Productos, Clientes, Ajustes). "Salir" = form con la
+server action `logout`. Contadores de `getAdminNavCounts()`:
+Pedidos = `ordersToAct` (pendientes de pago, pagados, armando y listos),
+Turnos = `appointmentsToday` (activos de hoy), Presupuestos = `quotesNew`,
+Productos = total; también expone `appointmentsUnconfirmed`. Siguen
+montados `ConfirmProvider` y `ToastProvider` (los usan las pantallas viejas).
+Cada página arma su `AdminTopBar` arriba de su contenido.
+
 ## Mapeos para B2/B3
 
 Estado de pedido del core → `OrderPill`:

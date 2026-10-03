@@ -17,7 +17,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     getArticles(),
     getCategories(),
   ]);
-  // Solo las secciones de los módulos prendidos (lib/features.ts).
+  // Solo rutas que existen y cuyo módulo está prendido (lib/features.ts).
+  // /cuenta, /checkout y /seguimiento no van: son privadas (robots.ts).
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, priority: 1 },
     { url: `${SITE_URL}${paths.catalog()}`, priority: 0.9 },
@@ -26,8 +27,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(features.blog ? [{ url: `${SITE_URL}/novedades`, priority: 0.6 }] : []),
     ...(features.community ? [{ url: `${SITE_URL}${paths.community()}`, priority: 0.6 }] : []),
     ...(features.compare ? [{ url: `${SITE_URL}/comparador`, priority: 0.4 }] : []),
-    ...(features.appointments ? [{ url: `${SITE_URL}/turnos`, priority: 0.7 }] : []),
-    ...(features.quotes ? [{ url: `${SITE_URL}/presupuesto`, priority: 0.7 }] : []),
+    ...(features.appointments ? [{ url: `${SITE_URL}${paths.appointments()}`, priority: 0.7 }] : []),
+    ...(features.quotes ? [{ url: `${SITE_URL}${paths.quote()}`, priority: 0.7 }] : []),
   ];
 
   const categoryRoutes: MetadataRoute.Sitemap = categories.map((c) => ({

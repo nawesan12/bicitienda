@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { StoreShell } from "@/components/store/store-shell";
+import { StoreFrame } from "@/components/store/store-frame";
 import { WaLink } from "@/components/store/wa-link";
 import { paths } from "@/lib/paths";
 import { getStore } from "@/lib/server/queries";
@@ -9,7 +9,7 @@ import { wa } from "@/lib/whatsapp";
 export default async function NotFound() {
   const runtime = await getStore();
   return (
-    <StoreShell>
+    <StoreFrame>
       <section className="bg-cream px-[clamp(16px,4vw,40px)] py-[110px]">
         <div className="mx-auto max-w-[1280px] text-center">
           <div className="font-sans text-xs font-bold tracking-[.26em] text-brand-deep">
@@ -41,6 +41,6 @@ export default async function NotFound() {
           </div>
         </div>
       </section>
-    </StoreShell>
+    </StoreFrame>
   );
 }
