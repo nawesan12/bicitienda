@@ -64,6 +64,39 @@ async function main() {
     console.log("✔ migración 0009 sobre datos existentes (backfill a variante Único)");
   }
 
+  /* ── Migración 0012 (taller): sale la prueba de bici ───────── */
+  {
+    const partial = path.join(TMP, "migrations-0011");
+    cpSync(MIGRATIONS, partial, { recursive: true });
+    const journalPath = path.join(partial, "meta/_journal.json");
+    const journal = JSON.parse(readFileSync(journalPath, "utf8"));
+    journal.entries = journal.entries.filter((e: { idx: number }) => e.idx <= 11);
+    writeFileSync(journalPath, JSON.stringify(journal));
+    rmSync(path.join(partial, "0012_taller.sql"));
+    const old = new PGlite();
+    await migrate(drizzle(old), { migrationsFolder: partial });
+    await old.exec(`
+      INSERT INTO appointment_services (id, name, allows_product, active, "order") VALUES
+        ('prueba', 'Prueba de bici', true, true, 0), ('asesoramiento', 'Asesoramiento', false, true, 1);
+      INSERT INTO categories (slug, label, path_slug) VALUES ('c', 'C', 'c');
+      INSERT INTO brands (id, name) VALUES ('b', 'B');
+      INSERT INTO products (id, slug, name, brand_id, category, price, created_at, test_ride) VALUES ('p1','p1','P1','b','c',100,'2026-01-01',true);
+    `);
+    await migrate(drizzle(old), { migrationsFolder: MIGRATIONS });
+    const svc = await old.query<{ id: string; active: boolean; order: number; allows_product: boolean }>(
+      `SELECT id, active, "order", allows_product FROM appointment_services ORDER BY "order", id`,
+    );
+    assert.deepEqual(svc.rows, [
+      { id: "reparacion", active: true, order: 0, allows_product: false },
+      { id: "asesoramiento", active: true, order: 1, allows_product: false },
+      { id: "prueba", active: false, order: 2, allows_product: false },
+    ]);
+    const tr = await old.query<{ test_ride: boolean }>("SELECT test_ride FROM products");
+    assert.deepEqual(tr.rows, [{ test_ride: false }]);
+    await old.close();
+    console.log("✔ migración 0012: prueba inactiva, reparación primero, sin test_ride");
+  }
+
   /* ── Seed con la operación demo del prototipo ────────────── */
   {
     const demoClient = new PGlite();
@@ -153,7 +186,6 @@ async function main() {
     price: 489900,
     sku: "MTB29",
     rodado: "29",
-    testRide: true,
     createdAt: "2026-10-01",
   });
   const vS = await variants.createVariant(db as any, "mtb-29", { size: "S", heightRange: "1,55 – 1,65 m" });
@@ -450,7 +482,7 @@ async function main() {
   test("dos reservas simultáneas al mismo slot: una falla", async () => {
     const tue = nextWeekday(2);
     const book = (name: string, ph: string) =>
-      appts.createAppointment({ serviceId: "prueba", date: tue, time: "10:30", name, phone: ph, source: "web", productSlug: "mtb-29", variantId: vM.id });
+      appts.createAppointment({ serviceId: "reparacion", date: tue, time: "10:30", name, phone: ph, source: "web", note: "Frenos que no frenan · MTB R29" });
     const res = await Promise.allSettled([book("Ana Torres", "2235550107"), book("Ramiro Luna", "2235550114")]);
     assert.equal(res.filter((r) => r.status === "fulfilled").length, 1);
     const rejected = res.find((r) => r.status === "rejected") as PromiseRejectedResult;
@@ -462,6 +494,27 @@ async function main() {
     const second = await book("Ramiro Luna", "2235550114");
     assert.equal(second.status, "confirmado");
     await db.update(schema.settings).set({ slotCapacity: 1 });
+  });
+
+  test("taller: la prueba inactiva no se reserva por web; el producto se ignora", async () => {
+    // Base vieja: la fila "prueba" queda inactiva (la 0012 no la borra).
+    await db
+      .insert(schema.appointmentServices)
+      .values({ id: "prueba", name: "Prueba de bici", allowsProduct: true, active: false, order: 2 })
+      .onConflictDoUpdate({ target: schema.appointmentServices.id, set: { active: false } });
+    const thu = nextWeekday(4);
+    await assert.rejects(
+      appts.createAppointment({ serviceId: "prueba", date: thu, time: "10:00", name: "Ana Torres", phone: "2235550107", source: "web", productSlug: "mtb-29", variantId: vM.id }),
+      (e: any) => e.code === "SERVICE",
+    );
+    const active = (await appts.getAppointmentServices({ activeOnly: true })).map((s) => s.id);
+    assert.deepEqual(active, ["reparacion", "asesoramiento"]);
+    // Reparación: aunque llegue un producto (UI vieja), el turno no lo guarda.
+    const a = await appts.createAppointment({ serviceId: "reparacion", date: thu, time: "10:00", name: "Ana Torres", phone: "2235550107", source: "web", note: "Pinchadura trasera", productSlug: "mtb-29", variantId: vM.id });
+    const [row] = await db.select().from(schema.appointments).where(eq(schema.appointments.id, a.id));
+    assert.equal(row.productSlug, null);
+    assert.equal(row.variantId, null);
+    await appts.cancelAppointment(a.id, "admin");
   });
 
   test("turno: fuera de agenda falla; reprogramar y cancelar por el cliente; Vino/No vino; link sin cuenta", async () => {
@@ -490,7 +543,7 @@ async function main() {
     const cancelled = await appts.cancelAppointment(moved.id, "cliente");
     assert.equal(cancelled.status, "cancelado");
     // Admin: manual fuera de la agenda + Vino.
-    const manual = await appts.createAppointment({ serviceId: "prueba", date: sun, time: "11:00", name: "Hernán Costa", phone: "2235550191", source: "manual" });
+    const manual = await appts.createAppointment({ serviceId: "reparacion", date: sun, time: "11:00", name: "Hernán Costa", phone: "2235550191", source: "manual" });
     assert.equal(manual.status, "confirmado");
     assert.equal((await appts.markAttendance(manual.id, true)).status, "asistio");
     await assert.rejects(appts.markAttendance(manual.id, false), (e: any) => e.code === "STATE");
