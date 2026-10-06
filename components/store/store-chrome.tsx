@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import { Header, type StoreHrefs, type StoreNavKey } from "@/components/bt/header";
 import { MobileHeader } from "@/components/bt/mobile-header";
 import { useCartCount } from "@/lib/cart-store";
+import { setMemberState } from "@/lib/member-store";
 import { getMyAccount } from "@/lib/server/actions/account";
+import { MemberPromoBar } from "./member-client";
 
 export interface StoreChromeProps {
   hrefs: StoreHrefs;
@@ -21,6 +23,8 @@ export interface StoreChromeProps {
   categoryPaths: string[];
   /** Rutas sin buscador en el header mobile: carrito 4d, turnos 4e, presupuesto 5d, cuenta 4f/4g. */
   noSearchPrefixes: string[];
+  /** Registro: destino de la barra de beneficios (solo con cuentas). */
+  registerHref: string;
 }
 
 const under = (pathname: string, prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -57,6 +61,7 @@ export function StoreChrome({
   accountPrefix,
   categoryPaths,
   noSearchPrefixes,
+  registerHref,
 }: StoreChromeProps) {
   const pathname = usePathname() ?? "/";
   const cart = useCartCount();
@@ -70,7 +75,9 @@ export function StoreChrome({
     let alive = true;
     getMyAccount()
       .then((a) => {
-        if (alive) setName(a ? a.name.trim().split(/\s+/)[0] : null);
+        if (!alive) return;
+        setName(a ? a.name.trim().split(/\s+/)[0] : null);
+        setMemberState(a ? "member" : "guest");
       })
       .catch(() => {
         /* sin sesión: queda "Cuenta" */
@@ -85,6 +92,7 @@ export function StoreChrome({
 
   return (
     <>
+      {accounts && <MemberPromoBar href={registerHref} hidden={inAccount} />}
       <Header className="max-lg:hidden" hrefs={hrefs} active={active} cart={cart} account={name ?? "Cuenta"} />
       <MobileHeader
         className="lg:hidden"

@@ -14,6 +14,7 @@ import { cartLineKey, useCart } from "@/lib/cart-store";
 import { COPY } from "@/lib/data/demo/copy";
 import { fillTemplate } from "@/lib/data/demo/format";
 import { isValidArPhone } from "@/lib/phone";
+import { MemberNudge } from "@/components/store/member-client";
 import { getMyAccount } from "@/lib/server/actions/account";
 import { placeOrder } from "@/lib/server/actions/checkout";
 import type { CartCatalogItem } from "@/lib/server/screens/compra-b";
@@ -53,7 +54,7 @@ export function CheckoutClient({
   transferDiscountPct: number;
   pickupLocationId?: string;
   pickup: { title: string; place: string; note: string };
-  hrefs: { catalog: string; bikes: string; appointments: string };
+  hrefs: { catalog: string; bikes: string; appointments: string; register?: string };
 }) {
   const router = useRouter();
   const { items, hydrated, setQty, remove, clear } = useCart();
@@ -325,6 +326,7 @@ export function CheckoutClient({
               />
             </div>
             <p className="m-0 text-[13px] text-text-3 md:text-[14px]">{logged ? B.loggedNote : B.dataNote}</p>
+            {!logged && hrefs.register && <MemberNudge href={hrefs.register} className="mt-1" />}
           </fieldset>
 
           <div className="flex flex-col gap-[18px] md:gap-[22px]">

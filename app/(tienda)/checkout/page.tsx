@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { COPY } from "@/lib/data/demo/copy";
 import { fillTemplate } from "@/lib/data/demo/format";
+import { features } from "@/lib/features";
 import { paths } from "@/lib/paths";
 import { NOINDEX } from "@/lib/seo";
 import { paymentOptions } from "@/lib/server/checkout-options";
@@ -77,6 +78,7 @@ export default async function CheckoutPage() {
         catalog: paths.catalog(),
         bikes: paths.catalog("bicicletas"),
         appointments: paths.appointments(),
+        register: features.accounts ? paths.register() : undefined,
       }}
     />
   );

@@ -4,6 +4,7 @@ import { Display } from "@/components/bt/typography";
 import { CatalogCard } from "@/components/bt/catalog-card";
 import { CategoryStrip, HomeHero, HowItWorks } from "./_components/home";
 import { repairBookingHref, WorkshopBand } from "./_components/workshop";
+import { MembersBand } from "@/components/store/members";
 import { COPY } from "@/lib/data/demo/copy";
 import { manifestKey } from "@/lib/data/demo/photos";
 import { img, resolveImage } from "@/lib/images";
@@ -116,6 +117,8 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+
+      {features.accounts && <MembersBand registerHref={paths.register()} loginHref={paths.login()} />}
 
       <HowItWorks
         steps={COPY.home.steps.map((s) => ({

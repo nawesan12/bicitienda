@@ -84,6 +84,7 @@ export async function StoreFrame({ children }: { children: ReactNode }) {
         menuInfo={`WhatsApp ${whatsapp} · ${runtime.hours}`}
         accounts={features.accounts}
         accountPrefix={paths.account()}
+        registerHref={paths.register()}
       />
       <main id="contenido" className="flex-1">
         {children}
