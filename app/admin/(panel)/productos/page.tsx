@@ -4,7 +4,7 @@ import { Button, CellMono, CellStack, CellThumb, cx, EmptyState, FilterChip, for
 import { COPY } from "@/lib/data/demo/copy";
 import { features } from "@/lib/features";
 import { img } from "@/lib/images";
-import { getAdminCategories, type AdminCategory } from "@/lib/server/admin-queries";
+import { getAdminBrandNames, getAdminCategories, type AdminCategory } from "@/lib/server/admin-queries";
 import { getProductList, type ProductListRow } from "@/lib/server/screens/admin-d2";
 import { NewProductButton, TestRideToggle, type NewProductCategory } from "./product-list-client";
 import { NO_PHOTO } from "./product-utils";
@@ -61,7 +61,11 @@ export default async function AdminProductosPage({
   searchParams: Promise<{ q?: string; filtro?: string }>;
 }) {
   const { q, filtro } = await searchParams;
-  const [data, cats] = await Promise.all([getProductList({ q, filter: filtro }), getAdminCategories()]);
+  const [data, cats, brands] = await Promise.all([
+    getProductList({ q, filter: filtro }),
+    getAdminCategories(),
+    getAdminBrandNames(),
+  ]);
   const newCategories = productCategories(cats);
 
   const columns: TableColumn<ProductListRow>[] = [
@@ -128,7 +132,7 @@ export default async function AdminProductosPage({
                 {T.import}
               </Button>
             )}
-            <NewProductButton label={T.create} categories={newCategories} />
+            <NewProductButton label={T.create} categories={newCategories} brands={brands} />
           </>
         }
         mobileActions={
@@ -141,7 +145,7 @@ export default async function AdminProductosPage({
                 {T.import}
               </Button>
             )}
-            <NewProductButton label={T.create} categories={newCategories} className="col-span-2" />
+            <NewProductButton label={T.create} categories={newCategories} brands={brands} className="col-span-2" />
           </>
         }
       />

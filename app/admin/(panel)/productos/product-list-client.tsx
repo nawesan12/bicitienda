@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
+import { useId, useState, useTransition, type FormEvent } from "react";
 import { Button, Field, formatMoney, FormError, Input, Modal, Select, Toggle } from "@/components/bt";
 import { lexicon } from "@/lib/data/content";
 import { useToast } from "@/components/admin/toast";
@@ -23,10 +23,13 @@ const digits = (s: string) => s.replace(/\D/g, "");
 export function NewProductButton({
   label,
   categories,
+  brands,
   className,
 }: {
   label: string;
   categories: NewProductCategory[];
+  /** Marcas cargadas, como sugerencias; se puede escribir una nueva. */
+  brands: string[];
   className?: string;
 }) {
   const router = useRouter();
@@ -36,6 +39,8 @@ export function NewProductButton({
   const [name, setName] = useState("");
   const [category, setCategory] = useState(categories[0]?.slug ?? "");
   const [price, setPrice] = useState("");
+  const [brand, setBrand] = useState("");
+  const brandsId = useId();
   const [error, setError] = useState<string | null>(null);
 
   const close = () => {
@@ -51,12 +56,14 @@ export function NewProductButton({
     start(async () => {
       const r = await createProduct(category || null, {
         name: name.trim(),
+        brandName: brand.trim(),
         price: digits(price) ? Number(digits(price)) : null,
       });
       if (!r.ok) return setError(r.error);
       toast(lexicon.admin.productCreated);
       setOpen(false);
       setName("");
+      setBrand("");
       setPrice("");
       router.push(`/admin/productos/${r.id}?nuevo=1`);
     });
@@ -89,6 +96,28 @@ export function NewProductButton({
                 </option>
               ))}
             </Select>
+          </Field>
+          <Field
+            label="Marca"
+            optional
+            hint={
+              brand.trim() && !brands.some((b) => b.toLowerCase() === brand.trim().toLowerCase())
+                ? `Se crea la marca “${brand.trim()}”.`
+                : "Elegí una o escribí una nueva. Vacía = a confirmar."
+            }
+          >
+            <Input
+              value={brand}
+              maxLength={60}
+              list={brandsId}
+              placeholder="Ej.: Venzo"
+              onChange={(e) => setBrand(e.target.value)}
+            />
+            <datalist id={brandsId}>
+              {brands.map((b) => (
+                <option key={b} value={b} />
+              ))}
+            </datalist>
           </Field>
           <Field label="Precio" optional hint="Vacío = precio a consultar">
             <Input

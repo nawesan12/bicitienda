@@ -943,6 +943,25 @@ async function main() {
     assert.equal(prod.category, c.slug);
     assert.equal(prod.price, 1_250_000);
 
+    // Marca escrita en el modal: si no existe, se crea; si existe, se reusa.
+    const b1: any = await asAdmin(() =>
+      productActions.createProduct(c.slug, { name: "Con marca A", brandName: "Marca Nueva Test" }),
+    );
+    const b2: any = await asAdmin(() =>
+      productActions.createProduct(c.slug, { name: "Con marca B", brandName: "marca nueva test" }),
+    );
+    assert.ok(b1.ok && b2.ok, JSON.stringify([b1, b2]));
+    const [pa] = await db.select().from(schema.products).where(eq(schema.products.id, b1.id));
+    const [pb] = await db.select().from(schema.products).where(eq(schema.products.id, b2.id));
+    assert.equal(pa.brandId, pb.brandId);
+    const [brand] = await db.select().from(schema.brands).where(eq(schema.brands.id, pa.brandId));
+    assert.equal(brand.name, "Marca Nueva Test");
+    for (const id of [b1.id, b2.id]) {
+      await db.delete(schema.productVariants).where(eq(schema.productVariants.productSlug, id));
+      await db.delete(schema.products).where(eq(schema.products.id, id));
+    }
+    await db.delete(schema.brands).where(eq(schema.brands.id, pa.brandId));
+
     await db.delete(schema.productVariants).where(eq(schema.productVariants.productSlug, p.id));
     await db.delete(schema.products).where(eq(schema.products.id, p.id));
     await db.delete(schema.categories).where(eq(schema.categories.slug, c.slug));

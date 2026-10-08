@@ -2,7 +2,7 @@ import { and, asc, count, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-or
 import { store } from "@/lib/config";
 import { orderInstallments } from "@/lib/order-flow";
 import { addDays, localToUtc, toLocalParts } from "@/lib/zoned-time";
-import { products as seedProducts } from "@/lib/data/catalog";
+import { PLACEHOLDER_BRAND_ID, products as seedProducts } from "@/lib/data/catalog";
 import { getDb, schema } from "@/lib/server/db";
 import {
   getOrderById,
@@ -135,6 +135,16 @@ export async function getAdminCategories() {
 }
 
 export type AdminCategory = Awaited<ReturnType<typeof getAdminCategories>>[number];
+
+/** Nombres de las marcas cargadas (sin la de "a confirmar"), para sugerir en el alta. */
+export async function getAdminBrandNames(): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({ name: schema.brands.name })
+    .from(schema.brands)
+    .where(ne(schema.brands.id, PLACEHOLDER_BRAND_ID));
+  return rows.map((r) => r.name).sort((a, b) => a.localeCompare(b, "es"));
+}
 
 /* ── Sucursales ───────────────────────────────────────────── */
 

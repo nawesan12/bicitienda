@@ -242,6 +242,8 @@ const newProductSchema = z
   .object({
     name: z.string().trim().min(1).max(120),
     price: priceSchema,
+    /** Marca escrita en el modal: la existente o una nueva. Vacía = "a confirmar". */
+    brandName: z.string().trim().max(60),
   })
   .partial();
 
@@ -251,7 +253,7 @@ export async function createProduct(
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   await requireAdmin();
   const parsedFields = newProductSchema.safeParse(fields ?? {});
-  if (!parsedFields.success) return { ok: false, error: "Revisá el nombre y el precio." };
+  if (!parsedFields.success) return { ok: false, error: "Revisá el nombre, la marca y el precio." };
   const name = parsedFields.data.name ?? lexicon.admin.newProduct;
   const db = await getDb();
   const cats = await db
@@ -266,14 +268,19 @@ export async function createProduct(
     cats.find((c) => wanted.success && c.slug === wanted.data)?.slug ?? defaultCategory(cats);
   if (!cat) return { ok: false, error: "Primero creá una categoría." };
 
-  // Nace con la marca "a confirmar". Con la base en blanco (seed --vacio)
-  // no hay ninguna marca: se crea ahí mismo en vez de frenar el alta.
-  const brandId = lexicon.admin.newProductBrandId;
-  const placeholder = brands.find((b) => b.id === brandId);
-  await db
-    .insert(schema.brands)
-    .values({ id: brandId, name: placeholder?.name ?? "[Marca a confirmar]" })
-    .onConflictDoNothing({ target: schema.brands.id });
+  // Con marca escrita, la existente o una nueva. Sin marca nace "a
+  // confirmar"; con la base en blanco (seed --vacio) no hay ninguna marca:
+  // se crea ahí mismo en vez de frenar el alta.
+  let brandId = lexicon.admin.newProductBrandId;
+  if (parsedFields.data.brandName) {
+    brandId = await brandIdFor(db, parsedFields.data.brandName);
+  } else {
+    const placeholder = brands.find((b) => b.id === brandId);
+    await db
+      .insert(schema.brands)
+      .values({ id: brandId, name: placeholder?.name ?? "[Marca a confirmar]" })
+      .onConflictDoNothing({ target: schema.brands.id });
+  }
 
   const slug = await uniqueProductSlug(db, name);
   await db.insert(schema.products).values({
