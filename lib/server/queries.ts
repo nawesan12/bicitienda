@@ -381,7 +381,21 @@ export async function getStore(): Promise<RuntimeStore> {
     showPrices: s.showPrices,
     ventaOnline: s.ventaOnline,
     // Las sucursales activas de la DB, ordenadas: [0] es la principal.
-    locations,
+    // Sin el admin de sucursales, la principal toma dirección, horarios y
+    // mapa de Ajustes (lo único que el dueño puede editar): si no, el
+    // checkout, el seguimiento y los mails mostraban el placeholder del seed.
+    locations: store.features.admin?.locations
+      ? locations
+      : locations.map((l, i) =>
+          i === 0
+            ? {
+                ...l,
+                address: s.address || l.address,
+                hours: s.hours || l.hours,
+                mapsUrl: s.mapsUrl || l.mapsUrl,
+              }
+            : l,
+        ),
     content,
   };
 }
