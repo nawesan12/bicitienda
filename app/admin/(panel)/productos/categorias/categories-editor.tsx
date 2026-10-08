@@ -1,24 +1,29 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 import {
   Button,
   CellMono,
   COMPACT_INPUT,
   cx,
   DangerTextButton,
+  Field,
   FOCUS,
   FormError,
+  Input,
   Modal,
   Panel,
   PanelTitle,
+  Select,
   Table,
   TRANSITION,
   type TableColumn,
 } from "@/components/bt";
 import { useToast } from "@/components/admin/toast";
-import { createCategory, deleteCategory, moveCategory, patchCategory } from "@/lib/server/actions/categories";
+import { createCategory, deleteCategory, moveCategory, patchCategory, setCategoryGroup } from "@/lib/server/actions/categories";
 import { paths } from "@/lib/paths";
+import { NAV_GROUPS } from "./nav-groups";
 
 export interface CategoryRow {
   slug: string;
@@ -29,31 +34,84 @@ export interface CategoryRow {
   count: number;
 }
 
-/** Grupos del menú de la tienda (raíces con ítem propio en el nav). */
-const NAV_GROUPS = ["bicicletas", "accesorios", "repuestos", "importados"];
-
 const byOrder = (a: CategoryRow, b: CategoryRow) => a.order - b.order || a.slug.localeCompare(b.slug);
 const productsLabel = (n: number) => `${n} ${n === 1 ? "producto" : "productos"}`;
 
-/** "+ Nueva categoría": nace como categoría suelta (sin grupo) al final. */
-export function NewCategoryButton() {
+/**
+ * "+ Nueva categoría": abre un modal con nombre y grupo del menú. Sin grupo
+ * nace suelta (al final); con grupo, como último tipo de ese grupo.
+ */
+export function NewCategoryButton({ groups }: { groups: { slug: string; label: string }[] }) {
+  const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+  const [parent, setParent] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const close = () => {
+    if (pending) return;
+    setOpen(false);
+    setError(null);
+  };
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!label.trim()) return setError("Poné el nombre de la categoría.");
+    setError(null);
+    start(async () => {
+      const r = await createCategory({ label: label.trim(), parentSlug: parent || null });
+      if (!r.ok) return setError(r.error);
+      toast(`Categoría “${label.trim()}” creada`);
+      setOpen(false);
+      setLabel("");
+      setParent("");
+      router.refresh();
+    });
+  };
+
   return (
-    <Button
-      variant="primary"
-      size="md"
-      disabled={pending}
-      onClick={() =>
-        start(async () => {
-          const r = await createCategory();
-          if (!r.ok) return toast(r.error);
-          toast("Categoría creada: ponele nombre");
-        })
-      }
-    >
-      {pending ? "Creando…" : "+ Nueva categoría"}
-    </Button>
+    <>
+      <Button variant="primary" size="md" onClick={() => setOpen(true)}>
+        + Nueva categoría
+      </Button>
+      <Modal open={open} onClose={close} title="Nueva categoría" width={480}>
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          <Field label="Nombre">
+            <Input
+              autoFocus
+              value={label}
+              maxLength={60}
+              placeholder="Ej.: Eléctricas"
+              onChange={(e) => {
+                setLabel(e.target.value);
+                setError(null);
+              }}
+            />
+          </Field>
+          <Field label="Grupo del menú" hint="Dentro de un grupo aparece como filtro del catálogo.">
+            <Select value={parent} onChange={(e) => setParent(e.target.value)}>
+              <option value="">Sin grupo</option>
+              {groups.map((g) => (
+                <option key={g.slug} value={g.slug}>
+                  {g.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <FormError>{error}</FormError>
+          <div className="flex flex-wrap justify-end gap-[10px]">
+            <Button type="button" variant="secondary" size="md" disabled={pending} onClick={close}>
+              Cancelar
+            </Button>
+            <Button type="submit" variant="primary" size="md" disabled={pending}>
+              {pending ? "Creando…" : "Crear categoría"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </>
   );
 }
 
@@ -65,6 +123,7 @@ export function NewCategoryButton() {
  * repite hasta pasar a la hermana visible).
  */
 export function CategoriesEditor({ categories }: { categories: CategoryRow[] }) {
+  const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
   const [ask, setAsk] = useState<CategoryRow | null>(null);
@@ -97,6 +156,7 @@ export function CategoriesEditor({ categories }: { categories: CategoryRow[] }) 
           break;
         }
       }
+      router.refresh();
     });
   }
 
@@ -106,6 +166,18 @@ export function CategoriesEditor({ categories }: { categories: CategoryRow[] }) 
     start(async () => {
       const r = await patchCategory(c.slug, { label });
       toast(r.ok ? `Guardado: ${label}` : r.error);
+      router.refresh();
+    });
+  }
+
+  function regroup(c: CategoryRow, parentSlug: string) {
+    const target = parentSlug || null;
+    if (target === c.parentSlug) return;
+    start(async () => {
+      const r = await setCategoryGroup(c.slug, target);
+      const group = groups.find((g) => g.slug === target);
+      toast(r.ok ? `${c.label}: ${group ? `pasó a ${group.label}` : "sin grupo"}` : r.error);
+      router.refresh();
     });
   }
 
@@ -118,6 +190,7 @@ export function CategoriesEditor({ categories }: { categories: CategoryRow[] }) 
       if (!r.ok) return setError(r.error);
       setAsk(null);
       toast(`Categoría eliminada: ${c.label}`);
+      router.refresh();
     });
   }
 
@@ -161,7 +234,7 @@ export function CategoriesEditor({ categories }: { categories: CategoryRow[] }) 
               key: "group",
               header: "Grupo",
               width: "150px",
-              cell: (c: CategoryRow) => <GroupSelect row={c} options={groupOptions} />,
+              cell: (c: CategoryRow) => <GroupSelect row={c} options={groupOptions} disabled={pending} onChange={(v) => regroup(c, v)} />,
             },
           ]
         : []),
@@ -199,7 +272,7 @@ export function CategoriesEditor({ categories }: { categories: CategoryRow[] }) 
                 </span>
                 <span className="flex-none text-[13px] text-text-2">{productsLabel(c.count)}</span>
               </div>
-              {opts.showGroup && <GroupSelect row={c} options={groupOptions} />}
+              {opts.showGroup && <GroupSelect row={c} options={groupOptions} disabled={pending} onChange={(v) => regroup(c, v)} />}
               <div className="flex items-center justify-between gap-3">
                 <OrderControls index={i} total={rows.length} disabled={pending} onMove={(d) => move(rows, c, d)} label={c.label} />
                 <DangerTextButton disabled={pending || Boolean(blocked(c))} onClick={() => setAsk(c)}>
@@ -247,7 +320,7 @@ export function CategoriesEditor({ categories }: { categories: CategoryRow[] }) 
         <Panel surface="surface" padding="lg" gap="md" as="section">
           <PanelTitle>Sin grupo</PanelTitle>
           <p className="m-0 text-[14px] leading-[1.5] text-text-2">
-            Las categorías nuevas nacen acá. Todavía no se pueden pasar a un grupo desde el panel.
+            Categorías sin grupo del menú. Elegí un grupo en la columna “Grupo” para que aparezcan como filtro del catálogo.
           </p>
           {list(loose, { showGroup: true })}
         </Panel>
@@ -304,15 +377,25 @@ function NameInput({ row, disabled, onSave }: { row: CategoryRow; disabled: bool
   );
 }
 
-/** Grupo de un tipo: se muestra, pero falta la action para cambiarlo (parentSlug). */
-function GroupSelect({ row, options }: { row: CategoryRow; options: { value: string; label: string }[] }) {
+/** Grupo del menú de una categoría: cambiarlo la mueve al final de ese grupo. */
+function GroupSelect({
+  row,
+  options,
+  disabled,
+  onChange,
+}: {
+  row: CategoryRow;
+  options: { value: string; label: string }[];
+  disabled: boolean;
+  onChange: (parentSlug: string) => void;
+}) {
   return (
     <select
       aria-label={`Grupo de ${row.label}`}
       value={row.parentSlug ?? ""}
-      disabled
-      title="Todavía no se puede cambiar el grupo desde el panel"
-      className={cx(COMPACT_INPUT, "cursor-not-allowed appearance-none")}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      className={cx(COMPACT_INPUT, "cursor-pointer")}
     >
       <option value="">Sin grupo</option>
       {options.map((o) => (

@@ -798,7 +798,9 @@ async function main() {
     const pv = await importer.previewProductImport(Buffer.from(bad));
     assert.equal(pv.ok, false);
     const rows = [...new Set(pv.errors.map((e) => e.row))].sort();
-    assert.deepEqual(rows, [3, 4, 5]);
+    // La categoría inexistente (fila 4) no es error: se crea al importar.
+    assert.deepEqual(rows, [3, 5]);
+    assert.deepEqual(pv.newCategories, ["no-existe"]);
     const productsBefore = (await db.select().from(schema.products)).length;
     const res = await importer.commitProductImport(Buffer.from(bad));
     assert.equal(res.ok, false);
@@ -1062,6 +1064,115 @@ async function main() {
     const card = customers.find((c) => c.ordersCount > 0)!;
     const mine = (await db.select().from(schema.orders).where(eq(schema.orders.customerId, card.id)));
     assert.equal(card.totalSpent, mine.filter((o) => !["CANCELADO", "VENCIDO"].includes(o.status)).reduce((s, o) => s + o.paidAmount, 0));
+  });
+
+  test("altas desde el modal: producto y categoría con sus datos", async () => {
+    const productActions = await import("@/lib/server/actions/products");
+    const categoryActions = await import("@/lib/server/actions/categories");
+    const cats = await db.select().from(schema.categories);
+    const group = cats.find((c) => !c.parentSlug && cats.some((x) => x.parentSlug === c.slug))!;
+
+    const c: any = await asAdmin(() => categoryActions.createCategory({ label: "Eléctricas", parentSlug: group.slug }));
+    assert.ok(c.ok, JSON.stringify(c));
+    const [cat] = await db.select().from(schema.categories).where(eq(schema.categories.slug, c.slug));
+    assert.equal(cat.label, "Eléctricas");
+    assert.equal(cat.parentSlug, group.slug);
+    assert.equal(cat.pathSlug, "electricas");
+    // Solo se cuelga de un grupo (raíz), no de un tipo.
+    const bad: any = await asAdmin(() => categoryActions.createCategory({ label: "X", parentSlug: c.slug }));
+    assert.equal(bad.ok, false);
+
+    const p: any = await asAdmin(() =>
+      productActions.createProduct(c.slug, { name: "Bici eléctrica E29", price: 1_250_000 }),
+    );
+    assert.ok(p.ok, JSON.stringify(p));
+    const [prod] = await db.select().from(schema.products).where(eq(schema.products.id, p.id));
+    assert.equal(prod.name, "Bici eléctrica E29");
+    assert.equal(prod.slug, "bici-electrica-e29");
+    assert.equal(prod.category, c.slug);
+    assert.equal(prod.price, 1_250_000);
+    assert.equal(prod.status, "publicado");
+
+    // Alta completa: descripción, stock inicial en el local y borrador.
+    const full: any = await asAdmin(() =>
+      productActions.createProduct(c.slug, { name: "Completo", description: "Cuadro aluminio", stock: 5, published: false }),
+    );
+    assert.ok(full.ok, JSON.stringify(full));
+    const [fp] = await db.select().from(schema.products).where(eq(schema.products.id, full.id));
+    assert.equal(fp.description, "Cuadro aluminio");
+    assert.equal(fp.status, "borrador");
+    const fstock = await db.select().from(schema.productStock).where(eq(schema.productStock.variantId, `${full.id}--u`));
+    assert.equal(fstock.reduce((n, r) => n + r.qty, 0), 5);
+    const neg: any = await asAdmin(() => productActions.createProduct(c.slug, { name: "Mal", stock: -1 }));
+    assert.equal(neg.ok, false);
+    await db.delete(schema.stockMovements).where(eq(schema.stockMovements.productSlug, full.id));
+    await db.delete(schema.productStock).where(eq(schema.productStock.variantId, `${full.id}--u`));
+    await db.delete(schema.productVariants).where(eq(schema.productVariants.productSlug, full.id));
+    await db.delete(schema.products).where(eq(schema.products.id, full.id));
+
+    // Marca escrita en el modal: si no existe, se crea; si existe, se reusa.
+    const b1: any = await asAdmin(() =>
+      productActions.createProduct(c.slug, { name: "Con marca A", brandName: "Marca Nueva Test" }),
+    );
+    const b2: any = await asAdmin(() =>
+      productActions.createProduct(c.slug, { name: "Con marca B", brandName: "marca nueva test" }),
+    );
+    assert.ok(b1.ok && b2.ok, JSON.stringify([b1, b2]));
+    const [pa] = await db.select().from(schema.products).where(eq(schema.products.id, b1.id));
+    const [pb] = await db.select().from(schema.products).where(eq(schema.products.id, b2.id));
+    assert.equal(pa.brandId, pb.brandId);
+    const [brand] = await db.select().from(schema.brands).where(eq(schema.brands.id, pa.brandId));
+    assert.equal(brand.name, "Marca Nueva Test");
+    for (const id of [b1.id, b2.id]) {
+      await db.delete(schema.productVariants).where(eq(schema.productVariants.productSlug, id));
+      await db.delete(schema.products).where(eq(schema.products.id, id));
+    }
+    await db.delete(schema.brands).where(eq(schema.brands.id, pa.brandId));
+
+    await db.delete(schema.productVariants).where(eq(schema.productVariants.productSlug, p.id));
+    await db.delete(schema.products).where(eq(schema.products.id, p.id));
+    await db.delete(schema.categories).where(eq(schema.categories.slug, c.slug));
+  });
+
+  test("importación con categoría nueva y cambio de grupo de una categoría", async () => {
+    const categoryActions = await import("@/lib/server/actions/categories");
+    const csv = ["sku_producto;nombre;categoria;precio;stock", "PATIN-1;Monopatín eléctrico;Movilidad eléctrica;900000;2"].join("\n");
+    const pv = await importer.previewProductImport(Buffer.from(csv));
+    assert.ok(pv.ok, JSON.stringify(pv.errors));
+    assert.deepEqual(pv.newCategories, ["Movilidad eléctrica"]);
+    const done = await importer.commitProductImport(Buffer.from(csv));
+    assert.ok(done.ok);
+    const [cat] = await db.select().from(schema.categories).where(eq(schema.categories.label, "Movilidad eléctrica"));
+    assert.ok(cat, "se creó la categoría");
+    assert.equal(cat.pathSlug, "movilidad-electrica");
+    assert.equal(cat.parentSlug, null);
+    const [prod] = await db.select().from(schema.products).where(eq(schema.products.sku, "PATIN-1"));
+    assert.equal(prod.category, cat.slug);
+    // Reimportar no la duplica.
+    const again = await importer.previewProductImport(Buffer.from(csv));
+    assert.deepEqual(again.newCategories, []);
+
+    // Pasarla a un grupo del menú, y de vuelta a sin grupo.
+    const cats = await db.select().from(schema.categories);
+    const group = cats.find((c) => !c.parentSlug && cats.some((x) => x.parentSlug === c.slug))!;
+    const child = cats.find((c) => c.parentSlug === group.slug)!;
+    const r1: any = await asAdmin(() => categoryActions.setCategoryGroup(cat.slug, group.slug));
+    assert.ok(r1.ok, JSON.stringify(r1));
+    const [moved] = await db.select().from(schema.categories).where(eq(schema.categories.slug, cat.slug));
+    assert.equal(moved.parentSlug, group.slug);
+    assert.ok(moved.order > Math.max(...cats.filter((c) => c.slug !== cat.slug).map((c) => c.order)), "queda última");
+    // No se cuelga de un tipo, ni un grupo con tipos dentro de otro.
+    const r2: any = await asAdmin(() => categoryActions.setCategoryGroup(cat.slug, child.slug));
+    assert.equal(r2.ok, false);
+    const other = cats.find((c) => !c.parentSlug && c.slug !== group.slug)!;
+    const r3: any = await asAdmin(() => categoryActions.setCategoryGroup(group.slug, other.slug));
+    assert.equal(r3.ok, false);
+    const r4: any = await asAdmin(() => categoryActions.setCategoryGroup(cat.slug, null));
+    assert.ok(r4.ok);
+    const [back] = await db.select().from(schema.categories).where(eq(schema.categories.slug, cat.slug));
+    assert.equal(back.parentSlug, null);
+
+    await db.update(schema.products).set({ hidden: true }).where(eq(schema.products.id, prod.id));
   });
 
   /* ── Correr ───────────────────────────────────────────────── */

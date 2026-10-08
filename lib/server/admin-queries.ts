@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, gte, inArray, lt, ne, notInArray, sql, type SQL } from "drizzle-orm";
 import { store } from "@/lib/config";
 import { addDays, localToUtc, toLocalParts, weekdayOf } from "@/lib/zoned-time";
-import { products as seedProducts } from "@/lib/data/catalog";
+import { PLACEHOLDER_BRAND_ID, products as seedProducts } from "@/lib/data/catalog";
 import { getDb, schema } from "@/lib/server/db";
 import { getOrderByNumber, type FullOrder } from "@/lib/server/order-queries";
 import { expireStaleOrdersOnce } from "@/lib/server/orders";
@@ -142,6 +142,16 @@ export async function getAdminCategories() {
 }
 
 export type AdminCategory = Awaited<ReturnType<typeof getAdminCategories>>[number];
+
+/** Nombres de las marcas cargadas (sin la de "a confirmar"), para sugerir en el alta. */
+export async function getAdminBrandNames(): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({ name: schema.brands.name })
+    .from(schema.brands)
+    .where(ne(schema.brands.id, PLACEHOLDER_BRAND_ID));
+  return rows.map((r) => r.name).sort((a, b) => a.localeCompare(b, "es"));
+}
 
 /** Movimientos de stock de un producto para la tab del editor. */
 export async function getAdminProductMovements(productSlug: string) {

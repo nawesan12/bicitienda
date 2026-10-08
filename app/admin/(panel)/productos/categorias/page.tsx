@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ResponsiveTopBar } from "@/components/bt";
 import { getAdminCategories } from "@/lib/server/admin-queries";
 import { CategoriesEditor, NewCategoryButton } from "./categories-editor";
+import { NAV_GROUPS } from "./nav-groups";
 
 export const metadata: Metadata = { title: "Categorías" };
 
@@ -19,7 +20,14 @@ export default async function CategoriasPage() {
       <ResponsiveTopBar
         title="Categorías"
         back={{ href: "/admin/productos", label: "Productos" }}
-        actions={<NewCategoryButton />}
+        actions={
+          <NewCategoryButton
+            groups={NAV_GROUPS.flatMap((g) => categories.filter((c) => c.slug === g && !c.parentSlug)).map((c) => ({
+              slug: c.slug,
+              label: c.label,
+            }))}
+          />
+        }
       />
       <CategoriesEditor
         categories={categories.map((c) => ({

@@ -1,9 +1,9 @@
 "use server";
 
-import { and, eq, ilike, ne } from "drizzle-orm";
+import { and, asc, eq, ilike, ne } from "drizzle-orm";
 import { z } from "zod";
 import { lexicon } from "@/lib/data/content";
-import { products as seedProducts } from "@/lib/data/catalog";
+import { brands, products as seedProducts } from "@/lib/data/catalog";
 import { resolveImage } from "@/lib/images";
 import { slugify } from "@/lib/slug";
 import { requireAdmin } from "@/lib/server/actions/guard";
@@ -235,10 +235,28 @@ function defaultCategory(
   })[0]?.slug;
 }
 
+/** Datos que se cargan en el modal de "+ Nuevo producto" (todo opcional). */
+const newProductSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    price: priceSchema,
+    /** Marca escrita en el modal: la existente o una nueva. Vacía = "a confirmar". */
+    brandName: z.string().trim().max(60),
+    description: z.string().trim().max(4000),
+    /** Unidades iniciales en la sucursal principal (talle "Único"). */
+    stock: z.number().int().min(0).max(9999),
+    published: z.boolean(),
+  })
+  .partial();
+
 export async function createProduct(
   category: unknown,
+  fields?: unknown,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  await requireAdmin();
+  const { actor } = await requireAdmin();
+  const parsedFields = newProductSchema.safeParse(fields ?? {});
+  if (!parsedFields.success) return { ok: false, error: "Revisá los datos del producto." };
+  const name = parsedFields.data.name ?? lexicon.admin.newProduct;
   const db = await getDb();
   const cats = await db
     .select({
@@ -249,25 +267,33 @@ export async function createProduct(
     .from(schema.categories);
   const wanted = z.string().max(60).safeParse(category);
   const cat =
-    cats.find((c) => wanted.success && c.slug === wanted.data)?.slug ?? defaultCategory(cats);  if (!cat) return { ok: false, error: "Primero creá una categoría." };
+    cats.find((c) => wanted.success && c.slug === wanted.data)?.slug ?? defaultCategory(cats);
+  if (!cat) return { ok: false, error: "Primero creá una categoría." };
 
-  const [brand] = await db
-    .select({ id: schema.brands.id })
-    .from(schema.brands)
-    .where(eq(schema.brands.id, lexicon.admin.newProductBrandId));
-  const brandId =
-    brand?.id ??
-    (await db.select({ id: schema.brands.id }).from(schema.brands).limit(1))[0]?.id;
-  if (!brandId) return { ok: false, error: "No hay marcas cargadas." };
+  // Con marca escrita, la existente o una nueva. Sin marca nace "a
+  // confirmar"; con la base en blanco (seed --vacio) no hay ninguna marca:
+  // se crea ahí mismo en vez de frenar el alta.
+  let brandId = lexicon.admin.newProductBrandId;
+  if (parsedFields.data.brandName) {
+    brandId = await brandIdFor(db, parsedFields.data.brandName);
+  } else {
+    const placeholder = brands.find((b) => b.id === brandId);
+    await db
+      .insert(schema.brands)
+      .values({ id: brandId, name: placeholder?.name ?? "[Marca a confirmar]" })
+      .onConflictDoNothing({ target: schema.brands.id });
+  }
 
-  const slug = await uniqueProductSlug(db, lexicon.admin.newProduct);
+  const slug = await uniqueProductSlug(db, name);
   await db.insert(schema.products).values({
     id: slug,
     slug,
-    name: lexicon.admin.newProduct,
+    name,
     brandId,
     category: cat,
-    price: null,
+    price: parsedFields.data.price ?? null,
+    description: parsedFields.data.description ?? "",
+    status: parsedFields.data.published === false ? "borrador" : "publicado",
     tag: lexicon.admin.newProductTag,
     chips: [],
     specs: [],
@@ -275,7 +301,18 @@ export async function createProduct(
     custom: true,
     createdAt: new Date().toISOString().slice(0, 10),
   });
-  await ensureDefaultVariant(db, slug);
+  const variantId = await ensureDefaultVariant(db, slug);
+  const stock = parsedFields.data.stock ?? 0;
+  if (stock > 0) {
+    const [loc] = await db
+      .select({ id: schema.locations.id })
+      .from(schema.locations)
+      .where(eq(schema.locations.active, true))
+      .orderBy(asc(schema.locations.order))
+      .limit(1);
+    if (loc)
+      await setStockLevel(db, { variantId, productSlug: slug, locationId: loc.id, qty: stock, reason: "ajuste", actor });
+  }
   invalidatePublic("catalog");
   return { ok: true, id: slug };
 }

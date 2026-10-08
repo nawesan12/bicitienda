@@ -8,14 +8,16 @@
  * La lógica vive en lib/server/seed.ts (también la usa el botón
  * "Restablecer" del admin); acá solo se abre y cierra la conexión.
  */
-import { sql } from "drizzle-orm";
+import { ne, sql } from "drizzle-orm";
+import { PLACEHOLDER_BRAND_ID } from "@/lib/data/catalog";
 import * as schema from "@/lib/server/db/schema";
 import { runSeed } from "@/lib/server/seed";
 
 /**
  * `--vacio`: deja solo la estructura (settings, categorías, local, servicios,
- * horarios, plantillas de WhatsApp y contadores). Sin productos ni marcas,
- * notas o eventos de ejemplo: el catálogo real se carga desde el admin o
+ * horarios, plantillas de WhatsApp y contadores). Sin productos, notas o
+ * eventos de ejemplo ni más marca que la de "a confirmar" (con la que nace
+ * un producto nuevo): el catálogo real se carga desde el admin o
  * importando la planilla.
  */
 async function emptyCatalog(db: Awaited<ReturnType<typeof connect>>["db"]) {
@@ -24,7 +26,7 @@ async function emptyCatalog(db: Awaited<ReturnType<typeof connect>>["db"]) {
   await db.delete(schema.productStock);
   await db.delete(schema.productVariants);
   await db.delete(schema.products);
-  await db.delete(schema.brands);
+  await db.delete(schema.brands).where(ne(schema.brands.id, PLACEHOLDER_BRAND_ID));
   await db.delete(schema.articles);
   await db.delete(schema.agendaEvents);
 }

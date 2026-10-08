@@ -6,7 +6,8 @@ import { lexicon } from "@/lib/data/content";
 import { categories as seedCategories, products as seedProducts } from "@/lib/data/catalog";
 import { slugify } from "@/lib/slug";
 import { requireAdmin } from "@/lib/server/actions/guard";
-import { getDb, schema, type Db } from "@/lib/server/db";
+import { getDb, schema } from "@/lib/server/db";
+import { insertCategory, uniquePathSlug } from "@/lib/server/categories";
 import { invalidatePublic } from "@/lib/server/revalidate";
 
 /**
@@ -22,38 +23,33 @@ type Result = { ok: true } | { ok: false; error: string };
 /** Nombre con el que nace una categoría (y del que sale su URL inicial). */
 const NEW_LABEL = "Nueva categoría";
 
-async function uniquePathSlug(db: Db, label: string, except?: string): Promise<string> {
-  const base = slugify(label, 50) || "categoria";
-  let candidate = base;
-  for (let i = 2; ; i++) {
-    const [clash] = await db
-      .select({ slug: schema.categories.slug })
-      .from(schema.categories)
-      .where(eq(schema.categories.pathSlug, candidate));
-    if (!clash || clash.slug === except) return candidate;
-    candidate = `${base}-${i}`;
-  }
-}
+/** Datos del modal de "+ Nueva categoría": nombre y grupo del menú (opcional). */
+const newCategorySchema = z
+  .object({
+    label: z.string().trim().min(1).max(60),
+    parentSlug: slugSchema.nullable(),
+  })
+  .partial();
 
-export async function createCategory(): Promise<
+export async function createCategory(input?: unknown): Promise<
   { ok: true; slug: string } | { ok: false; error: string }
 > {
   await requireAdmin();
+  const parsed = newCategorySchema.safeParse(input ?? {});
+  if (!parsed.success) return { ok: false, error: "Poné un nombre de hasta 60 letras." };
+  const label = parsed.data.label ?? NEW_LABEL;
   const db = await getDb();
-  const [{ last }] = await db
-    .select({ last: sql<number>`coalesce(max(${schema.categories.order}), 0)` })
-    .from(schema.categories);
-  const slug = `cat${Date.now().toString(36)}`;
-  await db.insert(schema.categories).values({
-    slug,
-    label: NEW_LABEL,
-    single: NEW_LABEL.toUpperCase(),
-    sub: "",
-    home: true,
-    imgProductId: null,
-    pathSlug: await uniquePathSlug(db, NEW_LABEL),
-    order: Number(last) + 1,
-  });
+  let parentSlug: string | null = null;
+  if (parsed.data.parentSlug) {
+    // Solo se cuelga de un grupo (raíz): la jerarquía tiene dos niveles.
+    const [parent] = await db
+      .select({ slug: schema.categories.slug, parentSlug: schema.categories.parentSlug })
+      .from(schema.categories)
+      .where(eq(schema.categories.slug, parsed.data.parentSlug));
+    if (!parent || parent.parentSlug) return { ok: false, error: "Ese grupo no existe." };
+    parentSlug = parent.slug;
+  }
+  const { slug } = await insertCategory(db, label, parentSlug);
   invalidatePublic("catalog");
   return { ok: true, slug };
 }
@@ -93,6 +89,38 @@ export async function patchCategory(slug: unknown, patch: unknown): Promise<Resu
     set.pathSlug = await uniquePathSlug(db, parsed.data.label, row.slug);
   }
   await db.update(schema.categories).set(set).where(eq(schema.categories.slug, row.slug));
+  invalidatePublic("catalog");
+  return { ok: true };
+}
+
+/**
+ * Cambia el grupo del menú de una categoría (`null` = sin grupo). Pasa al
+ * final del orden, así queda última dentro de su grupo nuevo. Dos niveles:
+ * el grupo tiene que ser raíz y una categoría con tipos no se cuelga.
+ */
+export async function setCategoryGroup(slug: unknown, parentSlug: unknown): Promise<Result> {
+  await requireAdmin();
+  const parsed = z.object({ slug: slugSchema, parentSlug: slugSchema.nullable() }).safeParse({ slug, parentSlug });
+  if (!parsed.success) return { ok: false, error: "Revisá los datos." };
+  const db = await getDb();
+  const rows = await db
+    .select({ slug: schema.categories.slug, parentSlug: schema.categories.parentSlug, order: schema.categories.order })
+    .from(schema.categories);
+  const row = rows.find((r) => r.slug === parsed.data.slug);
+  if (!row) return { ok: false, error: "Categoría inexistente." };
+  const target = parsed.data.parentSlug;
+  if (target === row.parentSlug) return { ok: true };
+  if (target) {
+    const parent = rows.find((r) => r.slug === target);
+    if (!parent || parent.parentSlug || parent.slug === row.slug) return { ok: false, error: "Ese grupo no existe." };
+    if (rows.some((r) => r.parentSlug === row.slug))
+      return { ok: false, error: "Tiene tipos adentro: primero movelos a otro grupo." };
+  }
+  const last = Math.max(0, ...rows.map((r) => r.order));
+  await db
+    .update(schema.categories)
+    .set({ parentSlug: target, order: last + 1 })
+    .where(eq(schema.categories.slug, row.slug));
   invalidatePublic("catalog");
   return { ok: true };
 }
