@@ -330,11 +330,15 @@ function Tag({ text, bg = C.red, fg = C.white }: { text: string; bg?: string; fg
   );
 }
 
-/** Tira de beneficios del footer (3 celdas, la de transferencia en amarillo; sin cuotas). */
-function BenefitStrip({ transferPct }: { transferPct: number }) {
+/**
+ * Tira de beneficios del footer (3 celdas, la de transferencia en amarillo;
+ * sin cuotas). Sin % (o en 0, como en Ajustes) dice solo "Transferencia":
+ * nunca promete un descuento que no está.
+ */
+function BenefitStrip({ transferPct = 0 }: { transferPct?: number }) {
   const cells = [
     { text: SEO.og.mercadoPago, hi: false },
-    { text: `${transferPct}% off transferencia`, hi: true },
+    { text: transferPct > 0 ? `${transferPct}% off transferencia` : "Transferencia", hi: true },
     { text: "Retiro en el local", hi: false },
   ];
   return (
@@ -761,7 +765,7 @@ export async function sectionOgImage(
           {aside}
         </div>
       ) : null}
-      <BenefitStrip transferPct={PAYMENT_SETTINGS.transferDiscountPct} />
+      <BenefitStrip />
     </Frame>,
   );
 }

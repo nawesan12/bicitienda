@@ -44,9 +44,11 @@ export function Footer({
   workshop,
   className,
 }: FooterProps) {
+  // Con el descuento en 0 (Ajustes) no se promete "0% off".
+  const transferTitle = transferDiscountPct > 0 ? `${transferDiscountPct}% off transferencia` : "Transferencia";
   const strip = [
     { title: "Mercado Pago", sub: "Tarjetas, débito y dinero en cuenta" },
-    { title: `${transferDiscountPct}% off transferencia`, sub: "O pagás en efectivo en el local", highlight: true },
+    { title: transferTitle, sub: "O pagás en efectivo en el local", highlight: true },
     { title: "Retiro en el local", sub: "Te la damos armada y ajustada" },
   ];
 
@@ -160,7 +162,7 @@ export function Footer({
           WhatsApp {wa} · {socialLinks}
         </span>
         <span className={cx("text-[11px] font-semibold uppercase text-text-3", MONO)}>
-          Mercado Pago · {transferDiscountPct}% off transferencia · Retiro en el local
+          Mercado Pago · {transferTitle} · Retiro en el local
         </span>
       </div>
     </footer>

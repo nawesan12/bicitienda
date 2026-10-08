@@ -1,3 +1,4 @@
+import { PLACEHOLDER_BRAND_ID } from "@/lib/data/catalog";
 import { img } from "@/lib/images";
 import { isPendingValue } from "@/lib/server/mail";
 import { isBuyable, ratesOf } from "@/lib/pricing";
@@ -71,7 +72,8 @@ export async function getCartCatalog(): Promise<CartCatalogItem[]> {
       price: p.price as number,
       image: p.images[0] ? img(p.images[0], { w: 360 }) : null,
       category: bySlug.get(p.category)?.label ?? "",
-      brand: brandById.get(p.brandId) ?? "",
+      // La marca "a confirmar" no se muestra (como en la ficha y las cards).
+      brand: p.brandId === PLACEHOLDER_BRAND_ID ? "" : (brandById.get(p.brandId) ?? ""),
       isBike: rootOf(p.category, bySlug)?.slug === BIKE_GROUP,
       stock: p.stock,
       variants: p.variants.map((v) => ({

@@ -97,7 +97,7 @@ export async function StoreFrame({ children }: { children: ReactNode }) {
         whatsappHref={pending ? undefined : waUrl(runtime.whatsapp)}
         socials={[
           { label: "Instagram", href: `https://www.instagram.com/${runtime.instagram}` },
-          { label: "Facebook" },
+          ...(runtime.tiktok ? [{ label: "TikTok", href: `https://www.tiktok.com/@${runtime.tiktok.replace(/^@/, "")}` }] : []),
         ]}
         transferDiscountPct={runtime.transferDiscount}
         workshop={

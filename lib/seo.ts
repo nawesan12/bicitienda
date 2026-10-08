@@ -167,7 +167,6 @@ export const SEO = {
         `${t.plural} en ${CITY}.`,
       ],
       [
-        "Comprá online con Mercado Pago o con 10% off por transferencia y retirá en el local.",
         "Comprá online con Mercado Pago o transferencia y retirá en el local.",
         "Mercado Pago, transferencia y retiro en el local.",
       ],
@@ -229,7 +228,7 @@ export const SEO = {
     pickup: "Retiro sin cargo en el local",
     categoryKicker: (n: number) => `CATÁLOGO · ${n} ${n === 1 ? "MODELO" : "MODELOS"}`,
     categoryLocation: `en ${CITY}`,
-    categorySub: "Mercado Pago · 10% off transferencia · Retiro en el local",
+    categorySub: "Mercado Pago · Transferencia · Retiro en el local",
     productAlt: (name: string) => `${name} en ${store.brandName}: precio y talles`,
     categoryAlt: (plural: string) => `${plural} en ${store.brandName}, ${CITY}`,
   },

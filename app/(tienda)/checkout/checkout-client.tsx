@@ -112,7 +112,8 @@ export function CheckoutClient({
     ? subtotal - Math.round(subtotal * (1 - transferDiscountPct / 100))
     : 0;
   const total = subtotal - discount;
-  const note = selected
+  // Sin descuento (0% en Ajustes) no va "Ahorrás $ 0".
+  const note = selected && !(selected.transferDiscount && discount === 0)
     ? fillTemplate(selected.note, { monto: formatMoney(discount) })
     : "";
 

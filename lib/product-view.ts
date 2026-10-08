@@ -1,6 +1,9 @@
 import { isOutOfStock } from "@/lib/pricing";
 import type { Brand, Category, Product } from "@/lib/types";
 
+/** = PLACEHOLDER_BRAND_ID (lib/data/catalog): sin importarlo, que arrastra el demo al cliente. */
+const PLACEHOLDER_BRAND_ID = "sin-marca";
+
 /**
  * Vista mínima de un producto para búsqueda, filtros y asesor (módulo puro,
  * sirve en server y en cliente). Los precios de las cards los arma bt
@@ -36,7 +39,7 @@ export function toCardProduct(
     slug: p.slug,
     name: p.name,
     brandId: p.brandId,
-    brand: brands.find((b) => b.id === p.brandId)?.name ?? "",
+    brand: p.brandId === PLACEHOLDER_BRAND_ID ? "" : (brands.find((b) => b.id === p.brandId)?.name ?? ""),
     category: p.category,
     catLabel: cat ? cat.single || cat.label.toUpperCase() : "",
     price: p.price,
