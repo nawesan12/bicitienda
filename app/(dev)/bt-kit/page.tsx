@@ -229,7 +229,7 @@ export default function BtKitPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Button href="#botones">Ver bicicletas</Button>
             <Button variant="secondary">Seguir comprando</Button>
-            <Button variant="outline-paper">Reservar una prueba</Button>
+            <Button variant="outline-paper">Sacar turno en el taller</Button>
             <Button variant="danger">Cancelar pedido</Button>
             <Button disabled>Deshabilitado</Button>
           </div>
@@ -255,7 +255,7 @@ export default function BtKitPage() {
             </Button>
             <Button size="full-lg">Pagar con Mercado Pago</Button>
             <Button size="full-lg" variant="outline-paper">
-              Reservar una prueba de esta bici
+              Pedir presupuesto del taller
             </Button>
           </div>
         </Sub>
@@ -263,7 +263,7 @@ export default function BtKitPage() {
           <Panel surface="yellow" padding="md" className="max-w-[400px]">
             <Eyebrow tone="inherit">Tu turno</Eyebrow>
             <Display size="card" as="p">
-              Prueba de bici
+              Reparación / service
             </Display>
             <Button variant="ink" size="full-lg">
               Confirmar turno
@@ -396,12 +396,6 @@ export default function BtKitPage() {
               ))}
             </div>
           </Sub>
-          <Panel padding="none" gap="sm" className="p-[18px]">
-            <Toggle label="Se puede probar en el local" defaultChecked />
-            <span className="text-[14px] leading-[1.45] text-text-2">
-              Mostramos solo las bicis disponibles para reservar una prueba.
-            </span>
-          </Panel>
         </div>
       </Section>
 
@@ -423,10 +417,10 @@ export default function BtKitPage() {
           <div className="grid gap-3 md:grid-cols-2">
             <OptionCard
               name="svc"
-              value="prueba"
-              title="Prueba de bici"
+              value="reparacion"
+              title="Reparación / service"
               meta="30 MIN"
-              description="Elegís el modelo y salís a dar una vuelta con ella."
+              description="Traés tu bici, la revisamos y te pasamos el presupuesto."
               selectedStyle="fill"
               titleStyle="display-lg"
               surface="surface"
@@ -457,7 +451,7 @@ export default function BtKitPage() {
         <Sub title="RadioCard · Cómo pagás (2d)">
           <Panel padding="lg" className="max-w-[480px]" gap="md">
             <Eyebrow size="md">1 · Cómo pagás</Eyebrow>
-            <RadioCard name="pay" value="mp" defaultChecked title="Mercado Pago" description="Tarjeta de crédito, débito o dinero en cuenta. Hasta 6 cuotas sin interés." />
+            <RadioCard name="pay" value="mp" defaultChecked title="Mercado Pago" description="Tarjeta de crédito, débito o dinero en cuenta." />
             <RadioCard name="pay" value="transf" title="Transferencia · 10% off" description="Te pasamos el CBU al confirmar. Reservamos el stock 24 hs." />
             <RadioCard name="pay" value="cash" title="Efectivo en el local" description="Reservás online y pagás cuando la retirás." />
           </Panel>
@@ -468,12 +462,11 @@ export default function BtKitPage() {
               <PanelTitle>Visibilidad</PanelTitle>
               <Toggle label="Publicado en la tienda" defaultChecked />
               <Toggle label="Destacado en el home" defaultChecked />
-              <Toggle label="Disponible para prueba" defaultChecked />
               <Toggle label="Ocultar si no hay stock" />
-              <Toggle label="Prueba de bici" description="30 min · se paga en el local" defaultChecked />
+              <Toggle label="Reparación / service" description="30 min · presupuesto por WhatsApp" defaultChecked />
               <div className="flex items-center gap-3">
-                <Toggle aria-label="Prueba disponible" defaultChecked />
-                <Toggle aria-label="Prueba no disponible" />
+                <Toggle aria-label="Activo" defaultChecked />
+                <Toggle aria-label="Inactivo" />
                 <Toggle aria-label="Deshabilitado" disabled />
               </div>
             </Panel>
@@ -751,7 +744,7 @@ export default function BtKitPage() {
               { key: "c", header: "Categoría", width: "110px", cell: (p) => <span className="text-text-2">{p.category}</span> },
               { key: "pr", header: "Precio", width: "110px", cell: (p) => <span className="font-extrabold">{formatMoney(p.price)}</span> },
               { key: "s", header: "Stock por talle", width: "190px", cell: () => <CellMono size={12} tone="soft">S 1 · M 3 · L 2 · XL 0</CellMono> },
-              { key: "t", header: "Prueba", width: "64px", cell: (p) => <Toggle aria-label={`Prueba ${p.name}`} defaultChecked={p.category === "MTB"} /> },
+              { key: "t", header: "Destacado", width: "84px", cell: (p) => <Toggle aria-label={`Destacado ${p.name}`} defaultChecked={p.category === "MTB"} /> },
               { key: "e", header: "Estado", width: "112px", cell: () => <ProductPill status="publicado" /> },
             ]}
           />

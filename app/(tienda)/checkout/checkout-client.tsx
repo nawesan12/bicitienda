@@ -14,6 +14,7 @@ import { cartLineKey, useCart } from "@/lib/cart-store";
 import { COPY } from "@/lib/data/demo/copy";
 import { fillTemplate } from "@/lib/data/demo/format";
 import { isValidArPhone } from "@/lib/phone";
+import { MemberNudge } from "@/components/store/member-client";
 import { getMyAccount } from "@/lib/server/actions/account";
 import { placeOrder } from "@/lib/server/actions/checkout";
 import type { CartCatalogItem } from "@/lib/server/screens/compra-b";
@@ -27,7 +28,7 @@ export interface CartPayment {
   id: PaymentMethodId;
   name: string;
   description: string;
-  /** Plantilla de la nota bajo el total ({cuotas}, {monto}). */
+  /** Plantilla de la nota bajo el total ({monto} = lo que ahorra por transferencia). */
   note: string;
   cta: string;
   transferDiscount: boolean;
@@ -44,7 +45,6 @@ export function CheckoutClient({
   catalog,
   payments,
   transferDiscountPct,
-  maxInstallments,
   pickupLocationId,
   pickup,
   hrefs,
@@ -52,10 +52,9 @@ export function CheckoutClient({
   catalog: CartCatalogItem[];
   payments: CartPayment[];
   transferDiscountPct: number;
-  maxInstallments: number;
   pickupLocationId?: string;
   pickup: { title: string; place: string; note: string };
-  hrefs: { catalog: string; bikes: string; appointments: string };
+  hrefs: { catalog: string; bikes: string; appointments: string; register?: string };
 }) {
   const router = useRouter();
   const { items, hydrated, setQty, remove, clear } = useCart();
@@ -113,18 +112,11 @@ export function CheckoutClient({
     ? subtotal - Math.round(subtotal * (1 - transferDiscountPct / 100))
     : 0;
   const total = subtotal - discount;
-  const note = selected
-    ? fillTemplate(selected.note, {
-        cuotas: maxInstallments,
-        monto: formatMoney(
-          selected.transferDiscount ? discount : Math.round(total / Math.max(1, maxInstallments)),
-        ),
-      })
-    : "";
-
-  // Banner de prueba: solo si hay una bici con prueba en el local.
-  const bike = lines.find((l) => l.product?.isBike && l.product.testRide)?.product;
-  const bikeName = bike && /^[A-Z0-9]{2,5}$/.test(bike.category) ? `la ${bike.category}` : B.testRideFallback;
+  // Sin descuento (0% en Ajustes) no va "Ahorrás $ 0".
+  const note =
+    selected && !(selected.note.includes("{monto}") && discount === 0)
+      ? fillTemplate(selected.note, { monto: formatMoney(discount) })
+      : "";
 
   function firstInvalid(): { field: FieldKey; message: string } | null {
     if (name.trim().length < 2) return { field: "name", message: B.errors.name };
@@ -224,7 +216,7 @@ export function CheckoutClient({
     <form onSubmit={submit} noValidate>
       {header}
       <div className="grid items-start gap-[18px] px-4 pt-[18px] pb-7 md:px-14 md:pt-8 md:pb-20 lg:grid-cols-[minmax(0,1fr)_480px] lg:gap-10">
-        {/* Columna izquierda: líneas + banner de prueba */}
+        {/* Columna izquierda: líneas + banner del taller */}
         <div className="flex min-w-0 flex-col gap-6">
           <ul className="m-0 list-none border-t border-line p-0">
             {lines.map(({ item, product, variant, available, warning }) => (
@@ -244,15 +236,13 @@ export function CheckoutClient({
               />
             ))}
           </ul>
-          {bike && (
-            <CalloutLink
-              className="max-md:hidden"
-              href={`${hrefs.appointments}?producto=${encodeURIComponent(bike.slug)}`}
-              title={C.testRideBanner.title.replace("la MTB", bikeName)}
-              text={fillTemplate(C.testRideBanner.text, { min: 30 })}
-              cta={C.testRideBanner.cta}
-            />
-          )}
+          <CalloutLink
+            className="max-md:hidden"
+            href={`${hrefs.appointments}?servicio=reparacion`}
+            title={C.repairBanner.title}
+            text={C.repairBanner.text}
+            cta={C.repairBanner.cta}
+          />
         </div>
 
         {/* Panel: en mobile no hay caja, los bloques van sobre la página */}
@@ -338,6 +328,7 @@ export function CheckoutClient({
               />
             </div>
             <p className="m-0 text-[13px] text-text-3 md:text-[14px]">{logged ? B.loggedNote : B.dataNote}</p>
+            {!logged && hrefs.register && <MemberNudge href={hrefs.register} className="mt-1" />}
           </fieldset>
 
           <div className="flex flex-col gap-[18px] md:gap-[22px]">

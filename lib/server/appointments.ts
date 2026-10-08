@@ -26,7 +26,7 @@ import {
 } from "@/lib/zoned-time";
 
 /**
- * Turnos en el local (prueba de bici, asesoramiento): agenda, reserva,
+ * Turnos en el local (reparación / service, asesoramiento): agenda, reserva,
  * confirmación, reprogramación, cancelación y asistencia.
  *
  * Capacidad garantizada en la base, sin transacciones interactivas (el
@@ -182,7 +182,7 @@ export interface CreateAppointmentInput {
   phone: string;
   email?: string | null;
   note?: string;
-  /** Producto (y talle) a probar, en servicios que lo admiten. */
+  /** @deprecated Sin pruebas de bici: se ignoran (compat con la UI vieja). */
   productSlug?: string | null;
   variantId?: string | null;
   accountId?: string | null;
@@ -231,27 +231,10 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
   const email = input.email?.trim().toLowerCase() || null;
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AppointmentError("Revisá el email.");
 
-  // Producto a probar: solo en servicios que lo admiten; en la web, solo
-  // productos marcados "se puede probar".
-  let productSlug: string | null = null;
-  let variantId: string | null = null;
-  if (input.productSlug && service.allowsProduct) {
-    const [p] = await db
-      .select()
-      .from(schema.products)
-      .where(eq(schema.products.slug, input.productSlug));
-    if (!p || (input.source === "web" && (!p.testRide || p.hidden || p.status !== "publicado")))
-      throw new AppointmentError("Ese modelo no está disponible para probar.");
-    productSlug = p.slug;
-    if (input.variantId) {
-      const [v] = await db
-        .select()
-        .from(schema.productVariants)
-        .where(and(eq(schema.productVariants.id, input.variantId), eq(schema.productVariants.productSlug, p.slug)));
-      if (!v) throw new AppointmentError("Ese talle no existe.");
-      variantId = v.id;
-    }
-  }
+  // Sin pruebas de bici: los turnos nuevos no llevan producto. productSlug
+  // y variantId se ignoran (quedan en la tabla para los turnos viejos).
+  const productSlug: string | null = null;
+  const variantId: string | null = null;
 
   const startsAt = resolveStart(input, settings.timeZone);
   if (!startsAt) throw new AppointmentError("Elegí día y horario.");

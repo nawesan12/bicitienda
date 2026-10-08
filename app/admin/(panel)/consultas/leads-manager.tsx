@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { buttonClasses, CellMono, cx, EmptyState, FilterChip, Pill, type PillTone, ResponsiveTopBar, Table, type TableColumn } from "@/components/bt";
 import { useConfirm } from "@/components/admin/confirm";
@@ -22,7 +23,9 @@ interface LeadRow {
 const TYPE: Partial<Record<LeadType, { label: string; tone: PillTone }>> = {
   producto: { label: "Producto", tone: "line" },
   pedido: { label: "Pedido", tone: "yellow-outline" },
-  prueba: { label: "Turno", tone: "paper" },
+  reparacion: { label: "Reparación", tone: "yellow" },
+  /** Datos viejos: la prueba de bici ya no se ofrece. */
+  prueba: { label: "Visita", tone: "paper" },
 };
 
 function typeOf(l: LeadRow): { label: string; tone: PillTone } {
@@ -33,22 +36,27 @@ function typeOf(l: LeadRow): { label: string; tone: PillTone } {
 /**
  * Consultas con el lenguaje bt: filtros en chips, tabla (cards en el
  * celular), Sin atender ↔ Atendida con un toque, eliminar y CSV. La
- * pestaña Newsletter aparece solo si hay suscriptos.
+ * pestaña Newsletter aparece solo si hay suscriptos. El filtro y el tope
+ * van en la URL (?filtro=, ?n=): el server trae solo esa tanda y los
+ * contadores de los chips.
  */
 export function LeadsManager({
-  initialFilter,
+  filter,
+  counts,
+  moreHref,
   leads: initialLeads,
   subs: initialSubs,
 }: {
-  initialFilter: string;
+  filter: string;
+  counts: Record<(typeof LEAD_FILTERS)[number][0], number>;
+  /** Link a la tanda siguiente, o null si no hay más. */
+  moreHref: string | null;
   leads: LeadRow[];
   subs: { email: string; ts: string }[];
 }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [, start] = useTransition();
-  const valid = [...LEAD_FILTERS.map(([k]) => k as string), "news"];
-  const [filter, setFilter] = useState(valid.includes(initialFilter) ? initialFilter : "todas");
   const [leads, setLeads] = useState(initialLeads);
   const [subs, setSubs] = useState(initialSubs);
 
@@ -164,10 +172,10 @@ export function LeadsManager({
 
       <div className="flex gap-2 overflow-x-auto px-4 pt-4 [scrollbar-width:none] lg:px-10 lg:pt-[18px] [&::-webkit-scrollbar]:hidden">
         {LEAD_FILTERS.map(([k, label]) => {
-          const n = leads.filter((l) => matchesLead(l, k)).length;
+          const n = counts[k];
           if (k === "pago-tardio" && n === 0) return null;
           return (
-            <FilterChip key={k} active={filter === k} count={n} onClick={() => setFilter(k)}>
+            <FilterChip key={k} active={filter === k} count={n} href={k === "todas" ? "/admin/consultas" : `/admin/consultas?filtro=${k}`}>
               {label}
             </FilterChip>
           );
@@ -175,7 +183,7 @@ export function LeadsManager({
         {subs.length > 0 && (
           <>
             <span className="min-w-2 flex-1" />
-            <FilterChip active={news} count={subs.length} onClick={() => setFilter("news")}>
+            <FilterChip active={news} count={subs.length} href="/admin/consultas?filtro=news">
               Newsletter
             </FilterChip>
           </>
@@ -212,9 +220,9 @@ export function LeadsManager({
           </ul>
         ) : rows.length === 0 ? (
           <EmptyState
-            title={leads.length ? "Nada en este filtro" : "Todavía no hay consultas"}
+            title={counts.todas ? "Nada en este filtro" : "Todavía no hay consultas"}
             description={
-              leads.length
+              counts.todas
                 ? "Probá con otro filtro."
                 : "Cada vez que alguien toca un botón de WhatsApp en la tienda queda registrado acá, junto con los avisos de pedidos."
             }
@@ -245,6 +253,11 @@ export function LeadsManager({
                 );
               })}
             </ul>
+            {moreHref && (
+              <Link href={moreHref} scroll={false} className={cx(buttonClasses({ variant: "secondary", size: "md" }), "mt-4 w-full justify-center")}>
+                Ver más consultas
+              </Link>
+            )}
           </>
         )}
       </div>

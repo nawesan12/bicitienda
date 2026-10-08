@@ -42,14 +42,16 @@ export function WeekNav({
 
 /* ── Legend (3b) ──────────────────────────────────────────────
    flex gap 20, Archivo 600 13 px #cfc8bb. Swatch 14×14 radio 3:
-   amarillo (prueba), paper (asesoramiento), borde 2 rojo (sin confirmar).
+   amarillo con llave (taller / reparación: lo que más deja, protagonista),
+   paper (asesoramiento), borde 2 rojo (sin confirmar).
    `note` a la derecha en #8d867a.
    ──────────────────────────────────────────────────────────── */
 
-export type LegendSwatch = "yellow" | "paper" | "red-outline" | "blocked" | "selected";
+export type LegendSwatch = "yellow" | "repair" | "paper" | "red-outline" | "blocked" | "selected";
 
 const SWATCH: Record<LegendSwatch, string> = {
   yellow: "bg-yellow",
+  repair: "bg-yellow",
   paper: "bg-paper",
   "red-outline": "border-2 border-red",
   blocked: "border border-dashed border-line-strong bg-surface-2",
@@ -69,12 +71,27 @@ export function Legend({
     <div className={cx("flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] font-semibold text-text-2", FONT, className)}>
       {items.map((it, i) => (
         <span key={i} className="inline-flex items-center gap-2">
-          <span aria-hidden className={cx("box-border inline-block size-[14px] rounded-[3px]", SWATCH[it.swatch])} />
+          {it.swatch === "repair" ? (
+            <span aria-hidden className="box-border inline-flex size-[18px] items-center justify-center rounded-[3px] bg-yellow text-ink">
+              <WrenchIcon className="size-3" />
+            </span>
+          ) : (
+            <span aria-hidden className={cx("box-border inline-block size-[14px] rounded-[3px]", SWATCH[it.swatch])} />
+          )}
           {it.label}
         </span>
       ))}
       {note && <span className="ml-auto text-text-3">{note}</span>}
     </div>
+  );
+}
+
+/** Llave (taller): marca los turnos de reparación en la agenda y el Resumen. */
+export function WrenchIcon({ className, ...rest }: { className?: string; "aria-hidden"?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className={className} {...rest}>
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </svg>
   );
 }
 
@@ -84,14 +101,14 @@ export function Legend({
    - vacía: borde line/60 (el #221f1c del prototipo); `href` = crear acá.
    - cerrada: borde transparente.
    - bloqueada (nuevo): fondo #1a1816, borde punteado, "Bloqueado".
-   - prueba: amarillo; asesoramiento: paper; otro servicio: #26231f.
+   - reparación (taller): amarillo con llave y nombre en negro; asesoramiento: paper; otro servicio: #26231f.
    - sin confirmar: borde rojo #d7261e (solo eso).
    - seleccionada: anillo amarillo de 2 px separado 2 px (no el borde
      rojo: así no se confunde con "sin confirmar").
    - pasada (vino / no vino): opacidad .55.
    ──────────────────────────────────────────────────────────── */
 
-export type AgendaCellKind = "empty" | "closed" | "blocked" | "prueba" | "asesoramiento" | "otro";
+export type AgendaCellKind = "empty" | "closed" | "blocked" | "reparacion" | "asesoramiento" | "otro";
 
 export interface AgendaCellProps {
   kind: AgendaCellKind;
@@ -112,7 +129,7 @@ const KIND: Record<AgendaCellKind, string> = {
   empty: "border-line/60",
   closed: "border-transparent",
   blocked: "border-dashed border-line-strong bg-surface-2 text-text-3",
-  prueba: "border-yellow bg-yellow text-ink",
+  reparacion: "border-yellow bg-yellow text-ink",
   asesoramiento: "border-paper bg-paper text-ink",
   otro: "border-surface-3 bg-surface-3 text-paper",
 };
@@ -130,7 +147,7 @@ export function AgendaCell({
   size = "week",
   className,
 }: AgendaCellProps) {
-  const filled = kind === "prueba" || kind === "asesoramiento" || kind === "otro";
+  const filled = kind === "reparacion" || kind === "asesoramiento" || kind === "otro";
   const cls = cx(
     "relative box-border flex min-w-0 flex-col justify-center gap-px overflow-hidden rounded-btn border-[1.5px] px-2 py-[6px]",
     size === "week" ? "h-14" : "min-h-14",
@@ -147,7 +164,12 @@ export function AgendaCell({
   );
   const content = (
     <>
-      {title && <span className="truncate text-[13px] font-extrabold leading-[1.15]">{title}</span>}
+      {title && (
+        <span className={cx("truncate text-[13px] font-extrabold leading-[1.15]", kind === "reparacion" && "flex items-center gap-1")}>
+          {kind === "reparacion" && <WrenchIcon aria-hidden className="size-3 shrink-0" />}
+          <span className="truncate">{title}</span>
+        </span>
+      )}
       {sub && <span className="truncate text-[11px] font-semibold leading-[1.15] opacity-80">{sub}</span>}
       {kind === "empty" && href && (
         <span aria-hidden className="text-center text-[16px] font-bold text-text-3 opacity-0 group-hover:opacity-100">

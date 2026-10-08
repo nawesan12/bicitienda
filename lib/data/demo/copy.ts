@@ -6,7 +6,6 @@ import { DEMO_PHOTOS } from "./photos";
  *
  * Tokens que se completan con `fillTemplate()` (format.ts) desde los
  * settings / el contexto:
- *   {cuotas}  → PAYMENT_SETTINGS.maxInstallments (6)
  *   {off}     → PAYMENT_SETTINGS.transferDiscountPct (10)
  *   {horas}   → PAYMENT_SETTINGS.transferReservationHours (24)
  *   {min}     → duración del servicio (30)
@@ -47,14 +46,13 @@ export const COPY = {
   footer: {
     strip: [
       { title: "Mercado Pago", text: "Tarjetas, débito y dinero en cuenta" },
-      { title: "{cuotas} cuotas sin interés", text: "Con bancos seleccionados", highlight: true },
-      { title: "{off}% off transferencia", text: "O pagás en efectivo en el local" },
+      { title: "{off}% off transferencia", text: "O pagás en efectivo en el local", highlight: true },
       { title: "Retiro en el local", text: "Te la damos armada y ajustada" },
     ],
     columns: { local: "Local", hours: "Horarios", whatsapp: "WhatsApp" },
     social: "Instagram · Facebook",
     /** Versión mobile de la tira. */
-    mobileStrip: "Mercado Pago · {cuotas} cuotas · {off}% off transferencia · Retiro en el local",
+    mobileStrip: "Mercado Pago · {off}% off transferencia · Retiro en el local",
   },
 
   home: {
@@ -75,8 +73,8 @@ export const COPY = {
       ctaMobile: "Ver todo →",
     },
     steps: [
-      { n: "01", title: "Elegís online", text: "O pasás a probarla antes con un turno." },
-      { n: "02", title: "Pagás como quieras", text: "Mercado Pago en cuotas, transferencia o efectivo en el local." },
+      { n: "01", title: "Elegís online", text: "O traés la tuya al taller con un turno." },
+      { n: "02", title: "Pagás como quieras", text: "Mercado Pago, transferencia o efectivo en el local." },
       { n: "03", title: "La retirás armada", text: "Te avisamos por WhatsApp cuando está lista." },
     ],
   },
@@ -89,8 +87,6 @@ export const COPY = {
       rodado: "Rodado",
       price: "Precio",
       size: "Talle",
-      testRide: "Se puede probar en el local",
-      testRideHint: "Mostramos solo las bicis disponibles para reservar una prueba.",
       clear: "Limpiar",
       mobileButton: "Filtros · {n}",
     },
@@ -102,21 +98,17 @@ export const COPY = {
 
   productCard: {
     brandPlaceholder: "MARCA",
-    installments: "{cuotas} x {monto} sin interés",
     transfer: "{monto} por transferencia",
   },
 
   product: {
-    installmentsLead: "{cuotas} cuotas sin interés",
-    installmentsTail: "de {monto}",
     transfer: "{monto} pagando por transferencia ({off}% off)",
     sizeLabel: "Talle",
     sizeHelp: "¿No sabés tu talle? Te asesoramos",
     sizeHelpMobile: "¿Cuál es mi talle?",
     colorLabel: "Color · {color}",
     addToCart: "Agregar al carrito",
-    testRide: "Reservar una prueba de esta bici",
-    testRideMobile: "Reservar una prueba",
+    repairLink: "¿Ya tenés bici? Service en nuestro taller →",
     pickupTitle: "Retiro en el local",
     pickupText: "Armada y ajustada a tu altura",
     stockTitle: "Stock en el local",
@@ -130,18 +122,18 @@ export const COPY = {
     title: "Tu carrito",
     continueShopping: "← Seguir comprando",
     remove: "Quitar",
-    testRideBanner: {
-      title: "¿Querés probar la MTB antes de pagar?",
-      text: "Reservá una prueba de {min} minutos en el local. Tu carrito queda guardado.",
-      cta: "Reservar prueba →",
+    repairBanner: {
+      title: "¿Tu bici necesita un service?",
+      text: "Sacá turno en el taller: la revisamos y te pasamos el presupuesto. Tu carrito queda guardado.",
+      cta: "Sacar turno →",
     },
     payTitle: "1 · Cómo pagás",
     pickupTitle: "2 · Dónde la retirás",
     payments: {
       mp: {
         name: "Mercado Pago",
-        desc: "Tarjeta de crédito, débito o dinero en cuenta. Hasta {cuotas} cuotas sin interés.",
-        note: "{cuotas} cuotas sin interés de {monto}",
+        desc: "Tarjeta de crédito, débito o dinero en cuenta.",
+        note: "Las cuotas las elegís en Mercado Pago",
         cta: "Pagar con Mercado Pago",
       },
       transfer: {
@@ -198,8 +190,8 @@ export const COPY = {
     title: "Reservá tu turno",
     step1: "1 · ¿Qué necesitás?",
     durationBadge: "{min} MIN",
-    bikeToTry: "Bici a probar",
-    change: "Cambiar",
+    noteRepair: { label: "¿Qué le pasa a tu bici?", placeholder: "Frenos, cambios, pinchadura, service general…" },
+    noteAdvice: { label: "¿Qué estás buscando?", placeholder: "Una MTB para empezar, una bici para la ciudad, talle…" },
     step2: "2 · Elegí el día",
     step2Mobile: "2 · Día",
     calendarNote: "Domingos cerrado · días tachados sin turnos",
@@ -216,7 +208,7 @@ export const COPY = {
     /** Sin "y un recordatorio": no hay recordatorios automáticos. */
     note: "Te mandamos la confirmación por WhatsApp. Podés reprogramar desde tu cuenta.",
     /** Nombre del servicio en el resumen. */
-    summaryServiceName: { prueba: "Prueba de bici", asesoramiento: "Asesoramiento de compra" },
+    summaryServiceName: { reparacion: "Reparación / service", asesoramiento: "Asesoramiento de compra" },
   },
 
   account: {
@@ -236,7 +228,7 @@ export const COPY = {
     photoAlt: "Bicicletas colgadas en el local",
     asideTitleLead: "Tus turnos y pedidos,",
     asideTitleHighlight: "en un lugar.",
-    asideText: "Reprogramá una prueba, seguí el armado de tu bici y comprá más rápido la próxima vez.",
+    asideText: "Reprogramá tu turno del taller, seguí el armado de tu bici y comprá más rápido la próxima vez.",
     tabs: { login: "Ingresar", register: "Crear cuenta" },
     titles: { login: "Hola de nuevo", register: "Creá tu cuenta" },
     ctas: { login: "Ingresar", register: "Crear cuenta" },
@@ -318,7 +310,7 @@ export const COPY = {
       viewDay: "Día",
       block: "Bloquear horario",
       manual: "+ Turno manual",
-      legend: { prueba: "Prueba de bici", asesoramiento: "Asesoramiento", unconfirmed: "Sin confirmar" },
+      legend: { reparacion: "Taller · reparación", asesoramiento: "Asesoramiento", unconfirmed: "Sin confirmar" },
       exampleNote: "Horarios de ejemplo · a confirmar",
       detail: { when: "Cuándo", detail: "Detalle", whatsapp: "WhatsApp", status: "Estado" },
       confirmWhatsApp: "Confirmar por WhatsApp",
@@ -342,7 +334,7 @@ export const COPY = {
       searchPlaceholder: "Buscar por nombre o SKU",
       import: "Importar planilla",
       create: "+ Nuevo producto",
-      columns: ["Producto", "Categoría", "Precio", "Stock por talle", "Prueba", "Estado"],
+      columns: ["Producto", "Categoría", "Precio", "Stock por talle", "Estado"],
       edit: {
         back: "← Productos",
         viewInStore: "Ver en la tienda",
@@ -357,7 +349,6 @@ export const COPY = {
         description: "Descripción",
         listPrice: "Precio de lista",
         transferPrice: "Con transferencia (auto)",
-        installments: "Cuotas sin interés",
         variants: "Variantes y stock",
         addVariant: "+ Agregar variante",
         heightRange: "Altura sugerida",
@@ -366,7 +357,6 @@ export const COPY = {
         toggles: {
           published: "Publicado en la tienda",
           featured: "Destacado en el home",
-          testRide: "Disponible para prueba",
           hideWhenOut: "Ocultar si no hay stock",
         },
         preview: "Así se ve en la tienda",
@@ -400,7 +390,7 @@ export const COPY = {
         mp: "Mercado Pago",
         mpConnected: "Conectado",
         transferOff: "Off transferencia",
-        installments: "Cuotas sin interés",
+        installments: "Tope de cuotas en Mercado Pago",
         alias: "Alias / CBU",
         cash: "Efectivo al retirar",
       },

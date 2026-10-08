@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AdminTopBar, Button, Display, FilterChip, Kpi, KpiGrid, Mono, SectionHeading } from "@/components/bt";
-import { TodayAppointmentCard } from "./today-card";
+import { RepairsTodayCard, TodayAppointmentCard } from "./today-card";
 import { features } from "@/lib/features";
 import { getResumen, todayTitle, type OrderRow } from "@/lib/server/screens/admin-d1";
 import { OrdersTable } from "./pedidos/orders-table";
@@ -31,40 +31,60 @@ export default async function AdminResumenPage({ searchParams }: { searchParams:
 
   const kpis = [
     { label: "Pedidos hoy", value: k.ordersToday, tone: "paper" as const },
-    { label: "Para retirar", value: k.readyForPickup, tone: "yellow" as const },
-    { label: "Turnos hoy", value: k.appointmentsToday, tone: "paper" as const },
+    { label: "Para retirar", value: k.readyForPickup, tone: "paper" as const },
+    { label: "Taller hoy", value: k.repairsToday, tone: "yellow" as const },
     { label: "Transf. a validar", value: k.transfersToValidate, tone: "red" as const },
   ];
 
+  // El taller va primero y destacado; abajo, el resto de los turnos de hoy.
+  const others = data.today.filter((a) => a.kind !== "reparacion");
   const appointments = features.appointments ? (
-    <section className="flex flex-col gap-[14px]" aria-labelledby="turnos-hoy">
-      <SectionHeading
-        aside={
-          <Mono size={12} uppercase className="max-lg:hidden">
-            {data.today.length} {data.today.length === 1 ? "turno" : "turnos"}
-          </Mono>
-        }
-      >
-        <span id="turnos-hoy">Turnos de hoy</span>
-      </SectionHeading>
-      {data.today.length ? (
-        <div className="flex flex-col gap-2">
-          {data.today.map((a) => (
-            <TodayAppointmentCard
-              key={a.id}
-              time={a.time}
-              name={a.name}
-              service={a.service}
-              detail={a.detail}
-              status={a.status}
-              href={turnoHref(a.id)}
-            />
-          ))}
-        </div>
-      ) : (
-        <p className="m-0 rounded-box border border-line p-[14px] text-[14px] text-text-3">No hay turnos para hoy.</p>
-      )}
-    </section>
+    <div className="flex flex-col gap-6">
+      <RepairsTodayCard
+        count={k.repairsToday}
+        items={data.repairs.map((a) => ({
+          id: a.id,
+          time: a.time,
+          name: a.name,
+          detail: a.detail,
+          status: a.status,
+          href: turnoHref(a.id),
+          whatsappUrl: a.whatsappUrl,
+        }))}
+        agendaHref={`/admin/turnos?vista=dia&dia=${data.date}`}
+        newHref={`/admin/turnos?nuevo=1&dia=${data.date}`}
+      />
+      <section className="flex flex-col gap-[14px]" aria-labelledby="turnos-hoy">
+        <SectionHeading
+          aside={
+            <Mono size={12} uppercase className="max-lg:hidden">
+              {others.length} {others.length === 1 ? "turno" : "turnos"}
+            </Mono>
+          }
+        >
+          <span id="turnos-hoy">{data.repairs.length ? "Otros turnos" : "Turnos de hoy"}</span>
+        </SectionHeading>
+        {others.length ? (
+          <div className="flex flex-col gap-2">
+            {others.map((a) => (
+              <TodayAppointmentCard
+                key={a.id}
+                time={a.time}
+                name={a.name}
+                service={a.service}
+                detail={a.detail}
+                status={a.status}
+                href={turnoHref(a.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="m-0 rounded-box border border-line p-[14px] text-[14px] text-text-3">
+            {data.repairs.length ? "No hay otros turnos para hoy." : "No hay turnos para hoy."}
+          </p>
+        )}
+      </section>
+    </div>
   ) : null;
 
   return (

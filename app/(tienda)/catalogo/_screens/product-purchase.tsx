@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Button } from "@/components/bt/button";
+import { Button, TextLink } from "@/components/bt/button";
 import { cx } from "@/components/bt/cx";
 import { TileGrid, Tile } from "@/components/bt/panel";
 import { QtyStepper } from "@/components/bt/qty-stepper";
@@ -13,8 +13,8 @@ import { useCart } from "@/lib/cart-store";
 /**
  * Compra de la ficha (2c / 4c, isla cliente): talle (con altura
  * sugerida), color (solo con más de uno, con el estilo de los talles),
- * cantidad (solo desktop, como el prototipo), "Agregar al carrito",
- * "Reservar una prueba" y las dos celdas Retiro / Stock.
+ * cantidad (solo desktop, como el prototipo), "Agregar al carrito", el
+ * link discreto al taller y las dos celdas Retiro / Stock.
  *
  * Selección inicial: el talle con más stock (en la MTB R29 da M, como el
  * prototipo) y su primer color con stock. Un talle está disponible si
@@ -37,7 +37,8 @@ export interface ProductPurchaseProps {
   /** Stock forzado a 0 desde el admin ("sin_stock"). */
   forcedOut?: boolean;
   swatches: Record<string, string | undefined>;
-  testRideHref?: string | null;
+  /** Link discreto al taller ("¿Ya tenés bici? Service…"). */
+  repairHref: string;
   sizeHelpHref: string;
   cartHref: string;
   copy: {
@@ -46,8 +47,7 @@ export interface ProductPurchaseProps {
     sizeHelpMobile: string;
     colorLabel: string;
     addToCart: string;
-    testRide: string;
-    testRideMobile: string;
+    repairLink: string;
     pickupTitle: string;
     pickupText: string;
     pickupTextMobile: string;
@@ -69,7 +69,7 @@ export function ProductPurchase({
   variants,
   forcedOut,
   swatches,
-  testRideHref,
+  repairHref,
   sizeHelpHref,
   cartHref,
   copy,
@@ -178,12 +178,9 @@ export function ProductPurchase({
             {stock > 0 ? copy.addToCart : "Sin stock"}
           </Button>
         </div>
-        {testRideHref && (
-          <Button href={testRideHref} variant="outline-paper" size="full-lg" className="lg:mt-[10px]">
-            <span className="lg:hidden">{copy.testRideMobile}</span>
-            <span className="max-lg:hidden">{copy.testRide}</span>
-          </Button>
-        )}
+        <TextLink href={repairHref} tone="muted" underline className="self-start lg:mt-1">
+          {copy.repairLink}
+        </TextLink>
       </div>
 
       <TileGrid columns={2} className="max-lg:hidden">

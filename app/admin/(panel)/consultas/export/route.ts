@@ -3,9 +3,9 @@ import { store } from "@/lib/config";
 import { leadTypeLabels } from "@/lib/data/content";
 import { formatDateTime } from "@/lib/format";
 import { hasAdminSession } from "@/lib/server/admin-auth";
+import { leadFilterWhere } from "@/lib/server/admin-queries";
 import { getDb, schema } from "@/lib/server/db";
 import type { Lead } from "@/lib/types";
-import { matchesLead } from "../filters";
 
 /**
  * Export CSV de Consultas (o de suscriptos con ?kind=newsletter), como el
@@ -56,11 +56,11 @@ export async function GET(request: Request) {
   }
 
   const filtro = url.searchParams.get("filtro") ?? "todas";
-  const leads = (await db
+  const rows = (await db
     .select()
     .from(schema.leads)
+    .where(leadFilterWhere(filtro))
     .orderBy(desc(schema.leads.ts))) as Lead[];
-  const rows = leads.filter((l) => matchesLead(l, filtro));
   return download(
     `${store.slug}-consultas.csv`,
     csv([

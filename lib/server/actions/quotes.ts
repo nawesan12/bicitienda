@@ -41,7 +41,7 @@ const requestSchema = z.object({
 
 /**
  * "Enviar pedido de presupuesto". FormData: kind, detail, forBike, budget,
- * name, phone, email y hasta 4 `photos` (imágenes ≤ 6 MB). Con sesión,
+ * name, phone, email y hasta 4 `photos` (imágenes ≤ 4 MB). Con sesión,
  * nombre/WhatsApp/email pueden venir de la cuenta.
  */
 export async function submitQuoteRequest(

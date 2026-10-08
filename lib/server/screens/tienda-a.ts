@@ -43,7 +43,6 @@ export interface CatalogItem {
   price: number;
   tag: string | null;
   rodado: string | null;
-  testRide: boolean;
   /** Talles reales (sin "Único") con su stock. */
   sizes: CardSize[];
   /** Variante a agregar desde el "+" de la card; null si hay que elegir. */
@@ -55,7 +54,6 @@ export interface CatalogItem {
 }
 
 export interface Pricing {
-  installments: number;
   transferDiscountPct: number;
 }
 
@@ -131,7 +129,6 @@ export function toCatalogItem(
     price: p.price ?? 0,
     tag: p.tag,
     rodado: p.rodado,
-    testRide: p.testRide,
     sizes: sizesOfProduct(p),
     quickVariant: single && !out && single.stock > 0 ? { id: single.id, stock: single.stock } : null,
     outOfStock: out,
@@ -140,10 +137,10 @@ export function toCatalogItem(
   };
 }
 
-/** Cuotas y % de transferencia vigentes (Ajustes). */
+/** % de transferencia vigente (Ajustes). Sin cuotas: no hay plan fijo que promocionar. */
 export async function getPricing(): Promise<Pricing> {
   const s = await getSettings();
-  return { installments: s.maxInstallments, transferDiscountPct: s.transferDiscount };
+  return { transferDiscountPct: s.transferDiscount };
 }
 
 /**

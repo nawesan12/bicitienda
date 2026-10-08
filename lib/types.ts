@@ -99,8 +99,6 @@ export interface Product {
   sku: string | null;
   /** Rodado para el filtro del catálogo ("29", "27.5", "700c"…). null = no aplica. */
   rodado: string | null;
-  /** Se puede reservar una prueba en el local (turno con producto). */
-  testRide: boolean;
   /** Sin stock en ninguna variante → no aparece en la web. */
   hideWhenOut: boolean;
   /** "borrador" no aparece en la web aunque no esté oculto. */
@@ -237,7 +235,6 @@ export interface Lexicon {
     repairsCta: string;
     repairsWaCta: string;
     agendaKicker: string;
-    testRideCta: string;
     aboutLink: string;
     instagramLink: string;
     tiktokLink: string;
@@ -277,23 +274,6 @@ export interface Lexicon {
     compareTitle: string;
     specsTitle: string;
     stockAlert: string;
-  };
-  financing: {
-    /** "6 cuotas MiPyME de $X" (tarjetas). */
-    cardSub: (cuota: string) => string;
-    box6: string;
-    box3: string;
-    /** "TRANSFERENCIA −5%". */
-    boxTransfer: (pct: number) => string;
-    boxNote: string;
-    modalTitle: string;
-    modalSub: string;
-    modal6: string;
-    modal3: string;
-    /** "Transferencia (5% off)". */
-    modalTransfer: (pct: number) => string;
-    modalCta: string;
-    modalNote: string;
   };
   compare: {
     title: string;
@@ -449,10 +429,6 @@ export interface CommerceLexicon {
     less: string;
     more: string;
     subtotal: string;
-    /** Bloque oscuro del pie: "6 CUOTAS MIPYME". */
-    box6: string;
-    /** Bloque pastel del pie: "TRANSFERENCIA −5%". */
-    boxTransfer: (pct: number) => string;
     cta: string;
     note: string;
   };
@@ -725,7 +701,6 @@ export interface WaMessages {
   repair: string;
   repairForm: (f: { tipo: string; modelo: string; problema: string }) => string;
   financing: (productName: string | null) => string;
-  testRide: string;
   community: string;
   articleFallback: string;
 }
@@ -1184,9 +1159,9 @@ export interface SeedVariant {
  */
 export type SeedProduct = Omit<
   Product,
-  "sku" | "rodado" | "testRide" | "hideWhenOut" | "status" | "variants"
+  "sku" | "rodado" | "hideWhenOut" | "status" | "variants"
 > &
-  Partial<Pick<Product, "sku" | "rodado" | "testRide" | "hideWhenOut" | "status">> & {
+  Partial<Pick<Product, "sku" | "rodado" | "hideWhenOut" | "status">> & {
     variants?: SeedVariant[];
   };
 

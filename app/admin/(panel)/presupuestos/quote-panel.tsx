@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { useToast } from "@/components/admin/toast";
 import { Button, buttonClasses, ClosedNote, cx, Eyebrow, FormError, Input, MessageBox, Modal, Mono, QuotePill } from "@/components/bt";
@@ -27,7 +26,6 @@ const sameLines = (a: QuoteLineDraft[], b: QuoteLineDraft[]) =>
  * pedido. "Rechazar" mientras esté abierto; cerrado = ClosedNote.
  */
 export function QuotePanel({ quote }: { quote: QuoteDetail }) {
-  const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
   const [lines, setLines] = useState<QuoteLineDraft[]>(quote.lines);
@@ -56,7 +54,8 @@ export function QuotePanel({ quote }: { quote: QuoteDetail }) {
   function commitLines(next: QuoteLineDraft[]) {
     setError(null);
     start(async () => {
-      if (await persistLines(next)) router.refresh();
+      // Las actions invalidan el panel: Next re-renderiza en la misma respuesta.
+      await persistLines(next);
     });
   }
 
@@ -65,7 +64,6 @@ export function QuotePanel({ quote }: { quote: QuoteDetail }) {
     start(async () => {
       const res = await adminPatchQuote(quote.id, p);
       if (!res.ok) setError(res.error);
-      else router.refresh();
     });
   }
 
@@ -94,7 +92,6 @@ export function QuotePanel({ quote }: { quote: QuoteDetail }) {
             ? "Presupuesto aceptado"
             : `Pedido #${res.orderNumber} creado`,
       );
-      router.refresh();
     });
   }
 
@@ -105,7 +102,6 @@ export function QuotePanel({ quote }: { quote: QuoteDetail }) {
       if (!res.ok) return setError(res.error);
       setRejectOpen(false);
       toast("Presupuesto rechazado");
-      router.refresh();
     });
   }
 

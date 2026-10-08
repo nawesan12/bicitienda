@@ -34,7 +34,7 @@ function hrefWith(sp: SP, patch: Partial<SP>): string {
   return s ? `/admin/turnos?${s}` : "/admin/turnos";
 }
 
-const SUB: Record<string, string> = { prueba: "Prueba", asesoramiento: "Asesor.", otro: "" };
+const SUB: Record<string, string> = { reparacion: "Taller", asesoramiento: "Asesor.", otro: "" };
 
 /** Celdas de la grilla para un set de días (semana o un día). */
 function buildGroups(data: AgendaData, sp: SP, dates: string[], selId: string | null, selBlock: number | null): WeekAgendaGroup[] {
@@ -149,7 +149,7 @@ export default async function AdminTurnosPage({ searchParams }: { searchParams: 
   const legend = (
     <Legend
       items={[
-        { label: "Prueba de bici", swatch: "yellow" },
+        { label: "Taller · reparación", swatch: "repair" },
         { label: "Asesoramiento", swatch: "paper" },
         { label: "Sin confirmar", swatch: "red-outline" },
         { label: "Bloqueado", swatch: "blocked" },

@@ -35,7 +35,6 @@ export const BUY = {
       few: (n: number) => (n === 1 ? "Queda 1 en este talle." : `Quedan ${n} en este talle.`),
       blocked: "Revisá los productos marcados en rojo antes de seguir.",
     },
-    testRideFallback: "la bici",
     errors: {
       name: "Completá tu nombre.",
       phone: "Revisá el WhatsApp: 10 dígitos con la característica (ej. 223 555-0182).",
@@ -71,7 +70,7 @@ export const BUY = {
       amountNote: "Ya tiene el {off}% off aplicado.",
       uploadTitle: "Mandanos el comprobante",
       uploadLabel: "Subí el comprobante",
-      uploadHint: "(foto o PDF, hasta 6 MB)",
+      uploadHint: "(foto o PDF, hasta 4 MB)",
       uploadCta: "Enviar comprobante",
       uploading: "Subiendo…",
       uploaded: "¡Listo! Recibimos el comprobante.",

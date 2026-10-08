@@ -11,7 +11,7 @@ import { getCategories, getStore, getVisibleProducts } from "@/lib/server/querie
 import type { Category, Product } from "@/lib/types";
 import { waUrl } from "@/lib/whatsapp";
 
-/** Grupos del nav que son categorías (los otros dos son turnos y presupuesto). */
+/** Grupos del nav que son categorías (los otros son taller, presupuesto y turnos). */
 const NAV_GROUPS = ["bicicletas", "accesorios", "repuestos", "importados"] as const;
 
 /** Links del chrome de la tienda: salen de `routes` (lib/paths.ts). */
@@ -27,6 +27,7 @@ export function storeHrefs(): StoreHrefs {
       accesorios: paths.catalog("accesorios"),
       repuestos: paths.catalog("repuestos"),
       importados: paths.catalog("importados"),
+      ...(features.repairs ? { taller: paths.repairs() } : {}),
       presupuesto: paths.quote(),
       turnos: paths.appointments(),
     },
@@ -79,10 +80,11 @@ export async function StoreFrame({ children }: { children: ReactNode }) {
         hrefs={hrefs}
         activeByPath={nav.activeByPath}
         categoryPaths={nav.categoryPaths}
-        noSearchPrefixes={[paths.cart(), paths.appointments(), paths.quote(), paths.account()]}
+        noSearchPrefixes={[paths.cart(), paths.appointments(), paths.quote(), paths.account(), paths.repairs()]}
         menuInfo={`WhatsApp ${whatsapp} · ${runtime.hours}`}
         accounts={features.accounts}
         accountPrefix={paths.account()}
+        registerHref={paths.register()}
       />
       <main id="contenido" className="flex-1">
         {children}
@@ -95,10 +97,14 @@ export async function StoreFrame({ children }: { children: ReactNode }) {
         whatsappHref={pending ? undefined : waUrl(runtime.whatsapp)}
         socials={[
           { label: "Instagram", href: `https://www.instagram.com/${runtime.instagram}` },
-          { label: "Facebook" },
+          ...(runtime.tiktok ? [{ label: "TikTok", href: `https://www.tiktok.com/@${runtime.tiktok.replace(/^@/, "")}` }] : []),
         ]}
-        installments={runtime.maxInstallments}
         transferDiscountPct={runtime.transferDiscount}
+        workshop={
+          features.repairs
+            ? { href: paths.repairs(), title: "Taller", sub: "Service y reparaciones con turno" }
+            : undefined
+        }
       />
     </div>
   );

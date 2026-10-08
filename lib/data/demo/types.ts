@@ -72,8 +72,6 @@ export interface DemoProduct {
   photos: PexelsId[];
   /** Rodado para el filtro del catálogo ("29", "27.5"…); null si no aplica. */
   rodado: string | null;
-  /** "Disponible para prueba" (turno de prueba de bici). */
-  testRide: boolean;
   status: ProductStatus;
   featured: boolean;
   hideWhenOut: boolean;
@@ -143,7 +141,7 @@ export interface DemoOrder {
 
 /* ── Turnos ─────────────────────────────────────────────── */
 
-export type ServiceKey = "prueba" | "asesoramiento";
+export type ServiceKey = "reparacion" | "asesoramiento";
 
 export type DemoAppointmentStatus =
   | "pendiente"
@@ -159,9 +157,9 @@ export interface DemoAppointment {
   time: string; // HH:MM
   customer: DemoCustomerRef;
   service: ServiceKey;
-  /** Lo que el cliente cuenta / bici a probar ("MTB R29 · talle M"). */
+  /** Lo que el cliente cuenta ("Cambio cambia mal · frenos flojos"). */
   detail: string;
-  /** Bici a probar (solo prueba, si se identifica en el catálogo). */
+  /** Sin uso (era la bici de la prueba, que ya no se ofrece). */
   productSlug: string | null;
   size: Talle | null;
   status: DemoAppointmentStatus;
@@ -254,6 +252,8 @@ export interface DemoService {
   active: boolean;
   /** Nota de Ajustes: "30 min · se paga en el local". */
   note: string;
+  /** Nota de precio del servicio (`appointment_services.price_note`). */
+  priceNote: string;
 }
 
 export interface DemoScheduleBlock {

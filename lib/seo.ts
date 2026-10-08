@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { store } from "@/lib/config";
-import { PAYMENT_SETTINGS } from "@/lib/data/demo/settings";
 import { SITE_URL } from "@/lib/site";
 import type { Category } from "@/lib/types";
 
@@ -54,8 +53,7 @@ import type { Category } from "@/lib/types";
  *     // ficha
  *     const { title, description } = productSeo({
  *       name: p.name, brand: brand?.name ?? "", category,
- *       price: v.hasPrice ? p.price : null,           // priceView(ratesOf(runtime), card)
- *       installments: runtime.maxInstallments,
+ *       price: p.price,                               // null si no se muestra
  *       outOfStock: isOutOfStock(p),
  *       keySpecs: p.chips.join(" · "),
  *     });
@@ -102,9 +100,6 @@ export const DESCRIPTION_MAX = 160;
 
 const CITY = "Mar del Plata";
 
-/** Cuotas sin interés por defecto (las reales: `runtime.maxInstallments`). */
-const DEFAULT_INSTALLMENTS: number = PAYMENT_SETTINGS.maxInstallments;
-
 /** Términos "buscables" de una categoría: plural para títulos, singular para fichas. */
 export interface SeoCategoryTerms {
   plural: string;
@@ -125,7 +120,7 @@ export const SEO = {
   titleTemplate: `%s · ${store.brandName}`,
   defaultTitle: `${store.brandName} · Bicis, accesorios y repuestos en ${CITY}`,
   defaultDescription:
-    "Bicicletas nuevas y usadas, accesorios, indumentaria, repuestos, cubiertas y cámaras en Mar del Plata. Comprá online en 6 cuotas sin interés y retirá en el local.",
+    "Bicicletas nuevas y usadas, accesorios, indumentaria, repuestos, cubiertas y cámaras en Mar del Plata. Comprá online con Mercado Pago o transferencia y retirá en el local.",
   keywords: [
     "bicicletería Mar del Plata",
     "bicicletas Mar del Plata",
@@ -136,7 +131,6 @@ export const SEO = {
     "repuestos de bicicleta",
     "cubiertas de bicicleta",
     "cámaras de bicicleta",
-    "bicicletas en cuotas sin interés",
     store.brandName,
   ],
 
@@ -161,7 +155,6 @@ export const SEO = {
     t: SeoCategoryTerms,
     count: number,
     brands: string[],
-    installments = DEFAULT_INSTALLMENTS,
   ): DescriptionParts => {
     const models = `${count} ${count === 1 ? "modelo" : "modelos"}`;
     const brandList =
@@ -175,9 +168,8 @@ export const SEO = {
         `${t.plural} en ${CITY}.`,
       ],
       [
-        `Comprá online en ${installments} cuotas sin interés o con 10% off por transferencia y retirá en el local.`,
-        `Comprá online en ${installments} cuotas sin interés y retirá en el local.`,
-        `${installments} cuotas sin interés y retiro en el local.`,
+        "Comprá online con Mercado Pago o transferencia y retirá en el local.",
+        "Mercado Pago, transferencia y retiro en el local.",
       ],
       ["Si no lo encontrás, pedí presupuesto.", "Pedí presupuesto."],
     ];
@@ -197,8 +189,6 @@ export const SEO = {
     terms: SeoCategoryTerms;
     keySpecs?: string;
     price: string | null;
-    installment: string | null;
-    installments: number;
     outOfStock: boolean;
   }): DescriptionParts => {
     const intro = `${p.name}${p.brand && !p.name.startsWith(p.brand) ? ` de ${p.brand}` : ""}`;
@@ -207,12 +197,7 @@ export const SEO = {
       p.outOfStock
         ? ["Sin stock por ahora: escribinos y te avisamos cuándo vuelve.", "Consultá el ingreso."]
         : p.price
-          ? [
-              ...(p.installment
-                ? [`${p.price} o ${p.installments} cuotas sin interés de ${p.installment}.`]
-                : []),
-              `${p.price}.`,
-            ]
+          ? [`${p.price} con Mercado Pago o transferencia.`, `${p.price}.`]
           : ["Consultá precio y disponibilidad por WhatsApp.", "Consultá precio."],
       ...(p.keySpecs ? [[`${p.keySpecs}.`]] : []),
       [
@@ -236,8 +221,7 @@ export const SEO = {
     categoriesLine: "Bicicletas nuevas y usadas · Accesorios · Repuestos · Cubiertas · Cámaras",
     footer: `bicitiendamdq.com.ar · ${CITY}`,
     defaultAlt: `${store.brandName} — bicicletas, accesorios y repuestos en ${CITY}`,
-    installments: (n: number, cuota: string) => `${n} cuotas sin interés de ${cuota}`,
-    installmentsShort: (n: number) => `${n} cuotas sin interés`,
+    mercadoPago: "Mercado Pago",
     transfer: (pct: number, price: string) => `${price} con ${pct}% off por transferencia`,
     consult: "Consultá el precio",
     consultSub: "Te respondemos por WhatsApp",
@@ -245,8 +229,8 @@ export const SEO = {
     pickup: "Retiro sin cargo en el local",
     categoryKicker: (n: number) => `CATÁLOGO · ${n} ${n === 1 ? "MODELO" : "MODELOS"}`,
     categoryLocation: `en ${CITY}`,
-    categorySub: "Cuotas sin interés · 10% off transferencia · Retiro en el local",
-    productAlt: (name: string) => `${name} en ${store.brandName}: precio, cuotas y talles`,
+    categorySub: "Mercado Pago · Transferencia · Retiro en el local",
+    productAlt: (name: string) => `${name} en ${store.brandName}: precio y talles`,
     categoryAlt: (plural: string) => `${plural} en ${store.brandName}, ${CITY}`,
   },
 
@@ -258,21 +242,21 @@ export const SEO = {
     catalog: {
       kicker: "CATÁLOGO",
       title: "Bicis, accesorios y repuestos",
-      sub: "Nuevas y usadas · cuotas sin interés · retiro en el local",
+      sub: "Nuevas y usadas · Mercado Pago · retiro en el local",
       meta: {
         title: `Bicicletas, accesorios y repuestos en ${CITY}`,
         description:
-          "Catálogo de BiciTienda MDQ: bicicletas nuevas y usadas, accesorios, indumentaria, repuestos, cubiertas y cámaras. 6 cuotas sin interés y retiro en el local.",
+          "Catálogo de BiciTienda MDQ: bicicletas nuevas y usadas, accesorios, indumentaria, repuestos, cubiertas y cámaras. Mercado Pago, transferencia y retiro en el local.",
       },
     },
     appointments: {
       kicker: "SACAR TURNO",
-      title: "Probala antes de comprarla",
-      sub: "Prueba de bici o asesoramiento · 30 min · se paga en el local",
+      title: "Turnos para el taller",
+      sub: "Reparación, service o asesoramiento · presupuesto por WhatsApp",
       meta: {
-        title: `Sacá turno: prueba de bici o asesoramiento en ${CITY}`,
+        title: `Turnos para el taller de bicis en ${CITY}`,
         description:
-          "Reservá un turno en BiciTienda MDQ para probar una bici o para que te asesoremos con talle, rodado y uso. 30 minutos, sin cargo online. Elegí día y horario.",
+          "Sacá turno en el taller de BiciTienda MDQ: service, frenos, cambios, pinchaduras y puesta a punto. También asesoramiento de compra. Elegí día y horario.",
       },
     },
     quote: {
@@ -432,13 +416,12 @@ export function categorySeo(
   category: Pick<Category, "slug" | "label">,
   count: number,
   brands: string[] = [],
-  installments: number = DEFAULT_INSTALLMENTS,
 ): { title: string; description: string; terms: SeoCategoryTerms } {
   const terms = categoryTerms(category);
   return {
     terms,
     title: fitTitle([SEO.categoryTitle(terms), terms.plural]),
-    description: fitDescription(SEO.categoryDescription(terms, count, brands, installments)),
+    description: fitDescription(SEO.categoryDescription(terms, count, brands)),
   };
 }
 
@@ -452,16 +435,12 @@ export function productSeo(p: {
   brand?: string;
   category: Pick<Category, "slug" | "label"> | undefined | null;
   price: number | null;
-  /** Cuotas sin interés (runtime.maxInstallments). 0/1 = no se mencionan. */
-  installments?: number;
   outOfStock: boolean;
   /** Destacados cortos ("Rodado 29 · 21 velocidades"). */
   keySpecs?: string;
 }): { title: string; description: string; terms: SeoCategoryTerms } {
   const terms = categoryTerms(p.category);
-  const n = p.installments ?? DEFAULT_INSTALLMENTS;
   const price = p.price != null ? formatPriceSeo(p.price) : null;
-  const installment = p.price != null && n > 1 ? formatPriceSeo(Math.round(p.price / n)) : null;
   return {
     terms,
     title: fitTitle(SEO.productTitles(p.name, terms)),
@@ -472,8 +451,6 @@ export function productSeo(p: {
         terms,
         keySpecs: p.keySpecs,
         price,
-        installment,
-        installments: n,
         outOfStock: p.outOfStock,
       }),
     ),

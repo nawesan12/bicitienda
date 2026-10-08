@@ -58,8 +58,8 @@ export function AppointmentPanel({ appt, times }: { appt: AppointmentDetail; tim
       if (!res.ok) return setError(res.error);
       setDialog(null);
       toast(done);
-      if (after) after();
-      else router.refresh();
+      // Las actions invalidan el panel: Next re-renderiza en la misma respuesta.
+      after?.();
     });
   }
 
@@ -95,7 +95,7 @@ export function AppointmentPanel({ appt, times }: { appt: AppointmentDetail; tim
 
   return (
     <div className="flex min-w-0 flex-col gap-4 rounded-card border border-line bg-surface p-6">
-      <Pill tone={appt.service === "prueba" ? "yellow" : appt.service === "asesoramiento" ? "paper" : "dark"} className="self-start">
+      <Pill tone={appt.service === "reparacion" ? "yellow" : appt.service === "asesoramiento" ? "paper" : "dark"} className="self-start">
         {appt.serviceName}
       </Pill>
       <h2 className="m-0 text-[40px] font-black uppercase leading-[.95] stretch-70">{appt.name}</h2>

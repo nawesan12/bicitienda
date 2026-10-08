@@ -140,7 +140,7 @@ function AppointmentsSection({
               <p className="m-0 text-[22px] leading-[.95] font-black uppercase stretch-70 md:text-[26px]">
                 No tenés turnos reservados
               </p>
-              <p className="m-0 text-[14px] text-text-2">Reservá una prueba de bici o un asesoramiento en el local.</p>
+              <p className="m-0 text-[14px] text-text-2">Sacá un turno para el taller o un asesoramiento.</p>
             </div>
             <Button href={paths.appointments()} variant="primary" size="md" className="max-md:w-full">
               Sacar turno

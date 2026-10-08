@@ -1,15 +1,17 @@
-import { eq, ilike } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
+import { eq, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import { parseCsv, toCsv } from "@/lib/csv";
 import { slugify } from "@/lib/slug";
 import { insertCategory } from "@/lib/server/categories";
-import { getDb, schema, type Db } from "@/lib/server/db";
+import { atomicWrites, getDb, schema, type Db } from "@/lib/server/db";
 import { invalidatePublic } from "@/lib/server/revalidate";
-import { setStockLevel, getVariantTotals } from "@/lib/server/stock";
-import { createVariant, ensureDefaultVariant, updateVariant } from "@/lib/server/variants";
+import { getVariantTotals } from "@/lib/server/stock";
+import { autoSku, VariantError } from "@/lib/server/variants";
 import { isXlsx, readXlsxRows, XlsxError } from "@/lib/server/xlsx";
 import { SINGLE_SIZE, type ProductStatus } from "@/lib/types";
-import { defaultVariantId } from "@/lib/variants";
+import { defaultVariantId, defaultVariantSku } from "@/lib/variants";
 
 /**
  * Importación de productos desde una planilla (CSV o XLSX): una fila por
@@ -40,7 +42,6 @@ export const IMPORT_COLUMNS = [
   "altura",
   "sku_variante",
   "stock",
-  "se_puede_probar",
   "ocultar_sin_stock",
   "estado",
   "descripcion",
@@ -51,15 +52,16 @@ type Column = (typeof IMPORT_COLUMNS)[number];
 const REQUIRED: Column[] = ["sku_producto", "nombre", "categoria"];
 
 export const MAX_IMPORT_ROWS = 2000;
-export const MAX_IMPORT_BYTES = 4 * 1024 * 1024;
+/** Con margen bajo el `bodySizeLimit` de 4 MB de las server actions. */
+export const MAX_IMPORT_BYTES = 3.8 * 1024 * 1024;
 
 /** Plantilla descargable: encabezados + dos ejemplos (con talles y sin). */
 export function importTemplateCsv(): string {
   const rows: string[][] = [
     [...IMPORT_COLUMNS],
-    ["MTB29-21", "MTB rodado 29 · 21 vel. · aluminio", "bicicletas-nuevas", "Venzo", "489900", "", "29", "M", "Negro/amarillo", "1,65 – 1,75 m", "", "3", "si", "no", "publicado", "Cuadro de aluminio, 21 velocidades.", ""],
-    ["MTB29-21", "", "", "", "", "", "", "L", "Negro/amarillo", "1,75 – 1,85 m", "", "2", "", "", "", "", ""],
-    ["LUCES-USB", "Kit luces delantera + trasera", "accesorios", "Genérica", "24900", "", "", "", "", "", "", "12", "no", "no", "publicado", "", ""],
+    ["MTB29-21", "MTB rodado 29 · 21 vel. · aluminio", "bicicletas-nuevas", "Venzo", "489900", "", "29", "M", "Negro/amarillo", "1,65 – 1,75 m", "", "3", "no", "publicado", "Cuadro de aluminio, 21 velocidades.", ""],
+    ["MTB29-21", "", "", "", "", "", "", "L", "Negro/amarillo", "1,75 – 1,85 m", "", "2", "", "", "", ""],
+    ["LUCES-USB", "Kit luces delantera + trasera", "accesorios-varios", "Genérica", "24900", "", "", "", "", "", "", "12", "no", "publicado", "", ""],
   ];
   return toCsv(rows, ";");
 }
@@ -83,7 +85,6 @@ const HEADER_ALIASES: Record<string, Column> = {
   precio_anterior: "precio_lista",
   talla: "talle",
   altura_sugerida: "altura",
-  prueba: "se_puede_probar",
   descripcion: "descripcion",
   imagenes: "fotos",
   foto: "fotos",
@@ -155,7 +156,6 @@ interface ParsedRow {
   height: string;
   variantSku: string;
   stock: number | null;
-  testRide: boolean | null;
   hideWhenOut: boolean | null;
   status: ProductStatus | null;
   description: string;
@@ -209,25 +209,26 @@ interface Context {
 }
 
 async function loadContext(db: Db): Promise<Context> {
-  const [categories, products, variants, locations] = await Promise.all([
+  // Todo en paralelo (un solo viaje): el stock de todas las sucursales es
+  // chico y se filtra la principal acá.
+  const [categories, products, variants, locations, stockRows] = await Promise.all([
     db.select({ slug: schema.categories.slug, label: schema.categories.label }).from(schema.categories),
     db.select().from(schema.products),
     db.select().from(schema.productVariants),
     db.select().from(schema.locations),
+    db
+      .select({ variantId: schema.productStock.variantId, locationId: schema.productStock.locationId, qty: schema.productStock.qty })
+      .from(schema.productStock),
   ]);
   const principal = [...locations]
     .filter((l) => l.active)
     .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id))[0];
   if (!principal) throw new Error("Sin sucursales activas: corré `pnpm db:seed`.");
-  const rows = await db
-    .select()
-    .from(schema.productStock)
-    .where(eq(schema.productStock.locationId, principal.id));
   return {
     categories,
     products,
     variants,
-    stock: new Map(rows.map((r) => [r.variantId, r.qty])),
+    stock: new Map(stockRows.filter((r) => r.locationId === principal.id).map((r) => [r.variantId, r.qty])),
     principal: principal.id,
   };
 }
@@ -298,7 +299,7 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
     const oldPrice = parseMoney(get("precio_lista"));
     const stockRaw = get("stock").trim();
     const stock = stockRaw === "" ? null : /^\d{1,5}$/.test(stockRaw) ? Number(stockRaw) : NaN;
-    const testRide = parseBool(get("se_puede_probar"));
+    // "se_puede_probar" (planillas viejas) se ignora: ya no hay pruebas de bici.
     const hideWhenOut = parseBool(get("ocultar_sin_stock"));
     const statusRaw = get("estado").trim().toLowerCase();
     const status: ProductStatus | null | "invalid" = !statusRaw
@@ -318,7 +319,6 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
     if (price === "invalid") err("precio", "Precio inválido: usá solo números (ej. 489900).");
     if (oldPrice === "invalid") err("precio_lista", "Precio de lista inválido.");
     if (Number.isNaN(stock)) err("stock", "Stock inválido: un número entero de 0 a 99999.");
-    if (testRide === "invalid") err("se_puede_probar", "Usá si o no.");
     if (hideWhenOut === "invalid") err("ocultar_sin_stock", "Usá si o no.");
     if (status === "invalid") err("estado", "Usá publicado o borrador.");
     if (photos.some((u) => !/^https?:\/\/\S+$/.test(u))) err("fotos", "Las fotos tienen que ser URLs (separadas por |).");
@@ -338,7 +338,6 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
       height: b.altura,
       variantSku: b.sku_variante.toUpperCase(),
       stock: stock as number | null,
-      testRide: testRide as boolean | null,
       hideWhenOut: hideWhenOut as boolean | null,
       status: status as ProductStatus | null,
       description: b.descripcion.trim(),
@@ -429,7 +428,6 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
         (oldPrice != null && oldPrice !== existing.oldPrice) ||
         (first.rodado && first.rodado !== (existing.rodado ?? "")) ||
         (first.description && first.description !== existing.description) ||
-        (first.testRide !== null && first.testRide !== existing.testRide) ||
         (first.hideWhenOut !== null && first.hideWhenOut !== existing.hideWhenOut) ||
         (first.status !== null && first.status !== existing.status) ||
         (first.photos.length > 0 && JSON.stringify(first.photos) !== JSON.stringify(existing.images));
@@ -477,55 +475,124 @@ export async function previewProductImport(bytes: Buffer): Promise<ImportPreview
 
 /* ── Commit ───────────────────────────────────────────────── */
 
-async function brandIdFor(db: Db, name: string): Promise<string> {
-  const label = name.trim() || "Sin marca";
-  const [found] = await db
-    .select({ id: schema.brands.id })
-    .from(schema.brands)
-    .where(ilike(schema.brands.name, label));
-  if (found) return found.id;
-  const base = slugify(label, 40) || "marca";
-  let id = base;
-  for (let i = 2; ; i++) {
-    const [clash] = await db.select({ id: schema.brands.id }).from(schema.brands).where(eq(schema.brands.id, id));
-    if (!clash) break;
-    id = `${base}-${i}`;
-  }
-  await db.insert(schema.brands).values({ id, name: label });
-  return id;
-}
-
-async function uniqueSlug(db: Db, name: string): Promise<string> {
-  const base = slugify(name) || `producto-${Date.now()}`;
-  let slug = base;
-  for (let i = 2; ; i++) {
-    const [clash] = await db.select({ id: schema.products.id }).from(schema.products).where(eq(schema.products.slug, slug));
-    if (!clash) return slug;
-    slug = `${base}-${i}`;
-  }
-}
-
 /**
- * Aplica la planilla si no tiene errores (si tiene, devuelve la preview
- * con los errores y no escribe nada).
+ * El commit lee TODO lo que necesita en un par de queries (Context +
+ * marcas + totales de stock), simula en memoria exactamente lo que hacía
+ * la versión fila por fila (slugs y SKUs únicos, variante "Único",
+ * desactivar la "Único" vacía al pasar a talles, stock absoluto en la
+ * principal) y escribe todo junto con `atomicWrites`: en Neon es UN
+ * request (db.batch, atómico) y si algo falla no queda nada a medias.
  */
-export async function commitProductImport(
-  bytes: Buffer,
-  opts: { actor?: string } = {},
-): Promise<ImportPreview> {
-  const db = await getDb();
-  const ctx = await loadContext(db);
-  let sheet: string[][];
-  try {
-    sheet = readSheet(bytes);
-  } catch (err) {
-    if (err instanceof XlsxError) return previewProductImport(bytes);
-    throw err;
-  }
-  const { preview, parsed } = analyze(sheet, ctx);
-  if (!preview.ok) return preview;
 
-  for (const label of preview.newCategories ?? []) ctx.categories.push(await insertCategory(db, label));
+type ProductRow = typeof schema.products.$inferSelect;
+type VariantRow = typeof schema.productVariants.$inferSelect;
+
+/** Sentencias por INSERT multi-fila (tope holgado de parámetros de Postgres). */
+const INSERT_CHUNK = 500;
+
+function chunks<T>(list: T[], size = INSERT_CHUNK): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+interface ImportWrites {
+  brands: (typeof schema.brands.$inferInsert)[];
+  products: (typeof schema.products.$inferInsert)[];
+  productUpdates: { id: string; set: Partial<typeof schema.products.$inferInsert> }[];
+  variants: (typeof schema.productVariants.$inferInsert)[];
+  variantUpdates: { id: string; set: Partial<typeof schema.productVariants.$inferInsert> }[];
+  /** Variación neta de stock por variante en la sucursal principal. */
+  stock: { variantId: string; productSlug: string; delta: number }[];
+  principal: string;
+  actor: string;
+}
+
+/** Calcula en memoria todas las escrituras del commit (sin escribir nada). */
+function planImport(
+  ctx: Context,
+  parsed: ParsedRow[],
+  extra: { brands: (typeof schema.brands.$inferSelect)[]; totals: Map<string, number> },
+  actor: string,
+): ImportWrites {
+  const brandRows = extra.brands;
+  const writes: ImportWrites = {
+    brands: [],
+    products: [],
+    productUpdates: [],
+    variants: [],
+    variantUpdates: [],
+    stock: [],
+    principal: ctx.principal,
+    actor,
+  };
+
+  // Marcas: por nombre sin distinguir mayúsculas (como el ILIKE de antes).
+  const brandByName = new Map<string, string>();
+  for (const b of brandRows) if (!brandByName.has(b.name.toLowerCase())) brandByName.set(b.name.toLowerCase(), b.id);
+  const brandIds = new Set(brandRows.map((b) => b.id));
+  const brandIdFor = (name: string): string => {
+    const label = name.trim() || "Sin marca";
+    const found = brandByName.get(label.toLowerCase());
+    if (found) return found;
+    const base = slugify(label, 40) || "marca";
+    let id = base;
+    for (let i = 2; brandIds.has(id); i++) id = `${base}-${i}`;
+    brandIds.add(id);
+    brandByName.set(label.toLowerCase(), id);
+    writes.brands.push({ id, name: label });
+    return id;
+  };
+
+  // Slugs tomados (también los ids: el producto nuevo usa slug = id).
+  const takenSlugs = new Set(ctx.products.flatMap((p) => [p.slug, p.id]));
+  const uniqueSlug = (name: string): string => {
+    const base = slugify(name) || `producto-${Date.now()}`;
+    let slug = base;
+    for (let i = 2; takenSlugs.has(slug); i++) slug = `${base}-${i}`;
+    takenSlugs.add(slug);
+    return slug;
+  };
+
+  // Variantes "en vivo" (estado simulado de la base) y su estado inicial.
+  const live = new Map<string, VariantRow>(ctx.variants.map((v) => [v.id, { ...v }]));
+  const initial = new Map<string, VariantRow>(ctx.variants.map((v) => [v.id, v]));
+  const touched: string[] = [];
+  const touch = (id: string) => {
+    if (initial.has(id) && !touched.includes(id)) touched.push(id);
+  };
+  const skuOwner = new Map<string, string>(ctx.variants.map((v) => [v.sku, v.id]));
+  const bySlug = new Map<string, VariantRow[]>();
+  for (const v of live.values()) bySlug.set(v.productSlug, [...(bySlug.get(v.productSlug) ?? []), v]);
+  const variantsOf = (slug: string) => bySlug.get(slug) ?? [];
+  const uniqueSku = (wanted: string): string => {
+    const base = wanted.trim().toUpperCase();
+    let sku = base;
+    for (let i = 2; skuOwner.has(sku); i++) sku = `${base}-${i}`;
+    return sku;
+  };
+  const addVariant = (v: VariantRow) => {
+    live.set(v.id, v);
+    bySlug.set(v.productSlug, [...variantsOf(v.productSlug), v]);
+    skuOwner.set(v.sku, v.id);
+    writes.variants.push({ ...v });
+  };
+
+  // Stock: total (todas las sucursales) y principal, actualizados al simular.
+  const totals = new Map(extra.totals);
+  const principalQty = new Map(ctx.stock);
+  const stockDelta = new Map<string, { productSlug: string; delta: number }>();
+
+  /** createVariant → retireEmptyDefault: la "Único" sin stock se desactiva. */
+  const retireEmptyDefault = (slug: string) => {
+    const id = defaultVariantId(slug);
+    if ((totals.get(id) ?? 0) > 0) return;
+    const v = live.get(id);
+    if (v && v.active) {
+      v.active = false;
+      touch(id);
+    }
+  };
 
   const groups = new Map<string, ParsedRow[]>();
   for (const r of parsed) groups.set(r.productSku, [...(groups.get(r.productSku) ?? []), r]);
@@ -542,94 +609,234 @@ export async function commitProductImport(
     const oldPrice = rows.find((r) => r.oldPrice !== null)?.oldPrice;
     const rodado = pick("rodado");
 
-    let product = ctx.products.find((p) => p.sku === sku);
+    let product: Pick<ProductRow, "slug" | "sku"> | undefined = ctx.products.find((p) => p.sku === sku);
     if (!product) {
-      const slug = await uniqueSlug(db, name!);
-      [product] = await db
-        .insert(schema.products)
-        .values({
-          id: slug,
-          slug,
-          sku,
-          name: name!,
-          brandId: await brandIdFor(db, brand ?? ""),
-          category: category!,
-          price: price ?? null,
-          oldPrice: oldPrice ?? null,
-          rodado: rodado || null,
-          description: first.description,
-          testRide: first.testRide ?? false,
-          hideWhenOut: first.hideWhenOut ?? false,
-          status: first.status ?? "publicado",
-          images: first.photos,
-          custom: true,
-          createdAt: new Date().toISOString().slice(0, 10),
-        })
-        .returning();
+      const slug = uniqueSlug(name!);
+      writes.products.push({
+        id: slug,
+        slug,
+        sku,
+        name: name!,
+        brandId: brandIdFor(brand ?? ""),
+        category: category!,
+        price: price ?? null,
+        oldPrice: oldPrice ?? null,
+        rodado: rodado || null,
+        description: first.description,
+        hideWhenOut: first.hideWhenOut ?? false,
+        status: first.status ?? "publicado",
+        images: first.photos,
+        custom: true,
+        createdAt: new Date().toISOString().slice(0, 10),
+      });
+      product = { slug, sku };
     } else {
+      const p = ctx.products.find((x) => x.sku === sku)!;
       const set: Partial<typeof schema.products.$inferInsert> = {};
-      if (name && name !== product.name) set.name = name;
-      if (category && category !== product.category) set.category = category;
-      if (brand) set.brandId = await brandIdFor(db, brand);
-      if (price != null && price !== product.price) set.price = price;
-      if (oldPrice != null && oldPrice !== product.oldPrice) set.oldPrice = oldPrice;
-      if (rodado && rodado !== product.rodado) set.rodado = rodado;
-      if (first.description && first.description !== product.description) set.description = first.description;
-      if (first.testRide !== null) set.testRide = first.testRide;
-      if (first.hideWhenOut !== null) set.hideWhenOut = first.hideWhenOut;
-      if (first.status !== null) set.status = first.status;
-      if (first.photos.length) set.images = first.photos;
-      if (Object.keys(set).length)
-        [product] = await db.update(schema.products).set(set).where(eq(schema.products.id, product.id)).returning();
+      if (name && name !== p.name) set.name = name;
+      if (category && category !== p.category) set.category = category;
+      if (brand) {
+        const brandId = brandIdFor(brand);
+        if (brandId !== p.brandId) set.brandId = brandId;
+      }
+      if (price != null && price !== p.price) set.price = price;
+      if (oldPrice != null && oldPrice !== p.oldPrice) set.oldPrice = oldPrice;
+      if (rodado && rodado !== p.rodado) set.rodado = rodado;
+      if (first.description && first.description !== p.description) set.description = first.description;
+      if (first.hideWhenOut !== null && first.hideWhenOut !== p.hideWhenOut) set.hideWhenOut = first.hideWhenOut;
+      if (first.status !== null && first.status !== p.status) set.status = first.status;
+      if (first.photos.length && JSON.stringify(first.photos) !== JSON.stringify(p.images)) set.images = first.photos;
+      if (Object.keys(set).length) writes.productUpdates.push({ id: p.id, set });
     }
 
     const slug = product.slug;
+    const def = defaultVariantId(slug);
     const sized = rows.some((r) => r.size !== SINGLE_SIZE || r.color);
-    if (!sized) await ensureDefaultVariant(db, slug, sku);
-    let variants = await db.select().from(schema.productVariants).where(eq(schema.productVariants.productSlug, slug));
+    // ensureDefaultVariant (idempotente).
+    if (!sized && !live.has(def) && !variantsOf(slug).some((v) => v.size === SINGLE_SIZE && v.color === "")) {
+      addVariant({
+        id: def,
+        productSlug: slug,
+        size: SINGLE_SIZE,
+        color: "",
+        heightRange: null,
+        sku: uniqueSku(defaultVariantSku(slug, sku)),
+        order: 0,
+        active: true,
+      });
+    }
+    // Foto de las variantes que se usa para matchear las filas: como antes,
+    // se refresca solo después de crear una variante.
+    let snap = variantsOf(slug).map((v) => ({ ...v }));
 
     for (const [i, r] of rows.entries()) {
       const match =
-        (r.variantSku && variants.find((v) => v.sku === r.variantSku)) ||
-        variants.find((v) => v.size.toLowerCase() === r.size.toLowerCase() && v.color.toLowerCase() === r.color.toLowerCase());
+        (r.variantSku && snap.find((v) => v.sku === r.variantSku)) ||
+        snap.find((v) => v.size.toLowerCase() === r.size.toLowerCase() && v.color.toLowerCase() === r.color.toLowerCase());
       let variantId: string;
       if (!match) {
-        const v = await createVariant(db, slug, {
-          size: r.size,
-          color: r.color,
-          heightRange: r.height || null,
-          sku: r.variantSku || null,
-          order: i,
-        });
-        variantId = v.id;
-        variants = await db.select().from(schema.productVariants).where(eq(schema.productVariants.productSlug, slug));
-      } else {
-        variantId = match.id;
-        const patch: Parameters<typeof updateVariant>[2] = {};
-        if (r.height && r.height !== (match.heightRange ?? "")) patch.heightRange = r.height;
-        if (r.variantSku && r.variantSku !== match.sku) patch.sku = r.variantSku;
-        if (!match.active) patch.active = true;
-        if (Object.keys(patch).length) await updateVariant(db, match.id, patch);
-      }
-      if (r.stock !== null)
-        await setStockLevel(db, {
-          variantId,
+        // createVariant
+        const size = r.size.trim() || SINGLE_SIZE;
+        const color = r.color.trim();
+        if (variantsOf(slug).some((v) => v.size === size && v.color === color))
+          throw new VariantError("Esa combinación de talle y color ya existe.");
+        const vsku = r.variantSku ? r.variantSku.trim().toUpperCase() : uniqueSku(autoSku(slug, product.sku, { size, color }));
+        if (skuOwner.has(vsku)) throw new VariantError(`El SKU ${vsku} ya está en uso.`);
+        variantId = size === SINGLE_SIZE && !color ? def : `${slug}--${randomBytes(4).toString("hex")}`;
+        addVariant({
+          id: variantId,
           productSlug: slug,
-          locationId: ctx.principal,
-          qty: r.stock,
-          reason: "importacion",
-          actor: opts.actor ?? "admin",
+          size,
+          color,
+          heightRange: r.height.trim() || null,
+          sku: vsku,
+          order: i,
+          active: true,
         });
+        if (size !== SINGLE_SIZE || color) retireEmptyDefault(slug);
+        snap = variantsOf(slug).map((v) => ({ ...v }));
+      } else {
+        // updateVariant
+        variantId = match.id;
+        const v = live.get(match.id)!;
+        let changed = false;
+        if (r.height && r.height !== (match.heightRange ?? "")) {
+          v.heightRange = r.height.trim() || null;
+          changed = true;
+        }
+        if (r.variantSku && r.variantSku !== match.sku) {
+          const next = r.variantSku.trim().toUpperCase();
+          const owner = skuOwner.get(next);
+          if (owner && owner !== v.id) throw new VariantError(`El SKU ${next} ya está en uso.`);
+          if (skuOwner.get(v.sku) === v.id) skuOwner.delete(v.sku);
+          v.sku = next;
+          skuOwner.set(next, v.id);
+          changed = true;
+        }
+        if (!match.active) {
+          v.active = true;
+          changed = true;
+        }
+        if (changed) touch(v.id);
+      }
+      // setStockLevel: absoluto en la principal, asentado como delta.
+      if (r.stock !== null) {
+        const target = Math.max(0, Math.trunc(r.stock));
+        const delta = target - (principalQty.get(variantId) ?? 0);
+        if (delta) {
+          principalQty.set(variantId, target);
+          totals.set(variantId, (totals.get(variantId) ?? 0) + delta);
+          const acc = stockDelta.get(variantId) ?? { productSlug: slug, delta: 0 };
+          acc.delta += delta;
+          stockDelta.set(variantId, acc);
+        }
+      }
     }
 
     // Con talles: la "Único" vacía que pudo quedar del alta se desactiva.
-    if (sized) {
-      const totals = await getVariantTotals(db);
-      const def = defaultVariantId(slug);
-      if (variants.some((v) => v.id === def && v.active) && (totals.get(def) ?? 0) === 0)
-        await updateVariant(db, def, { active: false });
+    if (sized && snap.some((v) => v.id === def && v.active) && (totals.get(def) ?? 0) === 0) {
+      const v = live.get(def);
+      if (v && v.active) {
+        v.active = false;
+        touch(def);
+      }
     }
   }
+
+  // Variantes existentes: solo lo que cambió respecto de la base.
+  for (const id of touched) {
+    const before = initial.get(id)!;
+    const after = live.get(id)!;
+    const set: Partial<typeof schema.productVariants.$inferInsert> = {};
+    if (after.heightRange !== before.heightRange) set.heightRange = after.heightRange;
+    if (after.sku !== before.sku) set.sku = after.sku;
+    if (after.active !== before.active) set.active = after.active;
+    if (Object.keys(set).length) writes.variantUpdates.push({ id, set });
+  }
+  // Las nuevas van con su estado final (p. ej. la "Único" ya desactivada).
+  writes.variants = writes.variants.map((v) => ({ ...live.get(v.id!)! }));
+  for (const [variantId, { productSlug, delta }] of stockDelta)
+    if (delta) writes.stock.push({ variantId, productSlug, delta });
+  return writes;
+}
+
+/** Las sentencias del commit, en orden de dependencias (FKs). */
+function importQueries(q: Db, w: ImportWrites): BatchItem<"pg">[] {
+  const out: BatchItem<"pg">[] = [];
+  for (const part of chunks(w.brands)) out.push(q.insert(schema.brands).values(part));
+  for (const part of chunks(w.products)) out.push(q.insert(schema.products).values(part));
+  for (const u of w.productUpdates) out.push(q.update(schema.products).set(u.set).where(eq(schema.products.id, u.id)));
+  // Primero las ediciones (pueden liberar un SKU que toma una variante nueva).
+  // Los SKUs que cambian pasan antes por uno temporal: así una rotación
+  // dentro de la planilla no choca con el índice único según el orden.
+  for (const u of w.variantUpdates)
+    if (u.set.sku)
+      out.push(q.update(schema.productVariants).set({ sku: `~${u.id}` }).where(eq(schema.productVariants.id, u.id)));
+  for (const u of w.variantUpdates)
+    out.push(q.update(schema.productVariants).set(u.set).where(eq(schema.productVariants.id, u.id)));
+  for (const part of chunks(w.variants)) out.push(q.insert(schema.productVariants).values(part));
+  for (const part of chunks(w.stock)) {
+    // La fila puede no existir (variante o sucursal nueva).
+    out.push(
+      q
+        .insert(schema.productStock)
+        .values(part.map((s) => ({ variantId: s.variantId, productSlug: s.productSlug, locationId: w.principal, qty: 0 })))
+        .onConflictDoNothing(),
+    );
+    // Delta atómico + asiento en el libro con el qty real que quedó (lo que
+    // hacía applyStockMovement, para todas las variantes en una sentencia).
+    const values = sql.join(
+      part.map((s) => sql`(${s.variantId}::text, ${s.delta}::int)`),
+      sql`, `,
+    );
+    out.push(
+      q.execute(sql`
+        with d (variant_id, delta) as (values ${values}),
+        upd as (
+          update ${schema.productStock} as ps
+             set qty = ps.qty + d.delta
+            from d
+           where ps.variant_id = d.variant_id
+             and ps.location_id = ${w.principal}
+             and ps.qty + d.delta >= 0
+          returning ps.variant_id, ps.product_slug, ps.location_id, ps.qty, d.delta
+        )
+        insert into ${schema.stockMovements} (variant_id, product_slug, location_id, delta, qty_after, reason, actor)
+        select variant_id, product_slug, location_id, delta, qty, 'importacion', ${w.actor} from upd`),
+    );
+  }
+  return out;
+}
+
+/**
+ * Aplica la planilla si no tiene errores (si tiene, devuelve la preview
+ * con los errores y no escribe nada).
+ */
+export async function commitProductImport(
+  bytes: Buffer,
+  opts: { actor?: string } = {},
+): Promise<ImportPreview> {
+  const db = await getDb();
+  let sheet: string[][];
+  try {
+    sheet = readSheet(bytes);
+  } catch (err) {
+    if (err instanceof XlsxError) return previewProductImport(bytes);
+    throw err;
+  }
+  // Lecturas: todas en paralelo, un solo viaje.
+  const [ctx, brands, totals] = await Promise.all([
+    loadContext(db),
+    db.select().from(schema.brands),
+    getVariantTotals(db),
+  ]);
+  const { preview, parsed } = analyze(sheet, ctx);
+  if (!preview.ok) return preview;
+
+  // Categorías que la planilla nombra y no existen: se crean antes del lote.
+  for (const label of preview.newCategories ?? []) ctx.categories.push(await insertCategory(db, label));
+  const writes = planImport(ctx, parsed, { brands, totals }, opts.actor ?? "admin");
+  await atomicWrites(db, (q) => importQueries(q, writes));
 
   invalidatePublic("catalog", { from: "any" });
   return preview;

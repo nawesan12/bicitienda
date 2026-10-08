@@ -50,8 +50,6 @@ export async function CatalogScreenView({ slug }: { slug: string | null }) {
           rodado: c.filters.rodado,
           price: c.filters.price,
           size: c.filters.size,
-          testRide: c.filters.testRide,
-          testRideHint: c.filters.testRideHint,
           clear: c.filters.clear,
           mobileButton: c.filters.mobileButton,
           sortLabel: c.sortLabel,

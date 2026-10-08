@@ -207,22 +207,34 @@ Hoy figuran como "[… a confirmar]" en la web y en el admin.
 
 ## Estado y pendientes (2026-10-03)
 
-Hecho: core (B0), identidad y seed demo (B1), sistema de diseño, Ola 0
-(config, seed y shells) y Ola 1 (todas las pantallas con diseño, públicas y
-del admin), con su cierre: cron diario, cuotas reales de MP, nombre del
-checkout en cada pedido y componentes consolidados en `components/bt`.
+En producción, vacía: https://bicitiendamdq.com.ar (también https://bicitienda-mdq.vercel.app) (Neon `bicitienda-db`).
 
-Falta:
+Hecho:
 
-- **Ola 2**: 404 y las pantallas sin diseño, más retoques. Entre los
-  retoques: editor de categorías en `/admin/productos/categorias` (lo pidió
-  el usuario; todavía no existe), header mobile sin buscador en algunas
-  rutas y borrar las piezas heredadas.
-- **Ola 3**: E2E con Playwright (compra con los 3 medios, turno,
-  presupuesto → pedido, cuenta y recupero, importación) y capturas lado a
-  lado contra el prototipo para que el usuario apruebe.
-- **Deploy**: el usuario decidió no hacerlo todavía. La guía está en
-  [`DEPLOY.md`](DEPLOY.md).
+- Core, identidad, sistema de diseño y todas las pantallas (Olas 0 y 1, con
+  su cierre).
+- 404 con estética bt; sin "6 cuotas" en la web: Mercado Pago aparece a
+  secas.
+- **El taller va al frente** (pedido del cliente: es lo que más le deja).
+  - Página `/reparaciones`, bloque en la home, "Taller" en header, menú
+    mobile y footer, y servicio de turnos `reparacion`.
+  - En el admin: "Taller hoy" en el resumen y la card "Taller" en Ajustes
+    para editar `content.rep`.
+  - Los servicios se muestran sin precios; el presupuesto se pasa por
+    WhatsApp.
+- **Sin pruebas de bici.**
+  - La migración 0012 apaga el servicio `prueba` y pone `test_ride` y
+    `allows_product` en false.
+  - Esas columnas siguen en el schema pero no se usan: no hizo falta una
+    migración destructiva.
 
-El detalle de los pendientes está en el plan
-(`~/.claude/plans/bicitienda-construccion.md`, sección del 2026-10-03).
+Falta (cuando el cliente pase las cuentas):
+
+- Credenciales de Mercado Pago y `RESEND_API_KEY`. Sin Resend, los mails se
+  saltean con un aviso en el log.
+- Cloudinary del cliente (sección 5 de DEPLOY.md).
+- Dominio: `NEXT_PUBLIC_SITE_URL`, `store.siteUrl` y
+  `scripts/emails/preview.ts`.
+- Foto real del taller para el hero de `/reparaciones` (hoy es de stock).
+- E2E con Playwright: quedaron para más adelante. Hoy cubren los tests de
+  integración (31 suites) y un smoke de rutas.

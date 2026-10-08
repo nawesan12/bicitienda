@@ -76,7 +76,6 @@ export const lexicon: Lexicon = {
     repairsCta: "Pedir un diagnóstico",
     repairsWaCta: "Escribinos por WhatsApp",
     agendaKicker: "PRÓXIMOS EVENTOS",
-    testRideCta: "Coordinar una visita",
     aboutLink: "Conocé más sobre nosotros →",
     instagramLink: "Instagram →",
     tiktokLink: "TikTok →",
@@ -119,23 +118,6 @@ export const lexicon: Lexicon = {
     compareTitle: "Comparar",
     specsTitle: "ESPECIFICACIONES",
     stockAlert: "Avisame por email",
-  },
-  financing: {
-    cardSub: (cuota) => `6 cuotas de ${cuota}`,
-    box6: "6 CUOTAS",
-    box3: "3 CUOTAS",
-    boxTransfer: (pct) => `TRANSFERENCIA −${pct}%`,
-    boxNote:
-      "Cuotas con tarjeta de crédito · consultá bancos y tarjetas adheridas.",
-    modalTitle: "Calculadora de cuotas",
-    modalSub:
-      "Elegí un producto y mirá cómo queda en 3 o 6 cuotas.",
-    modal6: "6 cuotas de",
-    modal3: "3 cuotas de",
-    modalTransfer: (pct) => `Transferencia (${pct}% off)`,
-    modalCta: "Consultar financiación por WhatsApp",
-    modalNote:
-      "Cuotas con tarjeta de crédito. Consultá bancos y tarjetas adheridas.",
   },
   compare: {
     title: "Comparador",
@@ -191,7 +173,7 @@ export const lexicon: Lexicon = {
     brandsKicker: "MARCAS OFICIALES",
     metaTitle: "Nosotros",
     metaDescription:
-      `${store.brandName}: bicicletería en Mar del Plata. Bicis, accesorios y repuestos con retiro en el local, turnos de prueba y presupuestos.`,
+      `${store.brandName}: bicicletería en Mar del Plata. Bicis, accesorios y repuestos con retiro en el local, taller de reparaciones y presupuestos.`,
   },
   blog: {
     kicker: "NOVEDADES Y GUÍAS",
@@ -270,8 +252,6 @@ export const lexicon: Lexicon = {
       less: "Restar una unidad",
       more: "Sumar una unidad",
       subtotal: "Subtotal",
-      box6: "6 CUOTAS",
-      boxTransfer: (pct) => `TRANSFERENCIA −${pct}%`,
       cta: "Iniciar compra →",
       note: "Elegís retiro o envío y el medio de pago en el paso siguiente.",
     },
@@ -475,23 +455,21 @@ export const content: SiteContent = {
   heroPhoto: { prodId: "mtb-rodado-29-21-vel-aluminio", url: manifestKey(DEMO_PHOTOS.hero) },
   marquee: [
     "MERCADO PAGO",
-    "6 CUOTAS SIN INTERÉS",
     "10% OFF POR TRANSFERENCIA",
     "EFECTIVO EN EL LOCAL",
     "RETIRO EN EL LOCAL",
   ],
   stats: [
-    { num: "6", label: "CUOTAS SIN INTERÉS" },
     { num: "10%", label: "OFF TRANSFERENCIA" },
-    { num: "30'", label: "PRUEBA EN EL LOCAL" },
+    { num: "TALLER", label: "SERVICE Y REPARACIONES" },
   ],
   nosotros: {
     title: "Somos BiciTienda MDQ",
     intro:
       "[Texto a confirmar] Una bicicletería de Mar del Plata: te asesoramos, te la armamos y te la entregamos ajustada a tu altura.",
     paras: [
-      "Elegís online o pasás a probarla antes con un turno.",
-      "Pagás como quieras: Mercado Pago en cuotas, transferencia o efectivo en el local.",
+      "Elegís online o traés la tuya al taller con un turno.",
+      "Pagás como quieras: Mercado Pago, transferencia o efectivo en el local.",
       "La retirás armada: te avisamos por WhatsApp cuando está lista.",
     ],
     pillars: [
@@ -513,14 +491,17 @@ export const content: SiteContent = {
     ],
     localPhoto: null,
   },
+  // Taller: sin precios, el presupuesto se pasa por WhatsApp.
   rep: {
-    title: "Service y garantía",
-    body: "¿Algo no funciona como esperabas? Contanos qué pasó y te respondemos en el día con la solución.",
+    title: "Tu bici, en manos del taller",
+    body: "Traela al local, la revisamos y te pasamos el presupuesto por WhatsApp antes de tocar nada.",
     services: [
-      "Cambios y devoluciones",
-      "Garantía oficial",
-      "Reparaciones",
-      "Repuestos y accesorios",
+      "Service completo",
+      "Ajuste de cambios y frenos",
+      "Parche y cámara",
+      "Centrado de rueda",
+      "Cambio de cadena y piñón",
+      "Armado y puesta a punto",
     ],
   },
   perks: [
@@ -595,10 +576,10 @@ export const waMessages: WaMessages = {
   /** Tarjetas, ficha y comparador. */
   product: (name) => `Hola! Quiero consultar por ${name}`,
   /** "Escribinos por WhatsApp" del bloque de service. */
-  repair: "Hola! Quiero hacer una consulta de service",
+  repair: "Hola! Quiero llevar mi bici al taller. ¿Me pasan un presupuesto?",
   /** Formulario de service (tipo, producto, problema). */
   repairForm: ({ tipo, modelo, problema }) =>
-    "Hola! Quiero hacer una consulta de service" +
+    "Hola! Quiero llevar mi bici al taller" +
     (tipo && tipo !== "Otro" ? " (" + tipo.toLowerCase() + ")" : "") +
     (modelo.trim() ? " por " + modelo.trim() : "") +
     "." +
@@ -607,8 +588,6 @@ export const waMessages: WaMessages = {
   financing: (name) =>
     "Hola! Quiero consultar financiación en cuotas" +
     (name ? " para " + name : ""),
-  /** "Coordinar una visita". */
-  testRide: "Hola! Quiero coordinar una visita al local",
   /** Fallback cuando no hay link del grupo de la comunidad. */
   community: "Hola! Quiero sumarme al grupo de la comunidad",
   /** CTA de una nota sin ctaMsg propio. */
@@ -619,9 +598,8 @@ export const waMessages: WaMessages = {
 export const leadLabels = {
   productDetail: "Consulta desde la web",
   general: "Botón de WhatsApp general",
-  testRide: "Coordinar una visita",
   community: "Sumarse a la comunidad",
-  repair: "Consulta de service",
+  repair: "Reparación",
   financing: "Financiación",
   financingDetail: "Cuotas con tarjeta",
 };
@@ -646,7 +624,7 @@ export const sampleLeads: [LeadType, string, string, number][] = [
   ["producto", "MTB rodado 29 · 21 vel. · aluminio", "Consulta desde la web", 1],
   ["financiacion", "MTB rodado 29 · doble suspensión", "Cuotas con tarjeta", 3],
   ["producto", "Casco urbano regulable · M/L", "Consulta desde la web", 5],
-  ["prueba", "Coordinar una visita", "", 20],
+  ["reparacion", "Frenos · MTB R29", "Frenan poco y hacen ruido", 20],
   ["producto", "Urbana rodado 28 · canasto", "Consulta desde la web", 30],
 ];
 

@@ -33,6 +33,10 @@ export const paths = {
   quote(): string {
     return routes.quote;
   },
+  /** Taller: reparaciones y service (página pública del taller). */
+  repairs(): string {
+    return "/reparaciones";
+  },
   account(): string {
     return routes.account;
   },

@@ -154,8 +154,12 @@ const PRIVATE_EXT: Record<PrivateMime, string> = {
   "application/pdf": "pdf",
 };
 
-/** Tope de un archivo del público (comprobante o foto). */
-export const MAX_PRIVATE_UPLOAD_BYTES = 6 * 1024 * 1024;
+/**
+ * Tope de un archivo del público (comprobante o foto). Vercel corta el body
+ * en 4,5 MB y `serverActions.bodySizeLimit` es 4 MB: las imágenes se achican
+ * en el navegador y los PDF tienen que entrar como vienen.
+ */
+export const MAX_PRIVATE_UPLOAD_BYTES = 3.8 * 1024 * 1024;
 
 /** Tipo real por la firma de bytes: JPEG, PNG, WebP o PDF. */
 export function sniffFile(bytes: Buffer): PrivateMime | null {
@@ -178,7 +182,7 @@ export async function readPrivateUpload(
 ): Promise<{ ok: true; bytes: Buffer; mime: PrivateMime } | { ok: false; error: string }> {
   if (!(file instanceof File)) return { ok: false, error: "Falta el archivo." };
   if (file.size === 0 || file.size > MAX_PRIVATE_UPLOAD_BYTES)
-    return { ok: false, error: "El archivo supera los 6 MB." };
+    return { ok: false, error: "El archivo supera los 4 MB." };
   const bytes = Buffer.from(await file.arrayBuffer());
   const mime = sniffFile(bytes);
   if (!mime || (mime === "application/pdf" && !opts.allowPdf))

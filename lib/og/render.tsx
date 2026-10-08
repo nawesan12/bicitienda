@@ -43,7 +43,6 @@ import { OG_SIZE, SEO, formatPriceSeo, type SeoSectionKey } from "@/lib/seo";
  *       photoUrl: p.images[0] ?? null,
  *       price: v.hasPrice ? p.price : null,      // null → "Consultá el precio"
  *       oldPrice: p.oldPrice,
- *       installments: runtime.maxInstallments,   // "6 cuotas sin interés de $ X"
  *       transferDiscount: runtime.transferDiscount,
  *       outOfStock: isOutOfStock(p),
  *       sizes: sizesOf(p.variants.filter((x) => x.active && x.stock > 0)),
@@ -331,12 +330,15 @@ function Tag({ text, bg = C.red, fg = C.white }: { text: string; bg?: string; fg
   );
 }
 
-/** Tira de beneficios del footer del handoff (4 celdas, la de cuotas en amarillo). */
-function BenefitStrip({ installments, transferPct }: { installments: number; transferPct: number }) {
+/**
+ * Tira de beneficios del footer (3 celdas, la de transferencia en amarillo;
+ * sin cuotas). Sin % (o en 0, como en Ajustes) dice solo "Transferencia":
+ * nunca promete un descuento que no está.
+ */
+function BenefitStrip({ transferPct = 0 }: { transferPct?: number }) {
   const cells = [
-    { text: "Mercado Pago", hi: false },
-    { text: SEO.og.installmentsShort(installments), hi: true },
-    { text: `${transferPct}% off transferencia`, hi: false },
+    { text: SEO.og.mercadoPago, hi: false },
+    { text: transferPct > 0 ? `${transferPct}% off transferencia` : "Transferencia", hi: true },
     { text: "Retiro en el local", hi: false },
   ];
   return (
@@ -439,11 +441,9 @@ const HERO_BOX = { w: 1600, h: 840 };
  */
 export async function siteOgImage({
   photoUrl,
-  installments = PAYMENT_SETTINGS.maxInstallments,
   transferDiscount = PAYMENT_SETTINGS.transferDiscountPct,
 }: {
   photoUrl: string | null;
-  installments?: number;
   transferDiscount?: number;
 }) {
   const photo = await loadPhoto(photoUrl, HERO_BOX);
@@ -511,15 +511,14 @@ export async function siteOgImage({
           <Eyebrow text={og.categoriesLine} color={C.text2} size={24} />
         </div>
       </div>
-      <BenefitStrip installments={installments} transferPct={transferDiscount} />
+      <BenefitStrip transferPct={transferDiscount} />
     </Frame>,
   );
 }
 
 /**
  * Ficha de producto: foto a la derecha; a la izquierda categoría / marca
- * en mono, nombre, precio "$ 489.900", pill amarilla "6 cuotas sin interés
- * de $ X" y precio por transferencia en rojo. Sin precio visible:
+ * en mono, nombre, precio "$ 489.900" y precio por transferencia en rojo. Sin precio visible:
  * "Consultá el precio" (o "Sin stock").
  */
 export async function productOgImage(p: {
@@ -531,8 +530,6 @@ export async function productOgImage(p: {
   price: number | null;
   /** Precio de lista tachado (solo si es mayor que `price`). */
   oldPrice?: number | null;
-  /** Cuotas sin interés (runtime.maxInstallments). ≤1 = sin pill de cuotas. */
-  installments?: number;
   /** % off por transferencia (runtime.transferDiscount). 0 = no se muestra. */
   transferDiscount?: number;
   outOfStock?: boolean;
@@ -543,7 +540,6 @@ export async function productOgImage(p: {
 }) {
   const photo = await loadPhoto(p.photoUrl, PHOTO_BOX);
   const og = SEO.og;
-  const n = p.installments ?? PAYMENT_SETTINGS.maxInstallments;
   const pct = p.transferDiscount ?? PAYMENT_SETTINGS.transferDiscountPct;
   const name = clip(p.name, 56);
   const size = titleSize(name, [
@@ -605,16 +601,6 @@ export async function productOgImage(p: {
                   </div>
                 ) : null}
               </div>
-              {n > 1 ? (
-                <div style={{ display: "flex" }}>
-                  <Pill
-                    text={og.installments(n, formatPriceSeo(Math.round(p.price / n)))}
-                    bg={C.yellow}
-                    fg={C.ink}
-                    size={22}
-                  />
-                </div>
-              ) : null}
               {pct > 0 ? (
                 <div
                   style={{
@@ -779,10 +765,7 @@ export async function sectionOgImage(
           {aside}
         </div>
       ) : null}
-      <BenefitStrip
-        installments={PAYMENT_SETTINGS.maxInstallments}
-        transferPct={PAYMENT_SETTINGS.transferDiscountPct}
-      />
+      <BenefitStrip />
     </Frame>,
   );
 }
@@ -821,7 +804,7 @@ export async function appointmentsOgImage(opts: { slots?: string[] } = {}) {
     <Panel title="Elegí día y horario">
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1, display: "flex" }}>
-          <Pill text="Prueba de bici" bg={C.yellow} fg={C.ink} size={17} />
+          <Pill text="Reparación / service" bg={C.yellow} fg={C.ink} size={17} />
         </div>
         <div style={{ display: "flex" }}>
           <Pill text="Asesoramiento" bg={C.lineStrong} fg={C.paper} size={17} />

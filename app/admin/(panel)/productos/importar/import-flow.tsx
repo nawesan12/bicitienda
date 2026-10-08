@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   Button,
@@ -18,11 +17,13 @@ import { commitImport, previewImport } from "@/lib/server/actions/product-import
 import type { ImportPreview } from "@/lib/server/product-import";
 
 const ACTION_LABEL = { crear: "Nuevo", actualizar: "Actualiza", sin_cambios: "Sin cambios" } as const;
+/** Igual a MAX_IMPORT_BYTES: si no, la action corta antes del mensaje amigable. */
+const MAX_BYTES = 3.8 * 1024 * 1024;
+
 const ACTION_TONE = { crear: "yellow", actualizar: "line", sin_cambios: "muted" } as const;
 
 /** Subida → vista previa (errores por fila) → confirmar. */
 export function ImportFlow() {
-  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [done, setDone] = useState<ImportPreview | null>(null);
@@ -31,6 +32,7 @@ export function ImportFlow() {
 
   const send = (commit: boolean) => {
     if (!file) return;
+    if (file.size > MAX_BYTES) return setError("La planilla supera los 4 MB.");
     setError(null);
     start(async () => {
       const fd = new FormData();
@@ -38,9 +40,9 @@ export function ImportFlow() {
       const r = await (commit ? commitImport(fd) : previewImport(fd));
       if (!r.ok) return setError(r.error);
       if (commit && r.preview.ok) {
+        // commitImport invalida el panel: Next re-renderiza en la misma respuesta.
         setDone(r.preview);
         setPreview(null);
-        router.refresh();
       } else setPreview(r.preview);
     });
   };

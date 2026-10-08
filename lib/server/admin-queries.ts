@@ -1,31 +1,14 @@
-import { and, asc, count, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, lt, ne, notInArray, sql, type SQL } from "drizzle-orm";
 import { store } from "@/lib/config";
-import { orderInstallments } from "@/lib/order-flow";
-import { addDays, localToUtc, toLocalParts } from "@/lib/zoned-time";
+import { addDays, localToUtc, toLocalParts, weekdayOf } from "@/lib/zoned-time";
 import { PLACEHOLDER_BRAND_ID, products as seedProducts } from "@/lib/data/catalog";
 import { getDb, schema } from "@/lib/server/db";
-import {
-  getOrderById,
-  type FullOrder,
-} from "@/lib/server/order-queries";
-import { expireStaleOrders } from "@/lib/server/orders";
+import { getOrderByNumber, type FullOrder } from "@/lib/server/order-queries";
+import { expireStaleOrdersOnce } from "@/lib/server/orders";
 import { resolveImage } from "@/lib/images";
-import { bySeedOrder, withContentDefaults } from "@/lib/server/queries";
-import {
-  getProductMovements,
-  getStockMatrix,
-  getVariantStockMatrix,
-} from "@/lib/server/stock";
-import { getVariantsBySlug } from "@/lib/server/variants";
-import type {
-  AgendaEvent,
-  Article,
-  Lead,
-  OrderStatus,
-  Product,
-  ProductVariant,
-  StoreLocation,
-} from "@/lib/types";
+import { bySeedOrder } from "@/lib/server/queries";
+import { getProductMovements } from "@/lib/server/stock";
+import type { Lead, OrderStatus, Product, ProductVariant } from "@/lib/types";
 
 /**
  * Lecturas del panel de administración: SIEMPRE frescas (sin unstable_cache)
@@ -61,22 +44,44 @@ function sameJson(a: unknown, b: unknown): boolean {
 
 export async function getAdminProducts(): Promise<AdminProduct[]> {
   const db = await getDb();
-  const [rows, matrix, cats, brands, variants, variantMatrix] = await Promise.all([
+  // Una sola lectura de product_stock: de ahí salen el total por producto,
+  // por variante y la matriz por sucursal (antes eran tres).
+  const [rows, cats, brands, variantRows, stockRows, alerts] = await Promise.all([
     db.select().from(schema.products),
-    getStockMatrix(db),
-    db.select().from(schema.categories),
-    db.select().from(schema.brands),
-    getVariantsBySlug(db),
-    getVariantStockMatrix(db),
+    db.select({ slug: schema.categories.slug, label: schema.categories.label }).from(schema.categories),
+    db.select({ id: schema.brands.id, name: schema.brands.name }).from(schema.brands),
+    db
+      .select()
+      .from(schema.productVariants)
+      .orderBy(asc(schema.productVariants.order), asc(schema.productVariants.id)),
+    db.select().from(schema.productStock),
+    db
+      .select({ slug: schema.stockAlerts.productSlug, n: count() })
+      .from(schema.stockAlerts)
+      .where(eq(schema.stockAlerts.notified, false))
+      .groupBy(schema.stockAlerts.productSlug),
   ]);
   const labelOf = new Map(cats.map((c) => [c.slug, c.label]));
   const brandOf = new Map(brands.map((b) => [b.id, b.name]));
-  const alerts = await db
-    .select({ slug: schema.stockAlerts.productSlug, n: count() })
-    .from(schema.stockAlerts)
-    .where(eq(schema.stockAlerts.notified, false))
-    .groupBy(schema.stockAlerts.productSlug);
   const alertsBySlug = new Map(alerts.map((a) => [a.slug, a.n]));
+  const matrix = new Map<string, Map<string, number>>();
+  const variantMatrix = new Map<string, Map<string, number>>();
+  const variantTotal = new Map<string, number>();
+  for (const st of stockRows) {
+    const perLoc = matrix.get(st.productSlug) ?? new Map<string, number>();
+    perLoc.set(st.locationId, (perLoc.get(st.locationId) ?? 0) + st.qty);
+    matrix.set(st.productSlug, perLoc);
+    const perVar = variantMatrix.get(st.variantId) ?? new Map<string, number>();
+    perVar.set(st.locationId, st.qty);
+    variantMatrix.set(st.variantId, perVar);
+    variantTotal.set(st.variantId, (variantTotal.get(st.variantId) ?? 0) + st.qty);
+  }
+  const variants = new Map<string, ProductVariant[]>();
+  for (const v of variantRows) {
+    const list = variants.get(v.productSlug) ?? [];
+    list.push({ ...v, stock: variantTotal.get(v.id) ?? 0 });
+    variants.set(v.productSlug, list);
+  }
   return bySeedOrder(rows).map((r) => {
     const perLoc = matrix.get(r.slug) ?? new Map<string, number>();
     const stock = [...perLoc.values()].reduce((s, q) => s + q, 0);
@@ -119,18 +124,20 @@ export async function getAdminProducts(): Promise<AdminProduct[]> {
 /** Categorías del panel, en su orden, con todos sus modelos (también ocultos). */
 export async function getAdminCategories() {
   const db = await getDb();
-  const [cats, prods] = await Promise.all([
+  const [cats, counts] = await Promise.all([
     db
       .select()
       .from(schema.categories)
       .orderBy(asc(schema.categories.order), asc(schema.categories.slug)),
     db
-      .select({ id: schema.products.id, category: schema.products.category })
-      .from(schema.products),
+      .select({ category: schema.products.category, n: count() })
+      .from(schema.products)
+      .groupBy(schema.products.category),
   ]);
+  const countOf = new Map(counts.map((c) => [c.category, c.n]));
   return cats.map((c) => ({
     ...c,
-    count: prods.filter((p) => p.category === c.slug).length,
+    count: countOf.get(c.slug) ?? 0,
   }));
 }
 
@@ -146,67 +153,21 @@ export async function getAdminBrandNames(): Promise<string[]> {
   return rows.map((r) => r.name).sort((a, b) => a.localeCompare(b, "es"));
 }
 
-/* ── Sucursales ───────────────────────────────────────────── */
-
-export interface AdminLocation extends StoreLocation {
-  order: number;
-  active: boolean;
-  /** Unidades totales en la sucursal. */
-  totalUnits: number;
-  /** Productos con al menos una unidad acá. */
-  productsWithStock: number;
-  /** Pedidos que retiran o despachan desde acá. */
-  ordersCount: number;
-}
-
-/** Todas las sucursales (también inactivas), con sus números. */
-export async function getAdminLocations(): Promise<AdminLocation[]> {
-  const db = await getDb();
-  const [rows, stockRows, orderRows] = await Promise.all([
-    db
-      .select()
-      .from(schema.locations)
-      .orderBy(asc(schema.locations.order), asc(schema.locations.id)),
-    db
-      .select({
-        locationId: schema.productStock.locationId,
-        units: sql<number>`sum(${schema.productStock.qty})`.mapWith(Number),
-        prods: sql<number>`count(*) filter (where ${schema.productStock.qty} > 0)`.mapWith(Number),
-      })
-      .from(schema.productStock)
-      .groupBy(schema.productStock.locationId),
-    db
-      .select({
-        pickup: schema.orders.pickupLocationId,
-        fulfillment: schema.orders.fulfillmentLocationId,
-      })
-      .from(schema.orders),
-  ]);
-  const stockBy = new Map(stockRows.map((s) => [s.locationId, s]));
-  const ordersBy = new Map<string, number>();
-  for (const o of orderRows) {
-    for (const id of [o.pickup, o.fulfillment]) {
-      if (id) ordersBy.set(id, (ordersBy.get(id) ?? 0) + 1);
-    }
-  }
-  return rows.map((l) => ({
-    ...l,
-    totalUnits: stockBy.get(l.id)?.units ?? 0,
-    productsWithStock: stockBy.get(l.id)?.prods ?? 0,
-    ordersCount: ordersBy.get(l.id) ?? 0,
-  }));
-}
-
 /** Movimientos de stock de un producto para la tab del editor. */
 export async function getAdminProductMovements(productSlug: string) {
   const db = await getDb();
-  const [movements, locations, orders] = await Promise.all([
+  const [movements, locations] = await Promise.all([
     getProductMovements(db, productSlug),
-    db.select().from(schema.locations),
-    db
-      .select({ id: schema.orders.id, number: schema.orders.number })
-      .from(schema.orders),
+    db.select({ id: schema.locations.id, shortName: schema.locations.shortName }).from(schema.locations),
   ]);
+  // Solo los pedidos de esos movimientos (no la tabla entera).
+  const orderIds = [...new Set(movements.map((m) => m.orderId).filter((id): id is string => !!id))];
+  const orders = orderIds.length
+    ? await db
+        .select({ id: schema.orders.id, number: schema.orders.number })
+        .from(schema.orders)
+        .where(inArray(schema.orders.id, orderIds))
+    : [];
   const locName = new Map(locations.map((l) => [l.id, l.shortName]));
   const orderNumber = new Map(orders.map((o) => [o.id, o.number]));
   return movements.map((m) => ({
@@ -221,22 +182,6 @@ export async function getAdminProductMovements(productSlug: string) {
   }));
 }
 
-export async function getAdminArticles(): Promise<Article[]> {
-  const db = await getDb();
-  return db
-    .select()
-    .from(schema.articles)
-    .orderBy(asc(schema.articles.order), asc(schema.articles.id));
-}
-
-export async function getAdminAgenda(): Promise<AgendaEvent[]> {
-  const db = await getDb();
-  return db
-    .select()
-    .from(schema.agendaEvents)
-    .orderBy(asc(schema.agendaEvents.date));
-}
-
 export async function getAdminSettings() {
   const db = await getDb();
   const [row] = await db
@@ -247,10 +192,58 @@ export async function getAdminSettings() {
   return row;
 }
 
-/** Consultas (leads), más recientes primero. */
-export async function getLeads(): Promise<Lead[]> {
+/**
+ * Filtros de Consultas en SQL (los mismos de
+ * app/admin/(panel)/consultas/filters.ts → matchesLead).
+ */
+const LATE_PAYMENT = sql`(${schema.leads.type} = 'pedido' and ${schema.leads.label} ~* '^pago tard[ií]o')`;
+export const LEAD_FILTER_KEYS = ["todas", "nuevas", "pago-tardio", "producto", "pedido", "otras"] as const;
+export type LeadFilterKey = (typeof LEAD_FILTER_KEYS)[number];
+
+export function leadFilterWhere(f: string): SQL | undefined {
+  switch (f) {
+    case "nuevas":
+      return ne(schema.leads.status, "atendida");
+    case "pago-tardio":
+      return LATE_PAYMENT;
+    case "producto":
+      return eq(schema.leads.type, "producto");
+    case "pedido":
+      return eq(schema.leads.type, "pedido");
+    case "otras":
+      return notInArray(schema.leads.type, ["producto", "pedido"]);
+    default:
+      return undefined;
+  }
+}
+
+/** Página de consultas: las primeras `limit` del filtro y los contadores de los chips (una query). */
+export async function getLeads(opts: { filter: string; limit: number }): Promise<{
+  leads: Lead[];
+  hasMore: boolean;
+  counts: Record<LeadFilterKey, number>;
+}> {
   const db = await getDb();
-  return db.select().from(schema.leads).orderBy(desc(schema.leads.ts));
+  const n = (f: LeadFilterKey) => sql<number>`count(*) filter (where ${leadFilterWhere(f)})`.mapWith(Number);
+  const [rows, [counts]] = await Promise.all([
+    db
+      .select()
+      .from(schema.leads)
+      .where(leadFilterWhere(opts.filter))
+      .orderBy(desc(schema.leads.ts), desc(schema.leads.id))
+      .limit(opts.limit + 1),
+    db
+      .select({
+        todas: count(),
+        nuevas: n("nuevas"),
+        "pago-tardio": n("pago-tardio"),
+        producto: n("producto"),
+        pedido: n("pedido"),
+        otras: n("otras"),
+      })
+      .from(schema.leads),
+  ]);
+  return { leads: rows.slice(0, opts.limit), hasMore: rows.length > opts.limit, counts };
 }
 
 /** Suscriptores de la newsletter, más recientes primero. */
@@ -262,110 +255,53 @@ export async function getNewsletterSubscribers() {
     .orderBy(desc(schema.newsletterSubscribers.createdAt));
 }
 
-/** Estados que cuentan como "pedido activo" (badge y métrica). */
-export const ACTIVE_ORDER_STATUSES: OrderStatus[] = [
-  "PENDIENTE_PAGO",
-  "SEÑADO",
-  "PAGADO",
-  "EN_PREPARACION",
-  "LISTO_RETIRO",
-  "ENVIADO",
-  "ENTREGA_COORDINADA",
-];
-
-/** Números del Resumen: las 8 métricas del prototipo y la newsletter. */
-export async function getAdminStats() {
-  const db = await getDb();
-  const [products, articles, agenda, newLeads, subscribers, lastSub] =
-    await Promise.all([
-      db
-        .select({ hidden: schema.products.hidden, price: schema.products.price })
-        .from(schema.products),
-      db.select({ n: count() }).from(schema.articles),
-      db.select({ n: count() }).from(schema.agendaEvents),
-      db
-        .select({ n: count() })
-        .from(schema.leads)
-        .where(ne(schema.leads.status, "atendida")),
-      db.select({ n: count() }).from(schema.newsletterSubscribers),
-      db
-        .select({ email: schema.newsletterSubscribers.email })
-        .from(schema.newsletterSubscribers)
-        .orderBy(desc(schema.newsletterSubscribers.createdAt))
-        .limit(1),
-    ]);
-  const hidden = products.filter((p) => p.hidden).length;
-  return {
-    products: products.length,
-    published: products.length - hidden,
-    hidden,
-    noPrice: products.filter((p) => p.price == null).length,
-    articles: articles[0]?.n ?? 0,
-    agenda: agenda[0]?.n ?? 0,
-    newLeads: newLeads[0]?.n ?? 0,
-    subscribers: subscribers[0]?.n ?? 0,
-    lastSubscriber: lastSub[0]?.email ?? null,
-  };
+/** Lunes y lunes siguiente (fechas locales) de la semana de hoy. */
+export function currentWeek(now = new Date()): { from: string; to: string } {
+  const today = toLocalParts(now, store.timeZone).date;
+  const wd = weekdayOf(today); // 0 = domingo
+  const from = addDays(today, wd === 0 ? -6 : 1 - wd);
+  return { from, to: addDays(from, 7) };
 }
 
-/** Contadores para los badges de la navegación del panel. */
+/**
+ * Contadores de los badges de la navegación del panel, en UNA query:
+ * Pedidos = para accionar · Turnos = activos de la semana · Presupuestos =
+ * nuevos · Productos = total · Consultas = sin atender.
+ */
 export async function getAdminNavCounts() {
   const db = await getDb();
-  // "Hoy" en la zona del local (el server corre en UTC en Vercel).
-  const today = toLocalParts(new Date(), store.timeZone).date;
-  const dayStart = localToUtc(today, "00:00", store.timeZone);
-  const dayEnd = localToUtc(addDays(today, 1), "00:00", store.timeZone);
-  const [prod, art, ag, ord, act, leads, apToday, apPending, qNew] = await Promise.all([
-    db.select({ n: count() }).from(schema.products),
-    db.select({ n: count() }).from(schema.articles),
-    db.select({ n: count() }).from(schema.agendaEvents),
-    db
-      .select({ n: count() })
-      .from(schema.orders)
-      .where(inArray(schema.orders.status, PENDING_ORDER_STATUSES)),
-    db
-      .select({ n: count() })
-      .from(schema.orders)
-      .where(inArray(schema.orders.status, ACTIONABLE_ORDER_STATUSES)),
-    db
-      .select({ n: count() })
-      .from(schema.leads)
-      .where(ne(schema.leads.status, "atendida")),
-    db
-      .select({ n: count() })
-      .from(schema.appointments)
-      .where(
-        and(
+  // Semana en curso (lunes a lunes) en la zona del local: el server corre en UTC.
+  const { from, to } = currentWeek();
+  const weekStart = localToUtc(from, "00:00", store.timeZone);
+  const weekEnd = localToUtc(to, "00:00", store.timeZone);
+  const sub = (q: SQL) => sql<number>`(${q})`.mapWith(Number);
+  const [row] = await db
+    .select({
+      products: count(),
+      ordersToAct: sub(
+        sql`select count(*) from ${schema.orders} where ${inArray(schema.orders.status, ACTIONABLE_ORDER_STATUSES)}`,
+      ),
+      leads: sub(sql`select count(*) from ${schema.leads} where ${ne(schema.leads.status, "atendida")}`),
+      quotesNew: sub(sql`select count(*) from ${schema.quoteRequests} where ${eq(schema.quoteRequests.status, "nuevo")}`),
+      appointmentsWeek: sub(
+        sql`select count(*) from ${schema.appointments} where ${and(
           inArray(schema.appointments.status, ["pendiente", "confirmado"]),
-          gte(schema.appointments.startsAt, dayStart),
-          lt(schema.appointments.startsAt, dayEnd),
-        ),
+          gte(schema.appointments.startsAt, weekStart),
+          lt(schema.appointments.startsAt, weekEnd),
+        )}`,
       ),
-    db
-      .select({ n: count() })
-      .from(schema.appointments)
-      .where(
-        and(eq(schema.appointments.status, "pendiente"), gte(schema.appointments.startsAt, new Date())),
-      ),
-    db
-      .select({ n: count() })
-      .from(schema.quoteRequests)
-      .where(eq(schema.quoteRequests.status, "nuevo")),
-  ]);
+    })
+    .from(schema.products);
   return {
-    products: prod[0]?.n ?? 0,
-    articles: art[0]?.n ?? 0,
-    agenda: ag[0]?.n ?? 0,
-    orders: ord[0]?.n ?? 0,
     /** Pedidos para accionar: cobrar, armar o entregar (incluye listos). */
-    ordersToAct: act[0]?.n ?? 0,
-    leads: leads[0]?.n ?? 0,
-    /** Turnos de hoy que siguen activos (sin confirmar + confirmados). */
-    appointmentsToday: apToday[0]?.n ?? 0,
-    /** Turnos futuros sin confirmar. */
-    appointmentsUnconfirmed: apPending[0]?.n ?? 0,
+    ordersToAct: row?.ordersToAct ?? 0,
+    /** Turnos activos (sin confirmar + confirmados) de la semana en curso. */
+    appointmentsWeek: row?.appointmentsWeek ?? 0,
     /** Presupuestos nuevos (sin cotizar). */
-    quotesNew: qNew[0]?.n ?? 0,
+    quotesNew: row?.quotesNew ?? 0,
+    products: row?.products ?? 0,
+    /** Consultas sin atender. */
+    leads: row?.leads ?? 0,
   };
 }
 
@@ -380,130 +316,11 @@ export const ACTIONABLE_ORDER_STATUSES: OrderStatus[] = [
   "LISTO_RETIRO",
 ];
 
-/**
- * Pedidos que esperan una acción del local: cobrar, saldar la seña,
- * preparar o despachar. Es el contador de Pedidos en la navegación.
- */
-export const PENDING_ORDER_STATUSES: OrderStatus[] = [
-  "PENDIENTE_PAGO",
-  "SEÑADO",
-  "PAGADO",
-  "EN_PREPARACION",
-];
-
-/* ── Stock ────────────────────────────────────────────────── */
-
-export interface LedgerEntry {
-  id: number;
-  createdAt: Date;
-  productName: string;
-  productId: string | null;
-  location: string;
-  delta: number;
-  qtyAfter: number;
-  reason: string;
-  orderNumber: string | null;
-}
-
-/** Libro de movimientos (los últimos `limit`, más recientes primero). */
-export async function getStockLedger(limit = 80): Promise<LedgerEntry[]> {
-  const db = await getDb();
-  const [movements, products, locations, orders] = await Promise.all([
-    db
-      .select()
-      .from(schema.stockMovements)
-      .orderBy(desc(schema.stockMovements.createdAt), desc(schema.stockMovements.id))
-      .limit(limit),
-    db
-      .select({ id: schema.products.id, slug: schema.products.slug, name: schema.products.name })
-      .from(schema.products),
-    db.select().from(schema.locations),
-    db.select({ id: schema.orders.id, number: schema.orders.number }).from(schema.orders),
-  ]);
-  const prodBySlug = new Map(products.map((p) => [p.slug, p]));
-  const locName = new Map(locations.map((l) => [l.id, l.shortName]));
-  const orderNumber = new Map(orders.map((o) => [o.id, o.number]));
-  return movements.map((m) => ({
-    id: m.id,
-    createdAt: m.createdAt,
-    productName: prodBySlug.get(m.productSlug)?.name ?? m.productSlug,
-    productId: prodBySlug.get(m.productSlug)?.id ?? null,
-    location: locName.get(m.locationId) ?? m.locationId,
-    delta: m.delta,
-    qtyAfter: m.qtyAfter,
-    reason: m.reason,
-    orderNumber: m.orderId ? (orderNumber.get(m.orderId) ?? null) : null,
-  }));
-}
-
 /* ── Pedidos ──────────────────────────────────────────────── */
 
-export interface AdminOrderSummary {
-  id: string;
-  number: string;
-  status: OrderStatus;
-  customerName: string;
-  itemsLabel: string;
-  total: number;
-  /** Saldo pendiente de un pedido señado. 0 si está saldado. */
-  balanceDue: number;
-  createdAt: Date;
-  expiresAt: Date | null;
-  paymentMethod: string;
-  deliveryMethod: string;
-  /** Cuotas con tarjeta (1, 3 o 6). */
-  installments: number;
-}
-
-/** Todos los pedidos con su cliente y resumen de items, más recientes primero. */
-export async function getAdminOrders(): Promise<AdminOrderSummary[]> {
-  await expireStaleOrders();
-  const db = await getDb();
-  const rows = await db
-    .select({
-      order: schema.orders,
-      customerName: schema.customers.name,
-    })
-    .from(schema.orders)
-    .innerJoin(
-      schema.customers,
-      eq(schema.orders.customerId, schema.customers.id),
-    )
-    .orderBy(desc(schema.orders.createdAt));
-
-  const items = await db.select().from(schema.orderItems);
-  const byOrder = new Map<string, string[]>();
-  for (const it of items) {
-    const list = byOrder.get(it.orderId) ?? [];
-    list.push(`${it.quantity}× ${it.name}`);
-    byOrder.set(it.orderId, list);
-  }
-
-  return rows.map(({ order, customerName }) => ({
-    id: order.id,
-    number: order.number,
-    status: order.status,
-    customerName: order.customerName?.trim() || customerName,
-    itemsLabel: (byOrder.get(order.id) ?? []).join(" · "),
-    total: order.total,
-    balanceDue: order.balanceDue,
-    createdAt: order.createdAt,
-    expiresAt: order.expiresAt,
-    paymentMethod: order.paymentMethod,
-    deliveryMethod: order.deliveryMethod,
-    installments: orderInstallments(order),
-  }));
-}
-
 export async function getAdminOrder(number: string): Promise<FullOrder | null> {
-  await expireStaleOrders();
-  const db = await getDb();
-  const [order] = await db
-    .select({ id: schema.orders.id })
-    .from(schema.orders)
-    .where(eq(schema.orders.number, number));
-  if (!order) return null;
-  return getOrderById(order.id);
+  await expireStaleOrdersOnce();
+  return getOrderByNumber(number);
 }
 
 export interface AdminCustomer {
@@ -529,91 +346,62 @@ export interface AdminCustomer {
  */
 export async function getAdminCustomers(): Promise<AdminCustomer[]> {
   const db = await getDb();
+  // Agregados por cliente en SQL (GROUP BY), no todas las filas.
   const [customers, orders, appts, quotes] = await Promise.all([
     db.select().from(schema.customers),
     db
       .select({
         customerId: schema.orders.customerId,
-        status: schema.orders.status,
-        paidAmount: schema.orders.paidAmount,
-        createdAt: schema.orders.createdAt,
+        n: count(),
+        spent: sql<number>`coalesce(sum(${schema.orders.paidAmount}) filter (where ${notInArray(schema.orders.status, ["CANCELADO", "VENCIDO"])}), 0)`.mapWith(Number),
+        last: sql<Date>`max(${schema.orders.createdAt})`.mapWith(schema.orders.createdAt),
       })
-      .from(schema.orders),
+      .from(schema.orders)
+      .groupBy(schema.orders.customerId),
     db
-      .select({ customerId: schema.appointments.customerId, at: schema.appointments.createdAt })
-      .from(schema.appointments),
+      .select({
+        customerId: schema.appointments.customerId,
+        n: count(),
+        last: sql<Date>`max(${schema.appointments.createdAt})`.mapWith(schema.appointments.createdAt),
+      })
+      .from(schema.appointments)
+      .groupBy(schema.appointments.customerId),
     db
-      .select({ customerId: schema.quoteRequests.customerId, at: schema.quoteRequests.createdAt })
-      .from(schema.quoteRequests),
+      .select({
+        customerId: schema.quoteRequests.customerId,
+        n: count(),
+        last: sql<Date>`max(${schema.quoteRequests.createdAt})`.mapWith(schema.quoteRequests.createdAt),
+      })
+      .from(schema.quoteRequests)
+      .groupBy(schema.quoteRequests.customerId),
   ]);
-  const byId = new Map<string, AdminCustomer>(
-    customers.map((c) => [
-      c.id,
-      {
+  const oBy = new Map(orders.map((o) => [o.customerId, o]));
+  const aBy = new Map(appts.map((a) => [a.customerId, a]));
+  const qBy = new Map(quotes.map((q) => [q.customerId, q]));
+  const latest = (...dates: (Date | null | undefined)[]) =>
+    dates.reduce<Date | null>((m, d) => (d && (!m || d > m) ? d : m), null);
+  return customers
+    .map((c) => {
+      const o = oBy.get(c.id);
+      const a = aBy.get(c.id);
+      const q = qBy.get(c.id);
+      return {
         id: c.id,
         name: c.name,
         email: c.email,
         phone: c.phone,
         hasAccount: !!c.accountId,
-        ordersCount: 0,
-        appointmentsCount: 0,
-        quotesCount: 0,
-        totalSpent: 0,
-        lastContactAt: null,
+        ordersCount: o?.n ?? 0,
+        appointmentsCount: a?.n ?? 0,
+        quotesCount: q?.n ?? 0,
+        totalSpent: o?.spent ?? 0,
+        lastContactAt: latest(o?.last, a?.last, q?.last),
         createdAt: c.createdAt,
-      },
-    ]),
-  );
-  const touch = (e: AdminCustomer, at: Date) => {
-    if (!e.lastContactAt || at > e.lastContactAt) e.lastContactAt = at;
-  };
-  for (const o of orders) {
-    const e = byId.get(o.customerId);
-    if (!e) continue;
-    e.ordersCount += 1;
-    if (!["CANCELADO", "VENCIDO"].includes(o.status)) e.totalSpent += o.paidAmount;
-    touch(e, o.createdAt);
-  }
-  for (const a of appts) {
-    const e = byId.get(a.customerId);
-    if (!e) continue;
-    e.appointmentsCount += 1;
-    touch(e, a.at);
-  }
-  for (const q of quotes) {
-    const e = byId.get(q.customerId);
-    if (!e) continue;
-    e.quotesCount += 1;
-    touch(e, q.at);
-  }
-  return [...byId.values()].sort(
-    (a, b) =>
-      (b.lastContactAt?.getTime() ?? 0) - (a.lastContactAt?.getTime() ?? 0) ||
-      b.totalSpent - a.totalSpent,
-  );
-}
-
-/** Top 5 de modelos más consultados por WhatsApp (Resumen). */
-export async function getTopConsulted(): Promise<{ label: string; n: number }[]> {
-  const db = await getDb();
-  return db
-    .select({ label: schema.leads.label, n: sql<number>`count(*)::int` })
-    .from(schema.leads)
-    .where(eq(schema.leads.type, "producto"))
-    .groupBy(schema.leads.label)
-    .orderBy(desc(sql`count(*)`))
-    .limit(5);
-}
-
-/** Contenido editable completo (con los defaults del seed), siempre fresco. */
-export async function getAdminContent() {
-  const settings = await getAdminSettings();
-  return { settings, content: withContentDefaults(settings.content) };
-}
-
-/** Overrides de los textos de la web (clave → valor editado). */
-export async function getAdminTexts(): Promise<Record<string, string>> {
-  const db = await getDb();
-  const rows = await db.select().from(schema.texts);
-  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+      };
+    })
+    .sort(
+      (a, b) =>
+        (b.lastContactAt?.getTime() ?? 0) - (a.lastContactAt?.getTime() ?? 0) ||
+        b.totalSpent - a.totalSpent,
+    );
 }

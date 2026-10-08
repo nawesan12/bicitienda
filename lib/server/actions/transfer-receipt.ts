@@ -12,7 +12,7 @@ import { readPrivateUpload, savePrivateUpload } from "@/lib/server/uploads";
 /**
  * Comprobante de transferencia desde la confirmación (o el seguimiento):
  * el cliente prueba que el pedido es suyo con número + email o WhatsApp
- * del pedido, y sube una imagen o un PDF (≤ 6 MB, validado por firma de
+ * del pedido, y sube una imagen o un PDF (≤ 4 MB, validado por firma de
  * bytes). Va a Cloudinary (carpeta privada, nombre aleatorio) o, en local,
  * a .data/private/ servido solo al admin. Se puede reemplazar mientras la
  * transferencia siga pendiente.

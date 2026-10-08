@@ -306,14 +306,19 @@ export async function getStockTotals(db: Db): Promise<Map<string, number>> {
   return new Map(rows.map((r) => [r.slug, r.total]));
 }
 
-/** Totales agregados por variante: Map variantId → SUM(qty). */
-export async function getVariantTotals(db: Db): Promise<Map<string, number>> {
+/**
+ * Totales agregados por variante: Map variantId → SUM(qty). Con
+ * `productSlugs`, solo las variantes de esos productos.
+ */
+export async function getVariantTotals(db: Db, productSlugs?: string[]): Promise<Map<string, number>> {
+  if (productSlugs && !productSlugs.length) return new Map();
   const rows = await db
     .select({
       id: schema.productStock.variantId,
       total: sql<number>`sum(${schema.productStock.qty})`.mapWith(Number),
     })
     .from(schema.productStock)
+    .where(productSlugs ? inArray(schema.productStock.productSlug, productSlugs) : undefined)
     .groupBy(schema.productStock.variantId);
   return new Map(rows.map((r) => [r.id, r.total]));
 }

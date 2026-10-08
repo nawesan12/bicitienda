@@ -16,7 +16,6 @@ const HELP: Partial<Record<(typeof IMPORT_COLUMNS)[number], string>> = {
   talle: "Una fila por talle × color. Vacío = producto sin talles.",
   altura: "Altura sugerida del talle: 1,65 – 1,75 m.",
   stock: "Stock absoluto del local para esa variante.",
-  se_puede_probar: "si / no",
   ocultar_sin_stock: "si / no",
   estado: "publicado / borrador",
   fotos: "URLs separadas por espacio o coma.",

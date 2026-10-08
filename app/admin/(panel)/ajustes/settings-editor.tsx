@@ -1,15 +1,15 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Button, cx, Field, Input, Panel, PanelTitle, Pill, ResponsiveTopBar, Select, Toggle } from "@/components/bt";
-import { ScheduleDayRow, SettingsSubNav, WhatsAppTemplateCard } from "./settings-parts";
+import { Button, cx, Field, Input, Panel, PanelTitle, Pill, ResponsiveTopBar, Select, Textarea, Toggle } from "@/components/bt";
+import { RepairServicesList, ScheduleDayRow, SettingsSubNav, WhatsAppTemplateCard } from "./settings-parts";
 import { useToast } from "@/components/admin/toast";
 import { COPY } from "@/lib/data/demo/copy";
 import { features } from "@/lib/features";
-import { adminPatchService, adminSaveAgendaSettings, adminSaveScheduleRules } from "@/lib/server/actions/admin-appointments";
-import { patchSettings, type SettingsPatch } from "@/lib/server/actions/settings";
-import { adminResetWhatsAppTemplate, adminSaveWhatsAppTemplate } from "@/lib/server/actions/whatsapp";
+import { resetRepairsContent } from "@/lib/server/actions/content";
+import type { SettingsPatch } from "@/lib/server/actions/settings";
+import { saveSettingsScreen, type SettingsScreenSave } from "@/lib/server/actions/settings-screen";
+import { adminResetWhatsAppTemplate } from "@/lib/server/actions/whatsapp";
 import type { SettingsScreen } from "@/lib/server/screens/admin-d2";
 
 const T = COPY.admin.settings;
@@ -39,7 +39,6 @@ const noticeLabel = (m: number) => (m === 0 ? "Sin mínimo" : m < 60 ? `${m} min
 const withCurrent = (list: number[], v: number) => (list.includes(v) ? list : [...list, v].sort((a, b) => a - b));
 
 export function SettingsEditor({ data }: { data: SettingsScreen }) {
-  const router = useRouter();
   const toast = useToast();
   const [saving, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +50,7 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
   const setPay = <K extends keyof SettingsScreen["payments"]>(k: K, v: SettingsScreen["payments"][K]) =>
     setS((x) => ({ ...x, payments: { ...x.payments, [k]: v } }));
   const setAgenda = (k: keyof SettingsScreen["agenda"], v: number) => setS((x) => ({ ...x, agenda: { ...x.agenda, [k]: v } }));
+  const setRep = (patch: Partial<SettingsScreen["repairs"]>) => setS((x) => ({ ...x, repairs: { ...x.repairs, ...patch } }));
   const setDay = (wd: number, patch: Partial<SettingsScreen["schedule"][number]>) =>
     setS((x) => ({ ...x, schedule: x.schedule.map((d) => (d.weekday === wd ? { ...d, ...patch } : d)) }));
 
@@ -69,67 +69,65 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
   function save() {
     setError(null);
     if (Object.values(bad).some((b) => b.am || b.pm)) return setError("Revisá los horarios: usá el formato 10:00 – 13:00 o dejalo vacío (cerrado).");
+    if (!s.repairs.title.trim()) return setError("El taller necesita un título.");
+    // Una sola action con todo lo que cambió (re-render único al final).
+    const input: SettingsScreenSave = {};
+    // 1) Local y pagos.
+    const patch: SettingsPatch = {};
+    const L = s.local;
+    const B = base.local;
+    if (L.address !== B.address && L.address.trim()) patch.address = L.address;
+    if (L.whatsapp !== B.whatsapp && L.whatsapp.trim()) patch.whatsapp = L.whatsapp;
+    if (L.instagram !== B.instagram) patch.instagram = L.instagram;
+    if (L.hours !== B.hours && L.hours.trim()) patch.hours = L.hours;
+    const P = s.payments;
+    const BP = base.payments;
+    if (P.transferDiscount !== BP.transferDiscount) patch.transferDiscount = P.transferDiscount;
+    if (P.maxInstallments !== BP.maxInstallments) patch.maxInstallments = P.maxInstallments;
+    if (P.transferAlias !== BP.transferAlias && P.transferAlias.trim()) patch.transferAlias = P.transferAlias;
+    if (P.transferCbu !== BP.transferCbu) patch.transferCbu = P.transferCbu;
+    if (P.transferHolder !== BP.transferHolder) patch.transferHolder = P.transferHolder;
+    if (P.transferBank !== BP.transferBank) patch.transferBank = P.transferBank;
+    if (P.reservationHours !== BP.reservationHours) patch.reservationHours = P.reservationHours;
+    if (P.cashEnabled !== BP.cashEnabled) patch.cashEnabled = P.cashEnabled;
+    if (P.cashReservationHours !== BP.cashReservationHours) patch.cashReservationHours = P.cashReservationHours;
+    if (Object.keys(patch).length) input.settings = patch;
+    // 2) Horario semanal.
+    if (JSON.stringify(s.schedule) !== JSON.stringify(base.schedule)) {
+      input.scheduleRules = s.schedule.flatMap((d) =>
+        !d.open
+          ? []
+          : [parseRange(d.am), parseRange(d.pm)].flatMap((r) =>
+              r && typeof r === "object" ? [{ weekday: d.weekday, startTime: r.start, endTime: r.end }] : [],
+            ),
+      );
+    }
+    // 3) Reglas de la agenda.
+    if (JSON.stringify(s.agenda) !== JSON.stringify(base.agenda)) {
+      const { slotCapacity, minNoticeMin, maxDaysAhead } = s.agenda;
+      input.agenda = { slotCapacity, minNoticeMin, maxDaysAhead };
+    }
+    // 4) Servicios.
+    const services = s.services.filter((sv) => {
+      const before = base.services.find((x) => x.id === sv.id);
+      return before && before.active !== sv.active;
+    });
+    if (services.length) input.services = services.map((sv) => ({ id: sv.id, active: sv.active }));
+    // 5) Plantillas.
+    const templates = s.templates.filter((t) => {
+      const before = base.templates.find((x) => x.id === t.id);
+      return before && before.body !== t.body;
+    });
+    if (templates.length) input.templates = templates.map((t) => ({ id: t.id, body: t.body }));
+    // 6) Taller (content.rep): los servicios vacíos se descartan al guardar.
+    if (JSON.stringify(s.repairs) !== JSON.stringify(base.repairs)) input.repairs = s.repairs;
+    if (!Object.keys(input).length) return;
+
     start(async () => {
-      // 1) Local y pagos.
-      const patch: SettingsPatch = {};
-      const L = s.local;
-      const B = base.local;
-      if (L.address !== B.address && L.address.trim()) patch.address = L.address;
-      if (L.whatsapp !== B.whatsapp && L.whatsapp.trim()) patch.whatsapp = L.whatsapp;
-      if (L.instagram !== B.instagram) patch.instagram = L.instagram;
-      if (L.hours !== B.hours && L.hours.trim()) patch.hours = L.hours;
-      const P = s.payments;
-      const BP = base.payments;
-      if (P.transferDiscount !== BP.transferDiscount) patch.transferDiscount = P.transferDiscount;
-      if (P.maxInstallments !== BP.maxInstallments) patch.maxInstallments = P.maxInstallments;
-      if (P.transferAlias !== BP.transferAlias && P.transferAlias.trim()) patch.transferAlias = P.transferAlias;
-      if (P.transferCbu !== BP.transferCbu) patch.transferCbu = P.transferCbu;
-      if (P.transferHolder !== BP.transferHolder) patch.transferHolder = P.transferHolder;
-      if (P.transferBank !== BP.transferBank) patch.transferBank = P.transferBank;
-      if (P.reservationHours !== BP.reservationHours) patch.reservationHours = P.reservationHours;
-      if (P.cashEnabled !== BP.cashEnabled) patch.cashEnabled = P.cashEnabled;
-      if (P.cashReservationHours !== BP.cashReservationHours) patch.cashReservationHours = P.cashReservationHours;
-      if (Object.keys(patch).length) {
-        const r = await patchSettings(patch);
-        if (!r.ok) return setError(r.error);
-      }
-      // 2) Horario semanal.
-      if (JSON.stringify(s.schedule) !== JSON.stringify(base.schedule)) {
-        const rules = s.schedule.flatMap((d) =>
-          !d.open
-            ? []
-            : [parseRange(d.am), parseRange(d.pm)].flatMap((r) =>
-                r && typeof r === "object" ? [{ weekday: d.weekday, startTime: r.start, endTime: r.end }] : [],
-              ),
-        );
-        const r = await adminSaveScheduleRules(rules);
-        if (!r.ok) return setError(r.error);
-      }
-      // 3) Reglas de la agenda.
-      if (JSON.stringify(s.agenda) !== JSON.stringify(base.agenda)) {
-        const { slotCapacity, minNoticeMin, maxDaysAhead } = s.agenda;
-        const r = await adminSaveAgendaSettings({ slotCapacity, minNoticeMin, maxDaysAhead });
-        if (!r.ok) return setError(r.error);
-      }
-      // 4) Servicios.
-      for (const sv of s.services) {
-        const before = base.services.find((x) => x.id === sv.id);
-        if (before && before.active !== sv.active) {
-          const r = await adminPatchService(sv.id, { active: sv.active });
-          if (!r.ok) return setError(r.error);
-        }
-      }
-      // 5) Plantillas.
-      for (const t of s.templates) {
-        const before = base.templates.find((x) => x.id === t.id);
-        if (before && before.body !== t.body) {
-          const r = await adminSaveWhatsAppTemplate(t.id, t.body);
-          if (!r.ok) return setError(r.error);
-        }
-      }
+      const r = await saveSettingsScreen(input);
+      if (!r.ok) return setError(r.error);
       setBase(s);
       toast("Ajustes guardados");
-      router.refresh();
     });
   }
 
@@ -141,6 +139,7 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
   const g = s.payments.gateway;
   const sections = [
     { id: "local", label: "Local" },
+    { id: "taller", label: "Taller" },
     ...(features.appointments ? [{ id: "turnos", label: "Turnos" }] : []),
     { id: "pagos", label: "Pagos" },
     { id: "notificaciones", label: "Notificaciones" },
@@ -191,6 +190,40 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
                 <Input value={shown(s.local.hours)} placeholder={placeholderOf(s.local.hours, "Lun a vie 10–13 y 16–19 · Sáb 10–13")} onChange={(e) => setLocal("hours", e.target.value)} maxLength={120} />
               </Field>
             </div>
+          </Panel>
+          </div>
+
+          {/* A2. Taller: lo que más deja; textos de /reparaciones y de la home. */}
+          <div id="taller" className="min-w-0 scroll-mt-28">
+          <Panel surface="surface" padding="lg" as="section" className="border-l-[3px] border-l-yellow">
+            <PanelTitle action={<span className="text-[13px] text-text-3 max-md:hidden">Se ve en Reparaciones y en la home</span>}>Taller</PanelTitle>
+            <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="flex min-w-0 flex-col gap-3">
+                <Field label="Título">
+                  <Input value={s.repairs.title} placeholder="Taller de bicis" onChange={(e) => setRep({ title: e.target.value })} maxLength={120} invalid={!s.repairs.title.trim()} />
+                </Field>
+                <Field label="Texto" hint="Corto: qué hace el taller y cómo se pide turno. Sin precios.">
+                  <Textarea rows={5} value={s.repairs.body} onChange={(e) => setRep({ body: e.target.value })} maxLength={800} />
+                </Field>
+              </div>
+              <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+                <legend className="mb-2 p-0 text-[12px] font-bold uppercase tracking-[.08em] text-text-3">Servicios del taller</legend>
+                <RepairServicesList items={s.repairs.services} onChange={(services) => setRep({ services })} />
+                <span className="text-[13px] text-text-3">En este orden se ven en la web.</span>
+              </fieldset>
+            </div>
+            <button
+              type="button"
+              className="self-start rounded-[2px] text-[12px] font-bold uppercase tracking-[.08em] text-text-3 hover:text-paper focus-visible:outline-2 focus-visible:outline-yellow"
+              onClick={async () => {
+                const r = await resetRepairsContent();
+                if (!r.ok) return setError(r.error);
+                // La action invalida y Next re-renderiza la página con el texto original.
+                toast("Texto original del taller restaurado");
+              }}
+            >
+              ↺ Volver al texto original
+            </button>
           </Panel>
           </div>
 
@@ -377,7 +410,6 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
                       onClick={async () => {
                         await adminResetWhatsAppTemplate(t.id);
                         toast("Texto original restaurado");
-                        router.refresh();
                       }}
                     >
                       ↺ Volver al texto original

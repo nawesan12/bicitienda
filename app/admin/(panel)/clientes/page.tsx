@@ -10,10 +10,14 @@ export const metadata: Metadata = { title: "Clientes" };
 
 const T = COPY.admin.customers;
 
-function href(c: string | undefined, q: string | undefined, anchor = "") {
+/** Filas por tanda; "Ver más" suma otra (?n=). */
+const PAGE = 100;
+
+function href(c: string | undefined, q: string | undefined, anchor = "", n?: number) {
   const sp = new URLSearchParams();
   if (q) sp.set("q", q);
   if (c) sp.set("c", c);
+  if (n && n > PAGE) sp.set("n", String(n));
   const s = sp.toString();
   return `/admin/clientes${s ? `?${s}` : ""}${anchor}`;
 }
@@ -26,11 +30,19 @@ function href(c: string | undefined, q: string | undefined, anchor = "") {
 export default async function AdminClientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; c?: string }>;
+  searchParams: Promise<{ q?: string; c?: string; n?: string }>;
 }) {
   if (!store.features.admin?.customers) notFound();
-  const { q, c } = await searchParams;
-  const { rows, total, card } = await getCustomersScreen({ q, c });
+  const { q, c, n } = await searchParams;
+  const limit = Math.min(Math.max(Number(n) || PAGE, PAGE), 5000);
+  const { rows: allRows, total, card } = await getCustomersScreen({ q, c });
+  const rows = allRows.slice(0, limit);
+  const more =
+    allRows.length > limit ? (
+      <Button variant="secondary" size="md" href={href(c, q, "", limit + PAGE)} prefetch={false} className="mt-4 w-full justify-center">
+        Ver más clientes
+      </Button>
+    ) : null;
 
   const columns: TableColumn<CustomerListRow>[] = [
     {
@@ -102,7 +114,7 @@ export default async function AdminClientesPage({
                   rows={rows}
                   getRowKey={(r) => r.id}
                   selectedKey={card?.id}
-                  rowHref={(r) => href(r.id, q)}
+                  rowHref={(r) => href(r.id, q, "", limit)}
                   rowLabel={(r) => `Ver ficha de ${r.name}`}
                   gap={20}
                 />
@@ -110,7 +122,7 @@ export default async function AdminClientesPage({
                   {rows.map((r) => (
                     <li key={r.id} className="border-t border-line first:border-t-0">
                       <a
-                        href={href(r.id, q, "#ficha")}
+                        href={href(r.id, q, "#ficha", limit)}
                         aria-current={r.id === card?.id ? "true" : undefined}
                         className="flex items-center justify-between gap-3 p-4 aria-[current]:selected-row"
                       >
@@ -130,6 +142,7 @@ export default async function AdminClientesPage({
                     </li>
                   ))}
                 </ul>
+                {more}
               </>
             )}
           </div>

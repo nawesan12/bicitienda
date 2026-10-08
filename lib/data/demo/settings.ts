@@ -66,13 +66,14 @@ export const APPOINTMENT_SETTINGS = {
 
 export const SERVICES: DemoService[] = [
   {
-    key: "prueba",
-    name: "Prueba de bici",
-    adminName: "Prueba de bici",
-    description: "Elegís el modelo y salís a dar una vuelta con ella.",
-    durationMin: 30,
+    key: "reparacion",
+    name: "Reparación / service",
+    adminName: "Reparación / service",
+    description: "Traés la bici, la revisamos y te pasamos el presupuesto por WhatsApp.",
+    durationMin: 15,
     active: true,
-    note: "30 min · se paga en el local",
+    note: "15 min para dejarla · presupuesto por WhatsApp",
+    priceNote: "Presupuesto por WhatsApp",
   },
   {
     key: "asesoramiento",
@@ -82,6 +83,7 @@ export const SERVICES: DemoService[] = [
     durationMin: 30,
     active: true,
     note: "30 min · se paga en el local",
+    priceNote: "Se paga en el local",
   },
 ];
 
@@ -93,7 +95,7 @@ export const PAYMENT_SETTINGS = {
   mercadoPago: { enabled: true, connected: true },
   /** "Off transferencia: 10 %". */
   transferDiscountPct: 10,
-  /** "Cuotas sin interés: Hasta 6". */
+  /** Tope de cuotas de Mercado Pago ("Hasta 6"). */
   maxInstallments: 6,
   /** "Reservamos el stock 24 hs" (transferencia). */
   transferReservationHours: 24,

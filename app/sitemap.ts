@@ -14,6 +14,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, priority: 1 },
     { url: `${SITE_URL}${paths.catalog()}`, priority: 0.9 },
+    // El taller es lo que más deja: justo debajo del catálogo.
+    ...(features.repairs ? [{ url: `${SITE_URL}${paths.repairs()}`, priority: 0.9 }] : []),
     ...(features.appointments ? [{ url: `${SITE_URL}${paths.appointments()}`, priority: 0.7 }] : []),
     ...(features.quotes ? [{ url: `${SITE_URL}${paths.quote()}`, priority: 0.7 }] : []),
   ];

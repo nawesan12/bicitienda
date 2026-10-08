@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Button, ComputedField, cx, DangerTextButton, Eyebrow, Field, formatMoney, Input, installmentAmount, Panel, PanelTitle, ProductCard, QtyStepper, ResponsiveTopBar, Select, type SortablePhoto, SortablePhotoGrid, Textarea, Toggle, transferPrice, UploadDropzone } from "@/components/bt";
+import { Button, ComputedField, cx, DangerTextButton, Eyebrow, Field, formatMoney, Input, Panel, PanelTitle, ProductCard, QtyStepper, ResponsiveTopBar, Select, type SortablePhoto, SortablePhotoGrid, Textarea, Toggle, transferPrice, UploadDropzone } from "@/components/bt";
 import { useConfirm } from "@/components/admin/confirm";
 import { useToast } from "@/components/admin/toast";
 import { sendPhoto } from "@/components/admin/upload";
@@ -61,7 +60,6 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
       price: moneyInput(data.price),
       published: data.status === "publicado",
       featured: data.featured,
-      testRide: data.testRide,
       hideWhenOut: data.hideWhenOut,
       photos: data.images.map((u) => ({ key: u, src: thumb(u) })) as SortablePhoto[],
       rows: data.variants.map((v) => ({ key: v.id, ...v })) as Row[],
@@ -97,7 +95,6 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
     if (price !== data.price) p.price = price;
     if (f.published !== initial.published) p.status = f.published ? "publicado" : "borrador";
     if (f.featured !== initial.featured) p.featured = f.featured;
-    if (f.testRide !== initial.testRide) p.testRide = f.testRide;
     if (f.hideWhenOut !== initial.hideWhenOut) p.hideWhenOut = f.hideWhenOut;
     return p;
   }
@@ -125,10 +122,10 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
         setError(r.error);
         return;
       }
+      // saveProductEditor invalida: Next re-renderiza la página en la misma respuesta.
       toast("Cambios guardados");
       setRemoved([]);
       setInitial(f);
-      router.refresh();
     });
   }
 
@@ -164,7 +161,6 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
       set("published", false);
       setInitial((s) => ({ ...s, published: false }));
       toast("Pasado a borrador");
-      router.refresh();
       return;
     }
     const ok = await confirm({
@@ -296,7 +292,7 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
           {/* Precio */}
           <Panel surface="surface" padding="lg">
             <PanelTitle>Precio</PanelTitle>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2">
               <Field label={T.listPrice} hint={price == null ? "Vacío = precio a consultar" : undefined}>
                 <Input
                   inputMode="numeric"
@@ -309,23 +305,6 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
               <Field label={T.transferPrice}>
                 <ComputedField aria-live="polite">
                   {price == null ? "—" : `${formatMoney(transferPrice(price, data.transferDiscount))} · −${data.transferDiscount}%`}
-                </ComputedField>
-              </Field>
-              <Field
-                label={T.installments}
-                hint={
-                  <>
-                    Para toda la tienda:{" "}
-                    <Link href="/admin/ajustes#pagos" className="font-semibold text-text-2 underline underline-offset-2 hover:text-paper">
-                      Ajustes → Pagos
-                    </Link>
-                  </>
-                }
-              >
-                <ComputedField tone="muted">
-                  {data.maxInstallments > 1
-                    ? `${data.maxInstallments} cuotas${price == null ? "" : ` · ${formatMoney(installmentAmount(price, data.maxInstallments))}`}`
-                    : "Sin cuotas"}
                 </ComputedField>
               </Field>
             </div>
@@ -372,7 +351,6 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
             <PanelTitle>{T.visibility}</PanelTitle>
             <Toggle label={T.toggles.published} checked={f.published} onChange={(e) => set("published", e.target.checked)} />
             <Toggle label={T.toggles.featured} checked={f.featured} onChange={(e) => set("featured", e.target.checked)} />
-            <Toggle label={T.toggles.testRide} checked={f.testRide} onChange={(e) => set("testRide", e.target.checked)} />
             <Toggle label={T.toggles.hideWhenOut} checked={f.hideWhenOut} onChange={(e) => set("hideWhenOut", e.target.checked)} />
           </Panel>
 
@@ -391,7 +369,6 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
               image={{ src: coverSrc ? img(coverSrc, { w: 720 }) : NO_PHOTO }}
               price={price ?? 0}
               tag={f.tag ? { label: f.tag } : undefined}
-              installments={data.maxInstallments}
               transferDiscountPct={data.transferDiscount}
             />
             {price == null && <p className="m-0 text-[13px] text-text-3">Sin precio: en la tienda dice “Precio a consultar”.</p>}

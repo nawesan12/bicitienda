@@ -67,10 +67,7 @@ export async function ProductScreenView({ product: p }: { product: Product }) {
   const relScope = descendantSlugs(categories, isBike ? RELATED_GROUP : (group?.slug ?? p.category));
   const related = items.filter((it) => it.slug !== p.slug && relScope.has(it.categorySlug)).slice(0, 4);
 
-  const testRideHref = p.testRide
-    ? `${paths.appointments()}?servicio=prueba&producto=${encodeURIComponent(p.slug)}`
-    : null;
-  const sizeHelpHref = `${paths.appointments()}?servicio=asesoramiento&producto=${encodeURIComponent(p.slug)}`;
+  const sizeHelpHref = `${paths.appointments()}?servicio=asesoramiento`;
 
   const crumbs = [
     { label: COPY.catalog.breadcrumbHome, href: "/" },
@@ -113,7 +110,6 @@ export async function ProductScreenView({ product: p }: { product: Product }) {
           {p.price != null && runtime.showPrices && (
             <PriceBox
               price={p.price}
-              installments={pricing.installments}
               transferDiscountPct={pricing.transferDiscountPct}
             />
           )}
@@ -129,7 +125,7 @@ export async function ProductScreenView({ product: p }: { product: Product }) {
             }))}
             forcedOut={p.stockOverride === "sin_stock"}
             swatches={swatches}
-            testRideHref={testRideHref}
+            repairHref={paths.repairs()}
             sizeHelpHref={sizeHelpHref}
             cartHref={paths.cart()}
             copy={{
@@ -138,8 +134,7 @@ export async function ProductScreenView({ product: p }: { product: Product }) {
               sizeHelpMobile: c.sizeHelpMobile,
               colorLabel: c.colorLabel,
               addToCart: c.addToCart,
-              testRide: c.testRide,
-              testRideMobile: c.testRideMobile,
+              repairLink: c.repairLink,
               pickupTitle: c.pickupTitle,
               pickupText: isBike ? c.pickupText : PICKUP_TEXT_OTHER,
               pickupTextMobile: isBike ? "Armada y ajustada" : PICKUP_TEXT_OTHER,

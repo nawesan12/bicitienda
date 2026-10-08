@@ -4,6 +4,7 @@ import {
   getOrderDetail,
   getOrdersBoard,
   ORDER_FILTERS,
+  ORDERS_PAGE,
   type OrderFilter,
   type OrderRange,
 } from "@/lib/server/screens/admin-d1";
@@ -13,7 +14,7 @@ import { RangeSelect } from "./range-select";
 
 export const metadata: Metadata = { title: "Pedidos" };
 
-type SP = { f?: string; rango?: string; q?: string; sel?: string };
+type SP = { f?: string; rango?: string; q?: string; sel?: string; n?: string };
 
 /** Filtros y rango en la URL; `sel` elige el pedido del panel (3a). */
 function hrefWith(sp: SP, patch: Partial<SP>): string {
@@ -22,6 +23,7 @@ function hrefWith(sp: SP, patch: Partial<SP>): string {
   if (next.f && next.f !== "todos") qs.set("f", next.f);
   if (next.rango && next.rango !== "7") qs.set("rango", next.rango);
   if (next.q) qs.set("q", next.q);
+  if (next.n) qs.set("n", next.n);
   if (next.sel) qs.set("sel", next.sel);
   const s = qs.toString();
   return s ? `/admin/pedidos?${s}` : "/admin/pedidos";
@@ -37,10 +39,17 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
   const filter = (ORDER_FILTERS.some((f) => f.key === sp.f) ? sp.f : "todos") as OrderFilter;
   const range = (["7", "30", "todo"].includes(sp.rango ?? "") ? sp.rango : "7") as OrderRange;
   const q = (sp.q ?? "").trim().slice(0, 80);
-  const { rows, counts } = await getOrdersBoard({ filter, range, q });
+  // Tope de filas en SQL; "Ver más" suma otra tanda (?n=).
+  const limit = Math.min(Math.max(Number(sp.n) || ORDERS_PAGE, ORDERS_PAGE), 5000);
+  const { rows, counts, hasMore } = await getOrdersBoard({ filter, range, q, limit });
   const selNumber = sp.sel ?? rows[0]?.number;
   const detail = selNumber ? await getOrderDetail(selNumber) : null;
-  const base: SP = { f: filter, rango: range, q };
+  const base: SP = { f: filter, rango: range, q, n: limit > ORDERS_PAGE ? String(limit) : undefined };
+  const more = hasMore ? (
+    <Button variant="secondary" size="md" href={hrefWith(base, { n: String(limit + ORDERS_PAGE) })} prefetch={false} className="w-full justify-center">
+      Ver más pedidos
+    </Button>
+  ) : null;
 
   const chips = ORDER_FILTERS.filter((f) => f.key !== "cancelados" || counts.cancelados > 0 || filter === "cancelados");
   const exportQs = new URLSearchParams({ f: filter, rango: range, ...(q ? { q } : {}) }).toString();
@@ -48,7 +57,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
   const chipNav = (
     <nav aria-label="Filtrar pedidos" className="flex gap-2 max-lg:-mx-4 max-lg:overflow-x-auto max-lg:px-4 max-lg:pb-1 lg:flex-wrap">
       {chips.map((c) => (
-        <FilterChip key={c.key} active={c.key === filter} count={counts[c.key]} href={hrefWith(base, { f: c.key, sel: undefined })} className="flex-none">
+        <FilterChip key={c.key} active={c.key === filter} count={counts[c.key]} href={hrefWith(base, { f: c.key, sel: undefined, n: undefined })} className="flex-none">
           {c.label}
         </FilterChip>
       ))}
@@ -74,19 +83,22 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
           <RangeSelect
             value={range}
             hrefs={{
-              "7": hrefWith(base, { rango: "7", sel: undefined }),
-              "30": hrefWith(base, { rango: "30", sel: undefined }),
-              todo: hrefWith(base, { rango: "todo", sel: undefined }),
+              "7": hrefWith(base, { rango: "7", sel: undefined, n: undefined }),
+              "30": hrefWith(base, { rango: "30", sel: undefined, n: undefined }),
+              todo: hrefWith(base, { rango: "todo", sel: undefined, n: undefined }),
             }}
           />
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)_380px] items-start gap-6 px-10 pb-10 pt-[18px]">
-          <OrdersTable
-            rows={rows}
-            selected={detail?.number}
-            hrefFor={(r) => hrefWith(base, { sel: r.number })}
-            empty={q ? `No hay pedidos que coincidan con “${q}”.` : "No hay pedidos en este filtro."}
-          />
+          <div className="flex min-w-0 flex-col gap-4">
+            <OrdersTable
+              rows={rows}
+              selected={detail?.number}
+              hrefFor={(r) => hrefWith(base, { sel: r.number })}
+              empty={q ? `No hay pedidos que coincidan con “${q}”.` : "No hay pedidos en este filtro."}
+            />
+            {more}
+          </div>
           {detail ? (
             <OrderDetailPanel order={detail} variant="panel" />
           ) : (
@@ -101,9 +113,10 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
         <SearchInput action="/admin/pedidos" placeholder="Buscar pedido o cliente" defaultValue={q} size="lg" />
         {chipNav}
         <OrdersCards rows={rows} empty={q ? `No hay pedidos que coincidan con “${q}”.` : "No hay pedidos en este filtro."} />
+        {more}
         <p className="m-0 text-[13px] text-text-3">
           {range === "todo" ? "Todos los pedidos." : `Pedidos abiertos y cerrados de los últimos ${range} días.`}{" "}
-          <a className="font-bold text-yellow" href={hrefWith(base, { rango: range === "todo" ? "7" : "todo", sel: undefined })}>
+          <a className="font-bold text-yellow" href={hrefWith(base, { rango: range === "todo" ? "7" : "todo", sel: undefined, n: undefined })}>
             {range === "todo" ? "Ver últimos 7 días" : "Ver todos"}
           </a>
         </p>

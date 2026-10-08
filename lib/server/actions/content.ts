@@ -8,7 +8,7 @@ import { requireAdmin } from "@/lib/server/actions/guard";
 import { getDb, schema } from "@/lib/server/db";
 import { withContentDefaults } from "@/lib/server/queries";
 import { invalidatePublic } from "@/lib/server/revalidate";
-import type { SiteContent } from "@/lib/types";
+import type { RepairsContent, SiteContent } from "@/lib/types";
 
 /**
  * Contenido editable (jsonb `settings.content`) y textos sueltos (tabla
@@ -89,6 +89,33 @@ export async function patchContent(patch: unknown): Promise<Result> {
   // El hero y el test muestran productos: la home de catálogo también.
   if (p.heroProd !== undefined || p.heroPhoto !== undefined) invalidatePublic("catalog");
   return { ok: true };
+}
+
+/**
+ * Taller (Ajustes → Contenido → Reparaciones): guarda `content.rep` entero.
+ * Sin precios: título, texto corto y la lista de trabajos que hace el
+ * taller. Recorta espacios y descarta los ítems vacíos; invalida "content"
+ * (lo leen /reparaciones y el bloque del taller vía getRepairsContent).
+ */
+export async function adminSaveRepairsContent(input: RepairsContent): Promise<Result> {
+  await requireAdmin();
+  const parsed = z
+    .object({
+      title: z.string().trim().min(1, "Poné un título.").max(120),
+      body: z.string().trim().max(800),
+      services: z.array(z.string().trim().max(120)).max(20),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos." };
+  }
+  const { title, body, services } = parsed.data;
+  return patchContent({ rep: { title, body, services: services.filter(Boolean) } });
+}
+
+/** "↺ Restaurar originales" del taller: vuelve al seed. */
+export async function resetRepairsContent(): Promise<Result> {
+  return patchContent({ rep: seedContent.rep });
 }
 
 /** "↺ Restaurar originales" del test: las 11 recomendaciones vuelven al seed. */

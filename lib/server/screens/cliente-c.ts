@@ -16,9 +16,8 @@ import {
 } from "@/lib/server/appointments";
 import { getCurrentAccount } from "@/lib/server/customer-auth";
 import type { FullOrder, OrderRow } from "@/lib/server/order-queries";
-import { BACKUP_REVALIDATE, getStore, getVisibleProducts } from "@/lib/server/queries";
+import { getStore } from "@/lib/server/queries";
 import type { FullQuote } from "@/lib/server/quotes";
-import { variantLabel } from "@/lib/variants";
 import { waUrl } from "@/lib/whatsapp";
 import { toLocalParts } from "@/lib/zoned-time";
 import type { QuoteKind } from "@/lib/types";
@@ -84,38 +83,6 @@ export const getBookingData = unstable_cache(
   },
   ["cliente-c-booking"],
   { tags: ["settings"], revalidate: 300 },
-);
-
-export interface TestRideBike {
-  slug: string;
-  name: string;
-  image: string | null;
-  variants: { id: string; size: string; label: string; height: string | null; available: boolean }[];
-}
-
-/** Bicis publicadas que se pueden probar (para "Bici a probar" / "Cambiar"). */
-export const getTestRideBikes = unstable_cache(
-  async (): Promise<TestRideBike[]> => {
-    const products = await getVisibleProducts();
-    return products
-      .filter((p) => p.testRide)
-      .map((p) => ({
-        slug: p.slug,
-        name: p.name,
-        image: p.images[0] ? img(resolveImage(p.images[0]), { w: 240 }) : null,
-        variants: p.variants
-          .filter((v) => v.active)
-          .map((v) => ({
-            id: v.id,
-            size: v.size,
-            label: variantLabel(v),
-            height: v.heightRange,
-            available: v.stock > 0,
-          })),
-      }));
-  },
-  ["cliente-c-test-ride"],
-  { tags: ["catalog"], revalidate: BACKUP_REVALIDATE },
 );
 
 /* ── Presupuesto (5a/5d) ──────────────────────────────────── */

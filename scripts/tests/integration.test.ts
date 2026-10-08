@@ -64,6 +64,39 @@ async function main() {
     console.log("✔ migración 0009 sobre datos existentes (backfill a variante Único)");
   }
 
+  /* ── Migración 0012 (taller): sale la prueba de bici ───────── */
+  {
+    const partial = path.join(TMP, "migrations-0011");
+    cpSync(MIGRATIONS, partial, { recursive: true });
+    const journalPath = path.join(partial, "meta/_journal.json");
+    const journal = JSON.parse(readFileSync(journalPath, "utf8"));
+    journal.entries = journal.entries.filter((e: { idx: number }) => e.idx <= 11);
+    writeFileSync(journalPath, JSON.stringify(journal));
+    rmSync(path.join(partial, "0012_taller.sql"));
+    const old = new PGlite();
+    await migrate(drizzle(old), { migrationsFolder: partial });
+    await old.exec(`
+      INSERT INTO appointment_services (id, name, allows_product, active, "order") VALUES
+        ('prueba', 'Prueba de bici', true, true, 0), ('asesoramiento', 'Asesoramiento', false, true, 1);
+      INSERT INTO categories (slug, label, path_slug) VALUES ('c', 'C', 'c');
+      INSERT INTO brands (id, name) VALUES ('b', 'B');
+      INSERT INTO products (id, slug, name, brand_id, category, price, created_at, test_ride) VALUES ('p1','p1','P1','b','c',100,'2026-01-01',true);
+    `);
+    await migrate(drizzle(old), { migrationsFolder: MIGRATIONS });
+    const svc = await old.query<{ id: string; active: boolean; order: number; allows_product: boolean }>(
+      `SELECT id, active, "order", allows_product FROM appointment_services ORDER BY "order", id`,
+    );
+    assert.deepEqual(svc.rows, [
+      { id: "reparacion", active: true, order: 0, allows_product: false },
+      { id: "asesoramiento", active: true, order: 1, allows_product: false },
+      { id: "prueba", active: false, order: 2, allows_product: false },
+    ]);
+    const tr = await old.query<{ test_ride: boolean }>("SELECT test_ride FROM products");
+    assert.deepEqual(tr.rows, [{ test_ride: false }]);
+    await old.close();
+    console.log("✔ migración 0012: prueba inactiva, reparación primero, sin test_ride");
+  }
+
   /* ── Seed con la operación demo del prototipo ────────────── */
   {
     const demoClient = new PGlite();
@@ -153,7 +186,6 @@ async function main() {
     price: 489900,
     sku: "MTB29",
     rodado: "29",
-    testRide: true,
     createdAt: "2026-10-01",
   });
   const vS = await variants.createVariant(db as any, "mtb-29", { size: "S", heightRange: "1,55 – 1,65 m" });
@@ -359,7 +391,7 @@ async function main() {
   test("contadores del sidebar del admin", async () => {
     const { getAdminNavCounts } = await import("@/lib/server/admin-queries");
     const c = await getAdminNavCounts();
-    for (const k of ["ordersToAct", "appointmentsToday", "appointmentsUnconfirmed", "quotesNew", "products"] as const)
+    for (const k of ["ordersToAct", "appointmentsWeek", "quotesNew", "products", "leads"] as const)
       assert.equal(typeof c[k], "number", k);
     assert.ok(c.products > 0);
   });
@@ -450,7 +482,7 @@ async function main() {
   test("dos reservas simultáneas al mismo slot: una falla", async () => {
     const tue = nextWeekday(2);
     const book = (name: string, ph: string) =>
-      appts.createAppointment({ serviceId: "prueba", date: tue, time: "10:30", name, phone: ph, source: "web", productSlug: "mtb-29", variantId: vM.id });
+      appts.createAppointment({ serviceId: "reparacion", date: tue, time: "10:30", name, phone: ph, source: "web", note: "Frenos que no frenan · MTB R29" });
     const res = await Promise.allSettled([book("Ana Torres", "2235550107"), book("Ramiro Luna", "2235550114")]);
     assert.equal(res.filter((r) => r.status === "fulfilled").length, 1);
     const rejected = res.find((r) => r.status === "rejected") as PromiseRejectedResult;
@@ -462,6 +494,27 @@ async function main() {
     const second = await book("Ramiro Luna", "2235550114");
     assert.equal(second.status, "confirmado");
     await db.update(schema.settings).set({ slotCapacity: 1 });
+  });
+
+  test("taller: la prueba inactiva no se reserva por web; el producto se ignora", async () => {
+    // Base vieja: la fila "prueba" queda inactiva (la 0012 no la borra).
+    await db
+      .insert(schema.appointmentServices)
+      .values({ id: "prueba", name: "Prueba de bici", allowsProduct: true, active: false, order: 2 })
+      .onConflictDoUpdate({ target: schema.appointmentServices.id, set: { active: false } });
+    const thu = nextWeekday(4);
+    await assert.rejects(
+      appts.createAppointment({ serviceId: "prueba", date: thu, time: "10:00", name: "Ana Torres", phone: "2235550107", source: "web", productSlug: "mtb-29", variantId: vM.id }),
+      (e: any) => e.code === "SERVICE",
+    );
+    const active = (await appts.getAppointmentServices({ activeOnly: true })).map((s) => s.id);
+    assert.deepEqual(active, ["reparacion", "asesoramiento"]);
+    // Reparación: aunque llegue un producto (UI vieja), el turno no lo guarda.
+    const a = await appts.createAppointment({ serviceId: "reparacion", date: thu, time: "10:00", name: "Ana Torres", phone: "2235550107", source: "web", note: "Pinchadura trasera", productSlug: "mtb-29", variantId: vM.id });
+    const [row] = await db.select().from(schema.appointments).where(eq(schema.appointments.id, a.id));
+    assert.equal(row.productSlug, null);
+    assert.equal(row.variantId, null);
+    await appts.cancelAppointment(a.id, "admin");
   });
 
   test("turno: fuera de agenda falla; reprogramar y cancelar por el cliente; Vino/No vino; link sin cuenta", async () => {
@@ -490,7 +543,7 @@ async function main() {
     const cancelled = await appts.cancelAppointment(moved.id, "cliente");
     assert.equal(cancelled.status, "cancelado");
     // Admin: manual fuera de la agenda + Vino.
-    const manual = await appts.createAppointment({ serviceId: "prueba", date: sun, time: "11:00", name: "Hernán Costa", phone: "2235550191", source: "manual" });
+    const manual = await appts.createAppointment({ serviceId: "reparacion", date: sun, time: "11:00", name: "Hernán Costa", phone: "2235550191", source: "manual" });
     assert.equal(manual.status, "confirmado");
     assert.equal((await appts.markAttendance(manual.id, true)).status, "asistio");
     await assert.rejects(appts.markAttendance(manual.id, false), (e: any) => e.code === "STATE");
@@ -753,9 +806,10 @@ async function main() {
     assert.equal(res.ok, false);
     assert.equal((await db.select().from(schema.products)).length, productsBefore, "con errores no escribe nada");
 
+    // "se_puede_probar" (planillas viejas) se ignora sin error, valga lo que valga.
     const good = [
       "﻿sku_producto;nombre;categoria;marca;precio;rodado;talle;color;altura;stock;se_puede_probar;estado",
-      "CASCO-1;Casco urbano;mtb;Venzo;$ 54.900;;M/L;Negro;;4;no;publicado",
+      "CASCO-1;Casco urbano;mtb;Venzo;$ 54.900;;M/L;Negro;;4;tal vez;publicado",
       "CASCO-1;;;;;;S;Negro;;1;;",
       "LUZ-1;Kit luces USB;mtb;Genérica;24900;;;;;12;;",
       "MTB29;;;;499900;;M;Negro/amarillo;1,65 – 1,75 m;7;;",
@@ -796,6 +850,44 @@ async function main() {
     assert.ok(done.ok);
     const [rem] = await db.select().from(schema.products).where(eq(schema.products.sku, "REM-1"));
     assert.equal(rem.price, 42900);
+  });
+
+  test("importación masiva (300 filas): en lote, slugs únicos, idempotente y la 'Único' vacía se desactiva", async () => {
+    const rows = ["sku_producto;nombre;categoria;marca;precio;talle;color;stock"];
+    let withStock = 0;
+    for (let i = 0; i < 100; i++)
+      for (const [j, t] of ["S", "M", "L"].entries()) {
+        const n = (i + j) % 4;
+        if (n) withStock++;
+        rows.push(j === 0 ? `LOTE-${i};Lote ${i % 40};mtb;Marca lote ${i % 3};${1000 + i};${t};;${n}` : `LOTE-${i};;;;;${t};;${n}`);
+      }
+    const csv = Buffer.from(rows.join("\n"));
+    const p1 = await importer.commitProductImport(csv);
+    assert.ok(p1.ok, JSON.stringify(p1.errors));
+    assert.deepEqual(p1.summary, { productsNew: 100, productsUpdated: 0, variantsNew: 300, variantsUpdated: 0, stockChanges: withStock });
+    const lote = await client.query<{ slug: string }>("SELECT slug FROM products WHERE sku LIKE 'LOTE-%'");
+    assert.equal(new Set(lote.rows.map((r) => r.slug)).size, 100);
+    assert.ok(lote.rows.some((r) => r.slug === "lote-0-2") && lote.rows.some((r) => r.slug === "lote-0-3"));
+    const [brands] = (await client.query<{ n: number }>("SELECT count(*)::int AS n FROM brands WHERE name LIKE 'Marca lote %'")).rows;
+    assert.equal(brands.n, 3);
+    const movesOf = async () =>
+      (await client.query<{ n: number }>("SELECT count(*)::int AS n FROM stock_movements WHERE reason = 'importacion' AND product_slug LIKE 'lote-%'")).rows[0].n;
+    assert.equal(await movesOf(), withStock);
+    const [units] = (await client.query<{ n: number }>("SELECT sum(qty)::int AS n FROM product_stock WHERE product_slug LIKE 'lote-%'")).rows;
+    assert.equal(units.n, rows.slice(1).reduce((s, r) => s + Number(r.split(";").pop()), 0));
+    const p2 = await importer.commitProductImport(csv);
+    assert.deepEqual(p2.summary, { productsNew: 0, productsUpdated: 0, variantsNew: 0, variantsUpdated: 0, stockChanges: 0 });
+    assert.equal(await movesOf(), withStock, "re-import idempotente");
+
+    // Sin talles → con talles: la "Único" vacía se desactiva; con stock queda.
+    const head = "sku_producto;nombre;categoria;precio;talle;stock\n";
+    assert.ok((await importer.commitProductImport(Buffer.from(`${head}UNI-1;Uni uno;mtb;100;;0\nUNI-2;Uni dos;mtb;100;;2`))).ok);
+    assert.ok((await importer.commitProductImport(Buffer.from(`${head}UNI-1;;;;M;1\nUNI-2;;;;M;1`))).ok);
+    const defs = await client.query<{ sku: string; active: boolean }>(
+      "SELECT sku, active FROM product_variants WHERE sku IN ('UNI-1-U', 'UNI-2-U') ORDER BY sku",
+    );
+    assert.deepEqual(defs.rows, [{ sku: "UNI-1-U", active: false }, { sku: "UNI-2-U", active: true }]);
+    await client.query("UPDATE products SET hidden = true WHERE sku LIKE 'LOTE-%' OR sku LIKE 'UNI-%'");
   });
 
   /* ── Cierre Ola 1 · core ──────────────────────────────────── */
@@ -917,6 +1009,61 @@ async function main() {
     assert.equal(p3.category, parent.slug);
     for (const id of [res.id, res2.id, res3.id])
       await db.update(schema.products).set({ hidden: true }).where(eq(schema.products.id, id));
+  });
+
+  test("admin en SQL: tablero de pedidos, Resumen, consultas y clientes", async () => {
+    const d1 = await import("@/lib/server/screens/admin-d1");
+    const aq = await import("@/lib/server/admin-queries");
+    const { matchesLead, LEAD_FILTERS } = await import("@/app/admin/(panel)/consultas/filters");
+    const [{ n: total }] = (await client.query<{ n: number }>("SELECT count(*)::int AS n FROM orders")).rows;
+    assert.ok(total > 2);
+    const all = await d1.getOrdersBoard({ filter: "todos", range: "todo", q: "" });
+    assert.equal(all.counts.todos, total);
+    assert.equal(all.rows.length, total);
+    for (const f of d1.ORDER_FILTERS) {
+      if (!f.pills) continue;
+      assert.equal(all.counts[f.key], all.rows.filter((r) => f.pills!.includes(r.pill)).length, f.key);
+      const only = await d1.getOrdersBoard({ filter: f.key, range: "todo", q: "" });
+      assert.equal(only.rows.length, all.counts[f.key], f.key);
+      assert.ok(only.rows.every((r) => f.pills!.includes(r.pill)), f.key);
+    }
+    // Búsqueda: número (con # y en minúsculas), ítem y WhatsApp.
+    const one = all.rows.find((r) => r.itemsLabel)!;
+    const byNumber = await d1.getOrdersBoard({ filter: "todos", range: "todo", q: `#${one.number.toLowerCase()}` });
+    assert.deepEqual(byNumber.rows.map((r) => r.number), [one.number]);
+    const word = one.itemsLabel.split(" · ")[0].replace(/^\d+× /, "").split(" ")[0];
+    assert.ok((await d1.getOrdersBoard({ filter: "todos", range: "todo", q: word })).rows.some((r) => r.id === one.id));
+    assert.ok((await d1.getOrdersBoard({ filter: "todos", range: "todo", q: one.phone.slice(-6) })).rows.some((r) => r.id === one.id));
+    // Tope + "Ver más".
+    const page = await d1.getOrdersBoard({ filter: "todos", range: "todo", q: "", limit: 2 });
+    assert.deepEqual(page.rows.map((r) => r.id), all.rows.slice(0, 2).map((r) => r.id));
+    assert.equal(page.hasMore, true);
+    assert.equal(page.counts.todos, total);
+    // Rango: los abiertos siempre; los cerrados viejos no.
+    await client.query(`UPDATE orders SET created_at = now() - interval '40 days' WHERE id = '${all.rows[all.rows.length - 1].id}'`);
+    const old = all.rows[all.rows.length - 1];
+    const week = await d1.getOrdersBoard({ filter: "todos", range: "7", q: "" });
+    assert.equal(week.rows.some((r) => r.id === old.id), old.open);
+    // Resumen: solo los que piden acción.
+    const res = await d1.getResumen();
+    const actionable = all.rows.filter((r) => ["PENDIENTE_PAGO", "SEÑADO", "PAGADO", "EN_PREPARACION", "LISTO_RETIRO"].includes(r.status));
+    assert.deepEqual(res.orders.map((r) => r.id).sort(), actionable.map((r) => r.id).sort());
+    assert.equal(res.kpis.readyForPickup, all.rows.filter((r) => r.status === "LISTO_RETIRO").length);
+    // Consultas: contadores y filtro en SQL = los de la pantalla.
+    const leads = await db.select().from(schema.leads);
+    const L = await aq.getLeads({ filter: "todas", limit: 1 });
+    for (const [k] of LEAD_FILTERS) {
+      assert.equal(L.counts[k], leads.filter((l) => matchesLead(l, k)).length, k);
+      const f = await aq.getLeads({ filter: k, limit: 1000 });
+      assert.equal(f.leads.length, L.counts[k], k);
+    }
+    assert.equal(L.leads.length, Math.min(1, leads.length));
+    // Clientes: agregados por cliente.
+    const customers = await aq.getAdminCustomers();
+    assert.equal(customers.reduce((s, c) => s + c.ordersCount, 0), total);
+    const card = customers.find((c) => c.ordersCount > 0)!;
+    const mine = (await db.select().from(schema.orders).where(eq(schema.orders.customerId, card.id)));
+    assert.equal(card.totalSpent, mine.filter((o) => !["CANCELADO", "VENCIDO"].includes(o.status)).reduce((s, o) => s + o.paidAmount, 0));
   });
 
   test("altas desde el modal: producto y categoría con sus datos", async () => {

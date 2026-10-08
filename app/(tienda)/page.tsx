@@ -3,11 +3,15 @@ import { TextLink } from "@/components/bt/button";
 import { Display } from "@/components/bt/typography";
 import { CatalogCard } from "@/components/bt/catalog-card";
 import { CategoryStrip, HomeHero, HowItWorks } from "./_components/home";
+import { repairBookingHref, WorkshopBand } from "./_components/workshop";
+import { MembersBand } from "@/components/store/members";
 import { COPY } from "@/lib/data/demo/copy";
 import { manifestKey } from "@/lib/data/demo/photos";
 import { img, resolveImage } from "@/lib/images";
 import { paths } from "@/lib/paths";
 import { SEO, pageMetadata } from "@/lib/seo";
+import { features } from "@/lib/features";
+import { getRepairsContent } from "@/lib/server/queries";
 import {
   getCatalogItems,
   getPricing,
@@ -34,16 +38,17 @@ export const metadata = pageMetadata({
  * los de desktop; estos son los del artboard 4a (`howTo`).
  */
 const STEPS_MOBILE: Record<string, string> = {
-  "01": "O pasás a probarla con un turno.",
+  "01": "O traés la tuya al taller.",
   "02": "Mercado Pago, transferencia o efectivo.",
   "03": "Te avisamos por WhatsApp.",
 };
 
 export default async function HomePage() {
-  const [{ items, products, categories }, pricing, runtime] = await Promise.all([
+  const [{ items, products, categories }, pricing, runtime, rep] = await Promise.all([
     getCatalogItems((slug) => paths.catalog(slug)),
     getPricing(),
     getRuntime(),
+    features.repairs ? getRepairsContent() : null,
   ]);
   const featured = items.filter((it) => products.find((p) => p.slug === it.slug)?.featured).slice(0, 4);
   const hero = COPY.home.hero;
@@ -52,7 +57,16 @@ export default async function HomePage() {
 
   return (
     <>
-      <JsonLd data={[siteLd(runtime), localBusinessLd(runtime, products)]} />
+      <JsonLd
+        data={[
+          siteLd(runtime),
+          localBusinessLd(runtime, products, {
+            repairs: rep
+              ? { services: rep.services, name: "Reparación y service de bicicletas", path: paths.repairs() }
+              : undefined,
+          }),
+        ]}
+      />
 
       <HomeHero
         photo={img(resolveImage(manifestKey(hero.photo)), { w: 2000 })}
@@ -63,6 +77,18 @@ export default async function HomePage() {
         cta={{ href: bikesHref, label: hero.cta }}
         subline={hero.subline}
       />
+
+      {/* El taller es el fuerte del local: va pegado al hero, antes que el catálogo. */}
+      {rep && (
+        <WorkshopBand
+          title={rep.title}
+          body={rep.body}
+          services={rep.services}
+          bookHref={repairBookingHref()}
+          moreHref={paths.repairs()}
+          whatsapp={runtime.whatsapp}
+        />
+      )}
 
       <CategoryStrip cells={strip} />
 
@@ -91,6 +117,8 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+
+      {features.accounts && <MembersBand registerHref={paths.register()} loginHref={paths.login()} />}
 
       <HowItWorks
         steps={COPY.home.steps.map((s) => ({

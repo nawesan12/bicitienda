@@ -15,6 +15,7 @@ import type {
   Category,
   CategoryWithCount,
   Product,
+  RepairsContent,
   SiteContent,
   SiteTexts,
   StoreConfig,
@@ -216,6 +217,15 @@ export const getContent = unstable_cache(
   { tags: ["content"], revalidate: BACKUP_REVALIDATE },
 );
 
+/**
+ * Contenido del taller (/reparaciones y bloque del home): título, texto y
+ * lista de trabajos, sin precios. Sale de getContent (tag "content"); lo
+ * edita adminSaveRepairsContent.
+ */
+export async function getRepairsContent(): Promise<RepairsContent> {
+  return (await getContent()).rep;
+}
+
 /** Textos de la web: el seed `TEXTS` con los overrides del admin encima. */
 export const getTexts = unstable_cache(
   async (): Promise<SiteTexts> => {
@@ -326,7 +336,7 @@ export interface RuntimeStore extends StoreConfig {
   onlineReservationMinutes: number;
   /** Efectivo en el local habilitado desde Ajustes. */
   cashEnabled: boolean;
-  /** Tope de cuotas sin interés de Mercado Pago. */
+  /** Tope de cuotas de Mercado Pago (Checkout Pro). */
   maxInstallments: number;
   /** Cuenta para transferir (además del alias): CBU/CVU, titular y banco. */
   transferCbu: string;
@@ -371,7 +381,21 @@ export async function getStore(): Promise<RuntimeStore> {
     showPrices: s.showPrices,
     ventaOnline: s.ventaOnline,
     // Las sucursales activas de la DB, ordenadas: [0] es la principal.
-    locations,
+    // Sin el admin de sucursales, la principal toma dirección, horarios y
+    // mapa de Ajustes (lo único que el dueño puede editar): si no, el
+    // checkout, el seguimiento y los mails mostraban el placeholder del seed.
+    locations: store.features.admin?.locations
+      ? locations
+      : locations.map((l, i) =>
+          i === 0
+            ? {
+                ...l,
+                address: s.address || l.address,
+                hours: s.hours || l.hours,
+                mapsUrl: s.mapsUrl || l.mapsUrl,
+              }
+            : l,
+        ),
     content,
   };
 }

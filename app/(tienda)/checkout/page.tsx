@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { COPY } from "@/lib/data/demo/copy";
 import { fillTemplate } from "@/lib/data/demo/format";
+import { features } from "@/lib/features";
 import { paths } from "@/lib/paths";
 import { NOINDEX } from "@/lib/seo";
 import { paymentOptions } from "@/lib/server/checkout-options";
@@ -36,7 +37,6 @@ export default async function CheckoutPage() {
   if (!runtime.ventaOnline) redirect(paths.catalog());
 
   const vars = {
-    cuotas: runtime.maxInstallments,
     off: runtime.transferDiscount,
     horas: runtime.reservationHours,
   };
@@ -52,7 +52,8 @@ export default async function CheckoutPage() {
       id: p.id,
       name,
       description: p.id === "payway" ? p.detail : fillTemplate(c.desc, vars),
-      note: c.note,
+      // La nota de MP (cuotas en Mercado Pago) no aplica a Payway.
+      note: p.id === "payway" ? "" : c.note,
       cta: p.id === "payway" ? "Pagar con tarjeta" : c.cta,
       transferDiscount: p.transferDiscount && runtime.transferDiscount > 0,
     };
@@ -67,7 +68,6 @@ export default async function CheckoutPage() {
       catalog={catalog}
       payments={payments}
       transferDiscountPct={runtime.transferDiscount}
-      maxInstallments={runtime.maxInstallments}
       pickupLocationId={local?.id}
       pickup={{
         title: COPY.cart.pickup.title,
@@ -78,6 +78,7 @@ export default async function CheckoutPage() {
         catalog: paths.catalog(),
         bikes: paths.catalog("bicicletas"),
         appointments: paths.appointments(),
+        register: features.accounts ? paths.register() : undefined,
       }}
     />
   );

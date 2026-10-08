@@ -5,7 +5,7 @@ import { useId, useState, useTransition, type FormEvent } from "react";
 import { Button, Field, formatMoney, FormError, Input, Modal, Select, Textarea, Toggle } from "@/components/bt";
 import { useToast } from "@/components/admin/toast";
 import { sendPhoto } from "@/components/admin/upload";
-import { createProduct, patchProduct } from "@/lib/server/actions/products";
+import { createProduct } from "@/lib/server/actions/products";
 import { addProductPhoto } from "@/lib/server/screens/admin-d2-actions";
 
 export interface NewProductCategory {
@@ -280,35 +280,5 @@ export function NewProductButton({
         </form>
       </Modal>
     </>
-  );
-}
-
-/**
- * Switch "Prueba" de la fila: guarda al instante (`testRide`). Queda por
- * encima del link de la fila (relative z-10) y no navega.
- */
-export function TestRideToggle({ id, name, initial }: { id: string; name: string; initial: boolean }) {
-  const toast = useToast();
-  const [on, setOn] = useState(initial);
-  const [pending, start] = useTransition();
-  return (
-    <span className="relative z-10 flex">
-      <Toggle
-        aria-label={`Disponible para prueba: ${name}`}
-        checked={on}
-        disabled={pending}
-        onChange={(e) => {
-          const next = e.target.checked;
-          setOn(next);
-          start(async () => {
-            const r = await patchProduct(id, { testRide: next });
-            if (!r.ok) {
-              setOn(!next);
-              toast(r.error);
-            } else toast(next ? `${name}: disponible para prueba` : `${name}: sin prueba`);
-          });
-        }}
-      />
-    </span>
   );
 }

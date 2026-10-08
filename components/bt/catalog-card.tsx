@@ -25,7 +25,6 @@ export function CatalogCard({
       image={item.image}
       price={item.price}
       tag={item.tag ? { label: item.tag } : undefined}
-      installments={pricing.installments}
       transferDiscountPct={pricing.transferDiscountPct}
       layout="responsive"
       className={className}

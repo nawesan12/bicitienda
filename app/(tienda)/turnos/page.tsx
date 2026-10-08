@@ -3,7 +3,7 @@ import { Display, Eyebrow } from "@/components/bt";
 import { COPY } from "@/lib/data/demo/copy";
 import { features } from "@/lib/features";
 import { paths } from "@/lib/paths";
-import { getBookingData, getTestRideBikes } from "@/lib/server/screens/cliente-c";
+import { getBookingData } from "@/lib/server/screens/cliente-c";
 import { ogImagePath, pageMetadata, SEO } from "@/lib/seo";
 import { BookingClient } from "./booking-client";
 
@@ -19,13 +19,13 @@ export const metadata = pageMetadata({
 export const revalidate = 300;
 
 /**
- * 2f / 4e · Reservá tu turno. Estática: servicios, horizonte de la agenda
- * y bicis con prueba vienen cacheados; los días y horarios libres los pide
+ * 2f / 4e · Reservá tu turno (taller o asesoramiento). Estática: servicios
+ * y horizonte de la agenda vienen cacheados; los días y horarios libres los pide
  * la isla con `fetchAvailability`, y la sesión con `getMyAccount`.
  */
 export default async function AppointmentsPage() {
   if (!features.appointments) notFound();
-  const [data, bikes] = await Promise.all([getBookingData(), getTestRideBikes()]);
+  const data = await getBookingData();
   return (
     <div className="px-4 pt-5 pb-7 md:px-14 md:pt-10 md:pb-20">
       <header className="flex flex-col gap-2 md:gap-3">
@@ -38,7 +38,7 @@ export default async function AppointmentsPage() {
         </Display>
       </header>
       <div className="pt-5 md:pt-8">
-        <BookingClient data={data} bikes={bikes} />
+        <BookingClient data={data} />
       </div>
     </div>
   );
