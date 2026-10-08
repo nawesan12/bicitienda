@@ -11,6 +11,8 @@ export default async function EditarProductoPage({ params }: { params: Promise<{
   const data = await getProductEditor(decodeURIComponent(id));
   if (!data) notFound();
   // key: al guardar, la action invalida y Next re-renderiza la página en la misma respuesta;
-  // con datos nuevos el editor se rearma.
-  return <ProductEditor key={JSON.stringify([data.images, data.variants])} data={data} />;
+  // con variantes nuevas (ids reales) el editor se rearma. Las fotos no van en la key: subir
+  // una también invalida, y rearmar el editor ahí borraba lo que se estaba escribiendo
+  // (el editor ya suma la foto subida a su estado).
+  return <ProductEditor key={JSON.stringify(data.variants)} data={data} />;
 }
