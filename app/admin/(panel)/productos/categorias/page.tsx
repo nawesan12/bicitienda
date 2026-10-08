@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { ResponsiveTopBar } from "@/components/bt";
 import { getAdminCategories } from "@/lib/server/admin-queries";
-import { CategoriesEditor, NewCategoryButton } from "./categories-editor";
+import { syncCategories } from "@/lib/server/category-sync";
+import { getDb } from "@/lib/server/db";
+import { CategoriesEditor, CategorySyncBanner, NewCategoryButton } from "./categories-editor";
 import { NAV_GROUPS } from "./nav-groups";
 
 export const metadata: Metadata = { title: "Categorías" };
@@ -15,6 +17,8 @@ export const metadata: Metadata = { title: "Categorías" };
  */
 export default async function CategoriasPage() {
   const categories = await getAdminCategories();
+  // Solo calcula (apply: false): el aviso aparece si la base no está al día.
+  const plan = await syncCategories(await getDb(), { apply: false });
   return (
     <>
       <ResponsiveTopBar
@@ -29,6 +33,15 @@ export default async function CategoriasPage() {
           />
         }
       />
+      {plan.outdated && (
+        <div className="px-4 pt-4 lg:px-10 lg:pt-6">
+          <CategorySyncBanner
+            created={plan.created}
+            removed={plan.removed.map((r) => r.label)}
+            moved={plan.moved.length}
+          />
+        </div>
+      )}
       <CategoriesEditor
         categories={categories.map((c) => ({
           slug: c.slug,

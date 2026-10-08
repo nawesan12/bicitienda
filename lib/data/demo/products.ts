@@ -80,22 +80,22 @@ interface Row {
 }
 
 const BIKES: Row[] = [
-  { slug: "mtb-rodado-29-21-vel-aluminio", cat: "MTB", categorySlug: "mtb", name: "MTB rodado 29 · 21 vel. · aluminio", price: 489900, photo: P.mtb29, tag: "Más vendida", rodado: "29", stock: [1, 3, 2, 0] },
-  { slug: "mtb-rodado-29-doble-suspension", cat: "MTB", categorySlug: "mtb", name: "MTB rodado 29 · doble suspensión", price: 1249900, photo: P.mtb29Doble, rodado: "29", stock: [0, 1, 1, 0] },
-  { slug: "mtb-rodado-27-5-juvenil", cat: "MTB", categorySlug: "mtb", name: "MTB rodado 27.5 · juvenil", price: 399900, photo: P.mtb275Juvenil, tag: "Oferta", rodado: "27.5", stock: [2, 2, 0, 0] },
-  { slug: "gravel-700c-2x9-vel", cat: "Gravel", categorySlug: "ruta-gravel", name: "Gravel 700c · 2x9 vel.", price: 899900, photo: P.gravel, tag: "Nuevo", rodado: "28", stock: [0, 0, 0, 0] },
-  { slug: "ruta-aluminio-2x8-vel", cat: "Ruta", categorySlug: "ruta-gravel", name: "Ruta aluminio · 2x8 vel.", price: 759900, photo: P.ruta, rodado: "28", stock: [1, 2, 1, 0] },
-  { slug: "urbana-rodado-28-canasto", cat: "Urbana", categorySlug: "urbanas", name: "Urbana rodado 28 · canasto", price: 359900, photo: P.urbana28, rodado: "28", stock: [2, 3, 2, 1], color: COLORS.crema },
-  { slug: "paseo-rodado-26-guardabarros", cat: "Urbana", categorySlug: "urbanas", name: "Paseo rodado 26 · guardabarros", price: 319900, photo: P.paseo26, rodado: "26", stock: [1, 1, 0, 0] },
-  { slug: "urbana-vintage-rodado-28", cat: "Urbana", categorySlug: "urbanas", name: "Urbana vintage rodado 28", price: 389900, photo: P.urbanaVintage, rodado: "28", stock: [0, 2, 1, 0] },
-  { slug: "infantil-rodado-16-rueditas", cat: "Infantil", categorySlug: "infantiles", name: "Infantil rodado 16 · rueditas", price: 189900, photo: P.infantil16, tag: "Oferta", rodado: "16", stock: [3], color: COLORS.rojo },
+  { slug: "mtb-rodado-29-21-vel-aluminio", cat: "MTB", categorySlug: "bicicletas-nuevas", name: "MTB rodado 29 · 21 vel. · aluminio", price: 489900, photo: P.mtb29, tag: "Más vendida", rodado: "29", stock: [1, 3, 2, 0] },
+  { slug: "mtb-rodado-29-doble-suspension", cat: "MTB", categorySlug: "bicicletas-nuevas", name: "MTB rodado 29 · doble suspensión", price: 1249900, photo: P.mtb29Doble, rodado: "29", stock: [0, 1, 1, 0] },
+  { slug: "mtb-rodado-27-5-juvenil", cat: "MTB", categorySlug: "bicicletas-nuevas", name: "MTB rodado 27.5 · juvenil", price: 399900, photo: P.mtb275Juvenil, tag: "Oferta", rodado: "27.5", stock: [2, 2, 0, 0] },
+  { slug: "gravel-700c-2x9-vel", cat: "Gravel", categorySlug: "bicicletas-nuevas", name: "Gravel 700c · 2x9 vel.", price: 899900, photo: P.gravel, tag: "Nuevo", rodado: "28", stock: [0, 0, 0, 0] },
+  { slug: "ruta-aluminio-2x8-vel", cat: "Ruta", categorySlug: "bicicletas-nuevas", name: "Ruta aluminio · 2x8 vel.", price: 759900, photo: P.ruta, rodado: "28", stock: [1, 2, 1, 0] },
+  { slug: "urbana-rodado-28-canasto", cat: "Urbana", categorySlug: "bicicletas-nuevas", name: "Urbana rodado 28 · canasto", price: 359900, photo: P.urbana28, rodado: "28", stock: [2, 3, 2, 1], color: COLORS.crema },
+  { slug: "paseo-rodado-26-guardabarros", cat: "Urbana", categorySlug: "bicicletas-nuevas", name: "Paseo rodado 26 · guardabarros", price: 319900, photo: P.paseo26, rodado: "26", stock: [1, 1, 0, 0] },
+  { slug: "urbana-vintage-rodado-28", cat: "Urbana", categorySlug: "bicicletas-nuevas", name: "Urbana vintage rodado 28", price: 389900, photo: P.urbanaVintage, rodado: "28", stock: [0, 2, 1, 0] },
+  { slug: "infantil-rodado-16-rueditas", cat: "Infantil", categorySlug: "bicicletas-nuevas", name: "Infantil rodado 16 · rueditas", price: 189900, photo: P.infantil16, tag: "Oferta", rodado: "16", stock: [3], color: COLORS.rojo },
 ];
 
 const ACC: Row[] = [
-  { slug: "casco-urbano-regulable-m-l", cat: "Cascos", categorySlug: "cascos", name: "Casco urbano regulable · M/L", price: 54900, photo: P.cascoUrbano, tag: "Nuevo", stock: [12], color: COLORS.negro },
-  { slug: "casco-mtb-con-visera", cat: "Cascos", categorySlug: "cascos", name: "Casco MTB con visera", price: 79900, photo: P.cascoMtb, stock: [5] },
+  { slug: "casco-urbano-regulable-m-l", cat: "Cascos", categorySlug: "accesorios-varios", name: "Casco urbano regulable · M/L", price: 54900, photo: P.cascoUrbano, tag: "Nuevo", stock: [12], color: COLORS.negro },
+  { slug: "casco-mtb-con-visera", cat: "Cascos", categorySlug: "accesorios-varios", name: "Casco MTB con visera", price: 79900, photo: P.cascoMtb, stock: [5] },
   { slug: "remera-de-ciclismo-manga-corta", cat: "Indumentaria", categorySlug: "indumentaria", name: "Remera de ciclismo manga corta", price: 42900, photo: P.remera, stock: [0] },
-  { slug: "kit-luces-delantera-trasera", cat: "Accesorios", categorySlug: "accesorios", name: "Kit luces delantera + trasera", price: 24900, photo: P.local, stock: [9] },
+  { slug: "kit-luces-delantera-trasera", cat: "Accesorios", categorySlug: "accesorios-varios", name: "Kit luces delantera + trasera", price: 24900, photo: P.local, stock: [9] },
 ];
 
 /** Ficha completa de la MTB R29 (2c / 3d): la única con texto y specs. */
@@ -191,8 +191,8 @@ export function stockSummary(p: DemoProduct): string {
   for (const v of p.variants) bySize.set(v.size, (bySize.get(v.size) ?? 0) + v.stock);
   if (bySize.has("S")) return TALLES.map((t) => `${t} ${bySize.get(t) ?? 0}`).join(" · ");
   const n = bySize.get("Único") ?? 0;
-  // El prototipo dice "Único" para la bici infantil y "Unidades" para accesorios.
-  return (p.categorySlug === "infantiles" ? "Único " : "Unidades ") + n;
+  // El prototipo dice "Único" para las bicis y "Unidades" para accesorios.
+  return (p.categorySlug.startsWith("bicicletas") ? "Único " : "Unidades ") + n;
 }
 
 /**

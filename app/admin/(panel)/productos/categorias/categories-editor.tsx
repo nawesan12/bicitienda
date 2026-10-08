@@ -21,7 +21,7 @@ import {
   type TableColumn,
 } from "@/components/bt";
 import { useToast } from "@/components/admin/toast";
-import { createCategory, deleteCategory, moveCategory, patchCategory, setCategoryGroup } from "@/lib/server/actions/categories";
+import { applyCategorySync, createCategory, deleteCategory, moveCategory, patchCategory, setCategoryGroup } from "@/lib/server/actions/categories";
 import { paths } from "@/lib/paths";
 import { NAV_GROUPS } from "./nav-groups";
 
@@ -112,6 +112,66 @@ export function NewCategoryButton({ groups }: { groups: { slug: string; label: s
         </form>
       </Modal>
     </>
+  );
+}
+
+/**
+ * Aviso de categorías pendientes: la base todavía no tiene las categorías
+ * del catálogo (las 8 del cliente). Muestra qué cambia y lo aplica.
+ */
+export function CategorySyncBanner({
+  created,
+  removed,
+  moved,
+}: {
+  created: string[];
+  removed: string[];
+  moved: number;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Panel surface="surface" padding="lg" gap="md" className="border-yellow">
+      <PanelTitle>Actualizar categorías</PanelTitle>
+      <p className="m-0 text-[15px] leading-[1.5] text-text-2">
+        Las categorías de la tienda pasan a ser: Bicicletas Nuevas, Bicicletas Usadas, Accesorios, Indumentaria,
+        Repuestos, Cubiertas, Cámaras y Productos Importados. No se borra ningún producto.
+      </p>
+      <ul className="m-0 flex flex-col gap-1 pl-5 text-[14px] leading-[1.5] text-text-2">
+        {created.length > 0 && <li>Se crean: {created.join(", ")}.</li>}
+        {removed.length > 0 && <li>Se reemplazan: {removed.join(", ")}.</li>}
+        {moved > 0 && (
+          <li>
+            {moved} {moved === 1 ? "producto pasa" : "productos pasan"} a su categoría nueva.
+          </li>
+        )}
+      </ul>
+      <FormError>{error}</FormError>
+      <div>
+        <Button
+          variant="primary"
+          size="md"
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              setError(null);
+              try {
+                const r = await applyCategorySync();
+                if (!r.ok) return setError(r.error);
+                toast("Categorías actualizadas");
+                router.refresh();
+              } catch {
+                setError("No se pudo aplicar. Probá de nuevo.");
+              }
+            })
+          }
+        >
+          {pending ? "Aplicando…" : "Aplicar"}
+        </Button>
+      </div>
+    </Panel>
   );
 }
 

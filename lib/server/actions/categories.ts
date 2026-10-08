@@ -8,6 +8,7 @@ import { slugify } from "@/lib/slug";
 import { requireAdmin } from "@/lib/server/actions/guard";
 import { getDb, schema } from "@/lib/server/db";
 import { insertCategory, uniquePathSlug } from "@/lib/server/categories";
+import { syncCategories } from "@/lib/server/category-sync";
 import { invalidatePublic } from "@/lib/server/revalidate";
 
 /**
@@ -121,6 +122,19 @@ export async function setCategoryGroup(slug: unknown, parentSlug: unknown): Prom
     .update(schema.categories)
     .set({ parentSlug: target, order: last + 1 })
     .where(eq(schema.categories.slug, row.slug));
+  invalidatePublic("catalog");
+  return { ok: true };
+}
+
+/**
+ * "Aplicar categorías": deja las de la base como las del catálogo (las 8
+ * del cliente en sus grupos) sin perder productos. Ver
+ * lib/server/category-sync.ts.
+ */
+export async function applyCategorySync(): Promise<Result> {
+  await requireAdmin();
+  const db = await getDb();
+  await syncCategories(db, { apply: true });
   invalidatePublic("catalog");
   return { ok: true };
 }

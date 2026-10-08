@@ -32,12 +32,13 @@ const SINGLE: Record<string, string> = {
   accesorios: "ACCESORIO",
   repuestos: "REPUESTO",
   importados: "IMPORTADO",
-  mtb: "MTB",
-  "ruta-gravel": "RUTA / GRAVEL",
-  urbanas: "URBANA",
-  infantiles: "INFANTIL",
-  cascos: "CASCO",
+  "bicicletas-nuevas": "BICICLETA NUEVA",
+  "bicicletas-usadas": "BICICLETA USADA",
+  "accesorios-varios": "ACCESORIO",
   indumentaria: "INDUMENTARIA",
+  "repuestos-varios": "REPUESTO",
+  cubiertas: "CUBIERTA",
+  camaras: "CÁMARA",
 };
 
 const HOME = new Set(HOME_CATEGORY_STRIP.map((c) => c.categorySlug));

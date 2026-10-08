@@ -137,8 +137,8 @@ async function main() {
   const LOC = store.locations[0].id;
   const TZ = store.timeZone;
 
-  // Producto de prueba con talles: MTB S/M/L.
-  // (El seed ya trae la categoría MTB: el insert es por si cambia.)
+  // Producto de prueba con talles: MTB S/M/L, en una categoría "MTB" vieja
+  // (la última suite la migra a Bicicletas Nuevas con syncCategories).
   await db
     .insert(schema.categories)
     .values({ slug: "mtb", label: "MTB", pathSlug: "mtb", parentSlug: null })
@@ -1026,6 +1026,63 @@ async function main() {
     assert.equal(back.parentSlug, null);
 
     await db.update(schema.products).set({ hidden: true }).where(eq(schema.products.id, prod.id));
+  });
+
+  test("syncCategories: deja las 8 del cliente sin perder productos", async () => {
+    const { syncCategories } = await import("@/lib/server/category-sync");
+    const mk = async (id: string, category: string) => {
+      await db
+        .insert(schema.products)
+        .values({ id, slug: id, name: id, brandId: "venzo", category, chips: [], specs: [], images: [], custom: true, createdAt: "2026-01-01" })
+        .onConflictDoNothing();
+    };
+    // Como producción: categorías viejas, una "Cubiertas" hecha a mano y otra suelta propia.
+    await db.insert(schema.categories).values({ slug: "cascos", label: "Cascos", pathSlug: "cascos", parentSlug: "accesorios" }).onConflictDoNothing();
+    await db.insert(schema.categories).values({ slug: "catmanual1", label: "Cubiertas", pathSlug: "cubiertas-propias", parentSlug: null });
+    await db.insert(schema.categories).values({ slug: "catmanual2", label: "Ofertas", pathSlug: "ofertas", parentSlug: null });
+    await mk("sync-casco", "cascos");
+    await mk("sync-cubierta", "catmanual1");
+    await mk("sync-oferta", "catmanual2");
+    await mk("sync-en-grupo", "bicicletas");
+    const productsBefore = (await db.select().from(schema.products)).length;
+
+    const dry = await syncCategories(db as any, { apply: false });
+    assert.ok(dry.moved.length > 0);
+    assert.equal(dry.outdated, true, "quedan categorías viejas: el admin muestra el aviso");
+    assert.ok((await db.select().from(schema.categories).where(eq(schema.categories.slug, "cascos"))).length, "el plan no escribe");
+
+    await syncCategories(db as any, { apply: true });
+    const cats = await db.select().from(schema.categories);
+    const cat = (slug: string) => cats.find((c) => c.slug === slug);
+    const prodCat = async (id: string) => (await db.select().from(schema.products).where(eq(schema.products.id, id)))[0].category;
+
+    // Las 8 del cliente, en su grupo.
+    const leaves = ["bicicletas-nuevas", "bicicletas-usadas", "accesorios-varios", "indumentaria", "repuestos-varios", "cubiertas", "camaras", "importados"];
+    for (const s of leaves) assert.ok(cat(s), `existe ${s}`);
+    assert.equal(cat("bicicletas-usadas")!.label, "Bicicletas Usadas");
+    assert.equal(cat("camaras")!.parentSlug, "repuestos");
+    assert.equal(cat("importados")!.label, "Productos Importados");
+    // Viejas y duplicada: fuera, con sus productos movidos.
+    for (const s of ["mtb", "cascos", "catmanual1"]) assert.equal(cat(s), undefined, `se borró ${s}`);
+    assert.equal(await prodCat("mtb-29"), "bicicletas-nuevas");
+    assert.equal(await prodCat("sync-casco"), "accesorios-varios");
+    assert.equal(await prodCat("sync-cubierta"), "cubiertas");
+    assert.equal(await prodCat("sync-en-grupo"), "bicicletas-nuevas");
+    // La propia que no choca queda igual.
+    assert.equal(cat("catmanual2")!.label, "Ofertas");
+    assert.equal(await prodCat("sync-oferta"), "catmanual2");
+    assert.equal((await db.select().from(schema.products)).length, productsBefore, "no se borra ningún producto");
+
+    // Idempotente.
+    const again = await syncCategories(db as any, { apply: true });
+    assert.deepEqual([again.created, again.updated, again.removed, again.moved], [[], [], [], []]);
+    assert.equal(again.outdated, false);
+    // Y el seed corre encima sin chocar.
+    const { runSeed } = await import("@/lib/server/seed");
+    await runSeed(db as any, { demo: false });
+
+    for (const id of ["sync-casco", "sync-cubierta", "sync-oferta", "sync-en-grupo"])
+      await db.update(schema.products).set({ hidden: true }).where(eq(schema.products.id, id));
   });
 
   /* ── Correr ───────────────────────────────────────────────── */

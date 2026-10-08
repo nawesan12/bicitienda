@@ -97,7 +97,7 @@ export const lexicon: Lexicon = {
     emptyLink: "preguntanos por WhatsApp",
     metaTitle: `Productos de ${store.brandName}`,
     metaDescription:
-      "Bicicletas MTB, ruta, urbanas e infantiles, accesorios y repuestos. Retiro en el local en Mar del Plata.",
+      "Bicicletas nuevas y usadas, accesorios, indumentaria, repuestos, cubiertas y cámaras. Retiro en el local en Mar del Plata.",
     categoryMetaTitle: (name) => `${name} · ${store.brandName}`,
     backLink: "← Volver a productos",
     productMetaFallback: "Producto",

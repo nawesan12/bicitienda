@@ -66,7 +66,7 @@ export const COPY = {
       titleLead: "Salí a rodar por",
       titleHighlight: "La Feliz.",
       cta: "Ver bicicletas",
-      subline: "MTB · Ruta · Urbanas · Infantiles",
+      subline: "Nuevas · Usadas",
     },
     featured: {
       title: "Lo más pedido en el mostrador",

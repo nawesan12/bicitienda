@@ -1,6 +1,7 @@
 import { eq, notInArray, sql } from "drizzle-orm";
 import { store } from "@/lib/config";
 import { brands, categories, products } from "@/lib/data/catalog";
+import { syncCategories } from "@/lib/server/category-sync";
 import { agendaEvents, articles, content } from "@/lib/data/content";
 import {
   appointmentServices,
@@ -185,7 +186,12 @@ export async function runSeed(
     demo?: boolean;
   } = {},
 ) {
-  // Raíces primero: los tipos (MTB) referencian a su grupo (Bicicletas).
+  // Categorías viejas o duplicadas de las del catálogo: sus productos pasan
+  // a la nueva y se liberan las URLs (si no, el upsert de abajo choca con
+  // una categoría creada a mano que use la misma URL).
+  await syncCategories(db, { apply: true });
+
+  // Raíces primero: los tipos (Bicicletas Nuevas) referencian a su grupo.
   const sortedCategories = [...categories].sort(
     (a, b) => Number(!!a.parentSlug) - Number(!!b.parentSlug),
   );

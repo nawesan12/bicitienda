@@ -57,7 +57,7 @@ export const MAX_IMPORT_BYTES = 4 * 1024 * 1024;
 export function importTemplateCsv(): string {
   const rows: string[][] = [
     [...IMPORT_COLUMNS],
-    ["MTB29-21", "MTB rodado 29 · 21 vel. · aluminio", "mtb", "Venzo", "489900", "", "29", "M", "Negro/amarillo", "1,65 – 1,75 m", "", "3", "si", "no", "publicado", "Cuadro de aluminio, 21 velocidades.", ""],
+    ["MTB29-21", "MTB rodado 29 · 21 vel. · aluminio", "bicicletas-nuevas", "Venzo", "489900", "", "29", "M", "Negro/amarillo", "1,65 – 1,75 m", "", "3", "si", "no", "publicado", "Cuadro de aluminio, 21 velocidades.", ""],
     ["MTB29-21", "", "", "", "", "", "", "L", "Negro/amarillo", "1,75 – 1,85 m", "", "2", "", "", "", "", ""],
     ["LUCES-USB", "Kit luces delantera + trasera", "accesorios", "Genérica", "24900", "", "", "", "", "", "", "12", "no", "no", "publicado", "", ""],
   ];

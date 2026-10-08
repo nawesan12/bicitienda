@@ -125,17 +125,17 @@ export const SEO = {
   titleTemplate: `%s · ${store.brandName}`,
   defaultTitle: `${store.brandName} · Bicis, accesorios y repuestos en ${CITY}`,
   defaultDescription:
-    "Bicicletas MTB, de ruta, urbanas e infantiles, accesorios y repuestos en Mar del Plata. Comprá online en 6 cuotas sin interés y retirá en el local.",
+    "Bicicletas nuevas y usadas, accesorios, indumentaria, repuestos, cubiertas y cámaras en Mar del Plata. Comprá online en 6 cuotas sin interés y retirá en el local.",
   keywords: [
     "bicicletería Mar del Plata",
     "bicicletas Mar del Plata",
-    "bicicletas MTB Mar del Plata",
-    "bicicletas de ruta",
-    "bicicletas urbanas",
-    "bicicletas infantiles",
+    "bicicletas nuevas Mar del Plata",
+    "bicicletas usadas Mar del Plata",
     "accesorios para bicicleta",
+    "indumentaria de ciclismo",
     "repuestos de bicicleta",
-    "cascos de bicicleta",
+    "cubiertas de bicicleta",
+    "cámaras de bicicleta",
     "bicicletas en cuotas sin interés",
     store.brandName,
   ],
@@ -143,14 +143,15 @@ export const SEO = {
   /** Términos por slug de categoría (fallback: el label de la categoría). */
   categoryTerms: {
     bicicletas: { plural: "Bicicletas", singular: "bicicleta" },
-    mtb: { plural: "Bicicletas MTB", singular: "bicicleta MTB" },
-    "ruta-gravel": { plural: "Bicicletas de ruta y gravel", singular: "bicicleta de ruta" },
-    urbanas: { plural: "Bicicletas urbanas", singular: "bicicleta urbana" },
-    infantiles: { plural: "Bicicletas infantiles", singular: "bicicleta infantil" },
+    "bicicletas-nuevas": { plural: "Bicicletas nuevas", singular: "bicicleta nueva" },
+    "bicicletas-usadas": { plural: "Bicicletas usadas", singular: "bicicleta usada" },
     accesorios: { plural: "Accesorios para bicicleta", singular: "accesorio para bicicleta" },
-    cascos: { plural: "Cascos de bicicleta", singular: "casco de bicicleta" },
+    "accesorios-varios": { plural: "Accesorios para bicicleta", singular: "accesorio para bicicleta" },
     indumentaria: { plural: "Indumentaria de ciclismo", singular: "indumentaria de ciclismo" },
     repuestos: { plural: "Repuestos de bicicleta", singular: "repuesto de bicicleta" },
+    "repuestos-varios": { plural: "Repuestos de bicicleta", singular: "repuesto de bicicleta" },
+    cubiertas: { plural: "Cubiertas de bicicleta", singular: "cubierta de bicicleta" },
+    camaras: { plural: "Cámaras de bicicleta", singular: "cámara de bicicleta" },
     importados: { plural: "Productos importados", singular: "producto importado" },
   } as Record<string, SeoCategoryTerms>,
 
@@ -232,7 +233,7 @@ export const SEO = {
     /** Titular del hero del handoff: "Salí a rodar por" + "La Feliz." en amarillo. */
     taglineLead: "Salí a rodar por",
     taglineAccent: "La Feliz.",
-    categoriesLine: "MTB · Ruta · Urbanas · Infantiles · Accesorios · Repuestos",
+    categoriesLine: "Bicicletas nuevas y usadas · Accesorios · Repuestos · Cubiertas · Cámaras",
     footer: `bicitiendamdq.com.ar · ${CITY}`,
     defaultAlt: `${store.brandName} — bicicletas, accesorios y repuestos en ${CITY}`,
     installments: (n: number, cuota: string) => `${n} cuotas sin interés de ${cuota}`,
@@ -257,11 +258,11 @@ export const SEO = {
     catalog: {
       kicker: "CATÁLOGO",
       title: "Bicis, accesorios y repuestos",
-      sub: "MTB, ruta, urbanas e infantiles · cuotas sin interés · retiro en el local",
+      sub: "Nuevas y usadas · cuotas sin interés · retiro en el local",
       meta: {
         title: `Bicicletas, accesorios y repuestos en ${CITY}`,
         description:
-          "Catálogo de BiciTienda MDQ: bicicletas MTB, de ruta, urbanas e infantiles, cascos, indumentaria y repuestos. 6 cuotas sin interés y retiro en el local.",
+          "Catálogo de BiciTienda MDQ: bicicletas nuevas y usadas, accesorios, indumentaria, repuestos, cubiertas y cámaras. 6 cuotas sin interés y retiro en el local.",
       },
     },
     appointments: {

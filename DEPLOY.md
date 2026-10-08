@@ -99,6 +99,25 @@ Cómo arrancar con el catálogo real:
 4. Ajustes: local, WhatsApp, pagos (CBU, titular, banco, alias, tope de
    cuotas, reservas), horarios de turnos, servicios y plantillas de WhatsApp.
 
+### Categorías del cliente
+
+Las categorías de la tienda son las 8 del cliente, en los 4 grupos del
+menú (`lib/data/demo/categories.ts`):
+
+- Bicicletas → Bicicletas Nuevas, Bicicletas Usadas
+- Accesorios → Accesorios, Indumentaria
+- Repuestos → Repuestos, Cubiertas, Cámaras
+- Productos Importados
+
+Una base cargada antes de este cambio (MTB, Ruta / Gravel, Urbanas,
+Infantiles, Cascos) se actualiza desde **Admin → Productos → Categorías**:
+aparece el aviso "Actualizar categorías" con el detalle y el botón
+**Aplicar**. Mueve los productos a la categoría nueva (no borra ninguno),
+fusiona las creadas a mano con el mismo nombre y refresca la tienda al
+instante. También se puede por consola (`pnpm db:categorias` muestra el
+plan, `--aplicar` lo ejecuta), pero entonces la tienda puede tardar hasta un
+día en reflejarlo (caché): conviene el botón.
+
 ## 4. Admin: PIN
 
 ```bash

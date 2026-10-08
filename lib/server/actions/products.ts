@@ -217,8 +217,8 @@ async function uniqueProductSlug(db: Db, name: string): Promise<string> {
  * Categoría por defecto de un producto nuevo: la primera HOJA (sin
  * subcategorías) en el orden del árbol — `order` del padre, después el
  * propio, después el slug —, así es determinista aunque haya empates de
- * `order` entre niveles ("bicicletas" y "mtb") y nunca cae en una categoría
- * que solo agrupa. Con el seed: "mtb".
+ * `order` entre niveles ("bicicletas" y "bicicletas-nuevas") y nunca cae en
+ * una categoría que solo agrupa. Con el seed: "bicicletas-nuevas".
  */
 function defaultCategory(
   cats: { slug: string; parentSlug: string | null; order: number }[],

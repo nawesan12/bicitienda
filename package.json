@@ -11,6 +11,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "db:categorias": "tsx scripts/categorias.ts",
     "db:studio": "drizzle-kit studio",
     "admin:pin": "tsx scripts/admin-pin.ts",
     "seed:images": "tsx scripts/seed-images.ts",
