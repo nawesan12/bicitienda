@@ -237,10 +237,22 @@ function defaultCategory(
   })[0]?.slug;
 }
 
+/** Datos que se cargan en el modal de "+ Nuevo producto" (todo opcional). */
+const newProductSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    price: priceSchema,
+  })
+  .partial();
+
 export async function createProduct(
   category: unknown,
+  fields?: unknown,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   await requireAdmin();
+  const parsedFields = newProductSchema.safeParse(fields ?? {});
+  if (!parsedFields.success) return { ok: false, error: "Revisá el nombre y el precio." };
+  const name = parsedFields.data.name ?? lexicon.admin.newProduct;
   const db = await getDb();
   const cats = await db
     .select({
@@ -251,7 +263,8 @@ export async function createProduct(
     .from(schema.categories);
   const wanted = z.string().max(60).safeParse(category);
   const cat =
-    cats.find((c) => wanted.success && c.slug === wanted.data)?.slug ?? defaultCategory(cats);  if (!cat) return { ok: false, error: "Primero creá una categoría." };
+    cats.find((c) => wanted.success && c.slug === wanted.data)?.slug ?? defaultCategory(cats);
+  if (!cat) return { ok: false, error: "Primero creá una categoría." };
 
   const [brand] = await db
     .select({ id: schema.brands.id })
@@ -262,14 +275,14 @@ export async function createProduct(
     (await db.select({ id: schema.brands.id }).from(schema.brands).limit(1))[0]?.id;
   if (!brandId) return { ok: false, error: "No hay marcas cargadas." };
 
-  const slug = await uniqueProductSlug(db, lexicon.admin.newProduct);
+  const slug = await uniqueProductSlug(db, name);
   await db.insert(schema.products).values({
     id: slug,
     slug,
-    name: lexicon.admin.newProduct,
+    name,
     brandId,
     category: cat,
-    price: null,
+    price: parsedFields.data.price ?? null,
     tag: lexicon.admin.newProductTag,
     chips: [],
     specs: [],

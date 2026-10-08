@@ -35,23 +35,45 @@ async function uniquePathSlug(db: Db, label: string, except?: string): Promise<s
   }
 }
 
-export async function createCategory(): Promise<
+/** Datos del modal de "+ Nueva categoría": nombre y grupo del menú (opcional). */
+const newCategorySchema = z
+  .object({
+    label: z.string().trim().min(1).max(60),
+    parentSlug: slugSchema.nullable(),
+  })
+  .partial();
+
+export async function createCategory(input?: unknown): Promise<
   { ok: true; slug: string } | { ok: false; error: string }
 > {
   await requireAdmin();
+  const parsed = newCategorySchema.safeParse(input ?? {});
+  if (!parsed.success) return { ok: false, error: "Poné un nombre de hasta 60 letras." };
+  const label = parsed.data.label ?? NEW_LABEL;
   const db = await getDb();
+  let parentSlug: string | null = null;
+  if (parsed.data.parentSlug) {
+    // Solo se cuelga de un grupo (raíz): la jerarquía tiene dos niveles.
+    const [parent] = await db
+      .select({ slug: schema.categories.slug, parentSlug: schema.categories.parentSlug })
+      .from(schema.categories)
+      .where(eq(schema.categories.slug, parsed.data.parentSlug));
+    if (!parent || parent.parentSlug) return { ok: false, error: "Ese grupo no existe." };
+    parentSlug = parent.slug;
+  }
   const [{ last }] = await db
     .select({ last: sql<number>`coalesce(max(${schema.categories.order}), 0)` })
     .from(schema.categories);
   const slug = `cat${Date.now().toString(36)}`;
   await db.insert(schema.categories).values({
     slug,
-    label: NEW_LABEL,
-    single: NEW_LABEL.toUpperCase(),
+    label,
+    single: label.toUpperCase(),
     sub: "",
     home: true,
     imgProductId: null,
-    pathSlug: await uniquePathSlug(db, NEW_LABEL),
+    parentSlug,
+    pathSlug: await uniquePathSlug(db, label),
     order: Number(last) + 1,
   });
   invalidatePublic("catalog");

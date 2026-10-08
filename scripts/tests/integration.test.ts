@@ -917,6 +917,37 @@ async function main() {
       await db.update(schema.products).set({ hidden: true }).where(eq(schema.products.id, id));
   });
 
+  test("altas desde el modal: producto y categoría con sus datos", async () => {
+    const productActions = await import("@/lib/server/actions/products");
+    const categoryActions = await import("@/lib/server/actions/categories");
+    const cats = await db.select().from(schema.categories);
+    const group = cats.find((c) => !c.parentSlug && cats.some((x) => x.parentSlug === c.slug))!;
+
+    const c: any = await asAdmin(() => categoryActions.createCategory({ label: "Eléctricas", parentSlug: group.slug }));
+    assert.ok(c.ok, JSON.stringify(c));
+    const [cat] = await db.select().from(schema.categories).where(eq(schema.categories.slug, c.slug));
+    assert.equal(cat.label, "Eléctricas");
+    assert.equal(cat.parentSlug, group.slug);
+    assert.equal(cat.pathSlug, "electricas");
+    // Solo se cuelga de un grupo (raíz), no de un tipo.
+    const bad: any = await asAdmin(() => categoryActions.createCategory({ label: "X", parentSlug: c.slug }));
+    assert.equal(bad.ok, false);
+
+    const p: any = await asAdmin(() =>
+      productActions.createProduct(c.slug, { name: "Bici eléctrica E29", price: 1_250_000 }),
+    );
+    assert.ok(p.ok, JSON.stringify(p));
+    const [prod] = await db.select().from(schema.products).where(eq(schema.products.id, p.id));
+    assert.equal(prod.name, "Bici eléctrica E29");
+    assert.equal(prod.slug, "bici-electrica-e29");
+    assert.equal(prod.category, c.slug);
+    assert.equal(prod.price, 1_250_000);
+
+    await db.delete(schema.productVariants).where(eq(schema.productVariants.productSlug, p.id));
+    await db.delete(schema.products).where(eq(schema.products.id, p.id));
+    await db.delete(schema.categories).where(eq(schema.categories.slug, c.slug));
+  });
+
   /* ── Correr ───────────────────────────────────────────────── */
   let failed = 0;
   for (const s of suites) {

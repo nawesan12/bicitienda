@@ -19,7 +19,11 @@ export default async function CategoriasPage() {
       <ResponsiveTopBar
         title="Categorías"
         back={{ href: "/admin/productos", label: "Productos" }}
-        actions={<NewCategoryButton />}
+        actions={
+          <NewCategoryButton
+            groups={categories.filter((c) => !c.parentSlug).map((c) => ({ slug: c.slug, label: c.label }))}
+          />
+        }
       />
       <CategoriesEditor
         categories={categories.map((c) => ({

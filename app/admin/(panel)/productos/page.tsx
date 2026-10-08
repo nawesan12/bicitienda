@@ -4,8 +4,9 @@ import { Button, CellMono, CellStack, CellThumb, cx, EmptyState, FilterChip, for
 import { COPY } from "@/lib/data/demo/copy";
 import { features } from "@/lib/features";
 import { img } from "@/lib/images";
+import { getAdminCategories, type AdminCategory } from "@/lib/server/admin-queries";
 import { getProductList, type ProductListRow } from "@/lib/server/screens/admin-d2";
-import { NewProductButton, TestRideToggle } from "./product-list-client";
+import { NewProductButton, TestRideToggle, type NewProductCategory } from "./product-list-client";
 import { NO_PHOTO } from "./product-utils";
 
 export const metadata: Metadata = { title: "Productos" };
@@ -14,6 +15,31 @@ const T = COPY.admin.products;
 
 const thumb = (src: string | null) => (src ? img(src, { w: 160 }) : NO_PHOTO);
 const price = (n: number | null) => (n == null ? "A consultar" : formatMoney(n));
+
+/**
+ * Opciones de categoría del modal "+ Nuevo producto": solo hojas (las que
+ * agrupan no llevan productos), en el orden del menú y con su grupo
+ * adelante. La primera es la misma que elige `createProduct` por defecto.
+ */
+function productCategories(cats: AdminCategory[]): NewProductCategory[] {
+  const bySlug = new Map(cats.map((c) => [c.slug, c]));
+  const parents = new Set(cats.map((c) => c.parentSlug).filter(Boolean));
+  const leaves = cats.filter((c) => !parents.has(c.slug));
+  const key = (c: AdminCategory) => {
+    const parent = c.parentSlug ? bySlug.get(c.parentSlug) : undefined;
+    return parent ? [parent.order, c.order] : [c.order, -1];
+  };
+  return [...(leaves.length ? leaves : cats)]
+    .sort((a, b) => {
+      const [a1, a2] = key(a);
+      const [b1, b2] = key(b);
+      return a1 - b1 || a2 - b2 || a.slug.localeCompare(b.slug);
+    })
+    .map((c) => {
+      const parent = c.parentSlug ? bySlug.get(c.parentSlug) : undefined;
+      return { slug: c.slug, label: parent ? `${parent.label} · ${c.label}` : c.label };
+    });
+}
 
 /** Link de la lista conservando la búsqueda. */
 function hrefFor(filter: string | undefined, q: string | undefined) {
@@ -35,7 +61,8 @@ export default async function AdminProductosPage({
   searchParams: Promise<{ q?: string; filtro?: string }>;
 }) {
   const { q, filtro } = await searchParams;
-  const data = await getProductList({ q, filter: filtro });
+  const [data, cats] = await Promise.all([getProductList({ q, filter: filtro }), getAdminCategories()]);
+  const newCategories = productCategories(cats);
 
   const columns: TableColumn<ProductListRow>[] = [
     { key: "thumb", header: "", width: "64px", cell: (r) => <CellThumb src={thumb(r.image)} /> },
@@ -101,7 +128,7 @@ export default async function AdminProductosPage({
                 {T.import}
               </Button>
             )}
-            <NewProductButton label={T.create} />
+            <NewProductButton label={T.create} categories={newCategories} />
           </>
         }
         mobileActions={
@@ -114,7 +141,7 @@ export default async function AdminProductosPage({
                 {T.import}
               </Button>
             )}
-            <NewProductButton label={T.create} className="col-span-2" />
+            <NewProductButton label={T.create} categories={newCategories} className="col-span-2" />
           </>
         }
       />
