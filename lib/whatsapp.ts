@@ -1,4 +1,5 @@
 import { leadLabels, waMessages } from "@/lib/data/content";
+import { normalizeArPhone } from "@/lib/phone";
 import type { LeadType } from "@/lib/types";
 
 /**
@@ -8,9 +9,14 @@ import type { LeadType } from "@/lib/types";
  * getStore() (editable en Ajustes), nunca hardcodeado.
  */
 
-/** Link al chat; sin mensaje abre el chat vacío (el `waHome` del prototipo). */
+/**
+ * Link al chat; sin mensaje abre el chat vacío (el `waHome` del prototipo).
+ * El número pasa por `normalizeArPhone`: wa.me necesita 549 + característica
+ * ("2235351524" sin prefijo abre un chat de otro país). Si no es un número
+ * argentino válido, quedan sus dígitos tal cual.
+ */
 export function waUrl(whatsapp: string, message?: string): string {
-  const number = whatsapp.replace(/\D/g, "");
+  const number = normalizeArPhone(whatsapp) ?? whatsapp.replace(/\D/g, "");
   return message
     ? `https://wa.me/${number}?text=${encodeURIComponent(message)}`
     : `https://wa.me/${number}`;
