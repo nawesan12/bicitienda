@@ -109,6 +109,14 @@ export function ImportFlow() {
             <Kpi size="sm" label="Cambios de stock" value={p.summary.stockChanges} />
           </KpiGrid>
 
+          {(p.newCategories?.length ?? 0) > 0 && (
+            <p className="m-0 text-[14px] leading-[1.5] text-text-2">
+              Se {p.newCategories!.length === 1 ? "crea la categoría" : "crean las categorías"}{" "}
+              <strong className="text-paper">{p.newCategories!.join(", ")}</strong> (sin grupo del menú; después la
+              ubicás en Categorías).
+            </p>
+          )}
+
           {p.errors.length > 0 && (
             <div className="flex flex-col rounded-box border border-red-light/60">
               <p className="m-0 px-4 py-3 text-[14px] font-bold text-red-light">

@@ -745,7 +745,9 @@ async function main() {
     const pv = await importer.previewProductImport(Buffer.from(bad));
     assert.equal(pv.ok, false);
     const rows = [...new Set(pv.errors.map((e) => e.row))].sort();
-    assert.deepEqual(rows, [3, 4, 5]);
+    // La categoría inexistente (fila 4) no es error: se crea al importar.
+    assert.deepEqual(rows, [3, 5]);
+    assert.deepEqual(pv.newCategories, ["no-existe"]);
     const productsBefore = (await db.select().from(schema.products)).length;
     const res = await importer.commitProductImport(Buffer.from(bad));
     assert.equal(res.ok, false);
@@ -965,6 +967,47 @@ async function main() {
     await db.delete(schema.productVariants).where(eq(schema.productVariants.productSlug, p.id));
     await db.delete(schema.products).where(eq(schema.products.id, p.id));
     await db.delete(schema.categories).where(eq(schema.categories.slug, c.slug));
+  });
+
+  test("importación con categoría nueva y cambio de grupo de una categoría", async () => {
+    const categoryActions = await import("@/lib/server/actions/categories");
+    const csv = ["sku_producto;nombre;categoria;precio;stock", "PATIN-1;Monopatín eléctrico;Movilidad eléctrica;900000;2"].join("\n");
+    const pv = await importer.previewProductImport(Buffer.from(csv));
+    assert.ok(pv.ok, JSON.stringify(pv.errors));
+    assert.deepEqual(pv.newCategories, ["Movilidad eléctrica"]);
+    const done = await importer.commitProductImport(Buffer.from(csv));
+    assert.ok(done.ok);
+    const [cat] = await db.select().from(schema.categories).where(eq(schema.categories.label, "Movilidad eléctrica"));
+    assert.ok(cat, "se creó la categoría");
+    assert.equal(cat.pathSlug, "movilidad-electrica");
+    assert.equal(cat.parentSlug, null);
+    const [prod] = await db.select().from(schema.products).where(eq(schema.products.sku, "PATIN-1"));
+    assert.equal(prod.category, cat.slug);
+    // Reimportar no la duplica.
+    const again = await importer.previewProductImport(Buffer.from(csv));
+    assert.deepEqual(again.newCategories, []);
+
+    // Pasarla a un grupo del menú, y de vuelta a sin grupo.
+    const cats = await db.select().from(schema.categories);
+    const group = cats.find((c) => !c.parentSlug && cats.some((x) => x.parentSlug === c.slug))!;
+    const child = cats.find((c) => c.parentSlug === group.slug)!;
+    const r1: any = await asAdmin(() => categoryActions.setCategoryGroup(cat.slug, group.slug));
+    assert.ok(r1.ok, JSON.stringify(r1));
+    const [moved] = await db.select().from(schema.categories).where(eq(schema.categories.slug, cat.slug));
+    assert.equal(moved.parentSlug, group.slug);
+    assert.ok(moved.order > Math.max(...cats.filter((c) => c.slug !== cat.slug).map((c) => c.order)), "queda última");
+    // No se cuelga de un tipo, ni un grupo con tipos dentro de otro.
+    const r2: any = await asAdmin(() => categoryActions.setCategoryGroup(cat.slug, child.slug));
+    assert.equal(r2.ok, false);
+    const other = cats.find((c) => !c.parentSlug && c.slug !== group.slug)!;
+    const r3: any = await asAdmin(() => categoryActions.setCategoryGroup(group.slug, other.slug));
+    assert.equal(r3.ok, false);
+    const r4: any = await asAdmin(() => categoryActions.setCategoryGroup(cat.slug, null));
+    assert.ok(r4.ok);
+    const [back] = await db.select().from(schema.categories).where(eq(schema.categories.slug, cat.slug));
+    assert.equal(back.parentSlug, null);
+
+    await db.update(schema.products).set({ hidden: true }).where(eq(schema.products.id, prod.id));
   });
 
   /* ── Correr ───────────────────────────────────────────────── */

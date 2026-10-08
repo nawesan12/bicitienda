@@ -2,6 +2,7 @@ import { eq, ilike } from "drizzle-orm";
 import { z } from "zod";
 import { parseCsv, toCsv } from "@/lib/csv";
 import { slugify } from "@/lib/slug";
+import { insertCategory } from "@/lib/server/categories";
 import { getDb, schema, type Db } from "@/lib/server/db";
 import { invalidatePublic } from "@/lib/server/revalidate";
 import { setStockLevel, getVariantTotals } from "@/lib/server/stock";
@@ -188,6 +189,8 @@ export interface ImportPreview {
   validRows?: number;
   errors: ImportIssue[];
   products: ImportProductPlan[];
+  /** Categorías que la planilla nombra y no existen: se crean al importar (sin grupo). */
+  newCategories?: string[];
   summary: {
     productsNew: number;
     productsUpdated: number;
@@ -349,6 +352,7 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
   const seenVariantSku = new Map<string, number>();
   const plans: ImportProductPlan[] = [];
   const summary = { ...empty.summary };
+  const newCategories = new Map<string, string>();
 
   for (const [sku, rows] of groups) {
     const existing = ctx.products.find((p) => p.sku === sku);
@@ -365,8 +369,9 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
     if (!existing && !name) errors.push({ row: first.row, field: "nombre", message: `"${sku}" es nuevo: falta el nombre.` });
     if (!existing && !categoryValue)
       errors.push({ row: first.row, field: "categoria", message: `"${sku}" es nuevo: falta la categoría.` });
-    if (categoryValue && !findCategory(ctx, categoryValue))
-      errors.push({ row: first.row, field: "categoria", message: `La categoría "${categoryValue}" no existe.` });
+    // Categoría que no existe: no frena la importación, se crea al confirmar.
+    if (categoryValue && !findCategory(ctx, categoryValue) && !newCategories.has(slugify(categoryValue)))
+      newCategories.set(slugify(categoryValue), categoryValue.trim());
 
     const combos = new Set<string>();
     const variantPlans: ImportVariantPlan[] = [];
@@ -418,6 +423,7 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
       const oldPrice = rows.find((r) => r.oldPrice !== null)?.oldPrice;
       const differs =
         (name && name !== existing.name) ||
+        (categoryValue && !cat) ||
         (cat && cat !== existing.category) ||
         (price != null && price !== existing.price) ||
         (oldPrice != null && oldPrice !== existing.oldPrice) ||
@@ -443,6 +449,7 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
       validRows: parsed.length,
       errors,
       products: plans,
+      newCategories: [...newCategories.values()],
       summary,
     },
   };
@@ -517,6 +524,8 @@ export async function commitProductImport(
   }
   const { preview, parsed } = analyze(sheet, ctx);
   if (!preview.ok) return preview;
+
+  for (const label of preview.newCategories ?? []) ctx.categories.push(await insertCategory(db, label));
 
   const groups = new Map<string, ParsedRow[]>();
   for (const r of parsed) groups.set(r.productSku, [...(groups.get(r.productSku) ?? []), r]);
