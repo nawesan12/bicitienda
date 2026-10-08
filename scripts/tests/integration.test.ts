@@ -944,6 +944,24 @@ async function main() {
     assert.equal(prod.slug, "bici-electrica-e29");
     assert.equal(prod.category, c.slug);
     assert.equal(prod.price, 1_250_000);
+    assert.equal(prod.status, "publicado");
+
+    // Alta completa: descripción, stock inicial en el local y borrador.
+    const full: any = await asAdmin(() =>
+      productActions.createProduct(c.slug, { name: "Completo", description: "Cuadro aluminio", stock: 5, published: false }),
+    );
+    assert.ok(full.ok, JSON.stringify(full));
+    const [fp] = await db.select().from(schema.products).where(eq(schema.products.id, full.id));
+    assert.equal(fp.description, "Cuadro aluminio");
+    assert.equal(fp.status, "borrador");
+    const fstock = await db.select().from(schema.productStock).where(eq(schema.productStock.variantId, `${full.id}--u`));
+    assert.equal(fstock.reduce((n, r) => n + r.qty, 0), 5);
+    const neg: any = await asAdmin(() => productActions.createProduct(c.slug, { name: "Mal", stock: -1 }));
+    assert.equal(neg.ok, false);
+    await db.delete(schema.stockMovements).where(eq(schema.stockMovements.productSlug, full.id));
+    await db.delete(schema.productStock).where(eq(schema.productStock.variantId, `${full.id}--u`));
+    await db.delete(schema.productVariants).where(eq(schema.productVariants.productSlug, full.id));
+    await db.delete(schema.products).where(eq(schema.products.id, full.id));
 
     // Marca escrita en el modal: si no existe, se crea; si existe, se reusa.
     const b1: any = await asAdmin(() =>

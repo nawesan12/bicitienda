@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, ilike, ne } from "drizzle-orm";
+import { and, asc, eq, ilike, ne } from "drizzle-orm";
 import { z } from "zod";
 import { lexicon } from "@/lib/data/content";
 import { brands, products as seedProducts } from "@/lib/data/catalog";
@@ -244,6 +244,10 @@ const newProductSchema = z
     price: priceSchema,
     /** Marca escrita en el modal: la existente o una nueva. Vacía = "a confirmar". */
     brandName: z.string().trim().max(60),
+    description: z.string().trim().max(4000),
+    /** Unidades iniciales en la sucursal principal (talle "Único"). */
+    stock: z.number().int().min(0).max(9999),
+    published: z.boolean(),
   })
   .partial();
 
@@ -251,9 +255,9 @@ export async function createProduct(
   category: unknown,
   fields?: unknown,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  await requireAdmin();
+  const { actor } = await requireAdmin();
   const parsedFields = newProductSchema.safeParse(fields ?? {});
-  if (!parsedFields.success) return { ok: false, error: "Revisá el nombre, la marca y el precio." };
+  if (!parsedFields.success) return { ok: false, error: "Revisá los datos del producto." };
   const name = parsedFields.data.name ?? lexicon.admin.newProduct;
   const db = await getDb();
   const cats = await db
@@ -290,6 +294,8 @@ export async function createProduct(
     brandId,
     category: cat,
     price: parsedFields.data.price ?? null,
+    description: parsedFields.data.description ?? "",
+    status: parsedFields.data.published === false ? "borrador" : "publicado",
     tag: lexicon.admin.newProductTag,
     chips: [],
     specs: [],
@@ -297,7 +303,18 @@ export async function createProduct(
     custom: true,
     createdAt: new Date().toISOString().slice(0, 10),
   });
-  await ensureDefaultVariant(db, slug);
+  const variantId = await ensureDefaultVariant(db, slug);
+  const stock = parsedFields.data.stock ?? 0;
+  if (stock > 0) {
+    const [loc] = await db
+      .select({ id: schema.locations.id })
+      .from(schema.locations)
+      .where(eq(schema.locations.active, true))
+      .orderBy(asc(schema.locations.order))
+      .limit(1);
+    if (loc)
+      await setStockLevel(db, { variantId, productSlug: slug, locationId: loc.id, qty: stock, reason: "ajuste", actor });
+  }
   invalidatePublic("catalog");
   return { ok: true, id: slug };
 }
