@@ -3,7 +3,7 @@
 import { and, eq, ilike, ne } from "drizzle-orm";
 import { z } from "zod";
 import { lexicon } from "@/lib/data/content";
-import { products as seedProducts } from "@/lib/data/catalog";
+import { brands, products as seedProducts } from "@/lib/data/catalog";
 import { resolveImage } from "@/lib/images";
 import { slugify } from "@/lib/slug";
 import { requireAdmin } from "@/lib/server/actions/guard";
@@ -266,14 +266,14 @@ export async function createProduct(
     cats.find((c) => wanted.success && c.slug === wanted.data)?.slug ?? defaultCategory(cats);
   if (!cat) return { ok: false, error: "Primero creá una categoría." };
 
-  const [brand] = await db
-    .select({ id: schema.brands.id })
-    .from(schema.brands)
-    .where(eq(schema.brands.id, lexicon.admin.newProductBrandId));
-  const brandId =
-    brand?.id ??
-    (await db.select({ id: schema.brands.id }).from(schema.brands).limit(1))[0]?.id;
-  if (!brandId) return { ok: false, error: "No hay marcas cargadas." };
+  // Nace con la marca "a confirmar". Con la base en blanco (seed --vacio)
+  // no hay ninguna marca: se crea ahí mismo en vez de frenar el alta.
+  const brandId = lexicon.admin.newProductBrandId;
+  const placeholder = brands.find((b) => b.id === brandId);
+  await db
+    .insert(schema.brands)
+    .values({ id: brandId, name: placeholder?.name ?? "[Marca a confirmar]" })
+    .onConflictDoNothing({ target: schema.brands.id });
 
   const slug = await uniqueProductSlug(db, name);
   await db.insert(schema.products).values({
