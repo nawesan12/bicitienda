@@ -113,9 +113,10 @@ export function CheckoutClient({
     : 0;
   const total = subtotal - discount;
   // Sin descuento (0% en Ajustes) no va "Ahorrás $ 0".
-  const note = selected && !(selected.transferDiscount && discount === 0)
-    ? fillTemplate(selected.note, { monto: formatMoney(discount) })
-    : "";
+  const note =
+    selected && !(selected.note.includes("{monto}") && discount === 0)
+      ? fillTemplate(selected.note, { monto: formatMoney(discount) })
+      : "";
 
   function firstInvalid(): { field: FieldKey; message: string } | null {
     if (name.trim().length < 2) return { field: "name", message: B.errors.name };
