@@ -10,7 +10,7 @@ import { invalidatePublic } from "@/lib/server/revalidate";
 import { getVariantTotals } from "@/lib/server/stock";
 import { autoSku, VariantError } from "@/lib/server/variants";
 import { isXlsx, readXlsxRows, XlsxError } from "@/lib/server/xlsx";
-import { SINGLE_SIZE, type ProductStatus } from "@/lib/types";
+import { SINGLE_SIZE, type ProductStatus, type Spec } from "@/lib/types";
 import { defaultVariantId, defaultVariantSku } from "@/lib/variants";
 
 /**
@@ -46,6 +46,10 @@ export const IMPORT_COLUMNS = [
   "estado",
   "descripcion",
   "fotos",
+  /** Precio propio del talle (vacío = hereda `precio`). */
+  "precio_talle",
+  /** Ficha técnica: "Rodado: 29; Frenos: Disco". */
+  "specs",
 ] as const;
 
 type Column = (typeof IMPORT_COLUMNS)[number];
@@ -59,9 +63,9 @@ export const MAX_IMPORT_BYTES = 3.8 * 1024 * 1024;
 export function importTemplateCsv(): string {
   const rows: string[][] = [
     [...IMPORT_COLUMNS],
-    ["MTB29-21", "MTB rodado 29 · 21 vel. · aluminio", "bicicletas-nuevas", "Venzo", "489900", "", "29", "M", "Negro/amarillo", "1,65 – 1,75 m", "", "3", "no", "publicado", "Cuadro de aluminio, 21 velocidades.", ""],
-    ["MTB29-21", "", "", "", "", "", "", "L", "Negro/amarillo", "1,75 – 1,85 m", "", "2", "", "", "", ""],
-    ["LUCES-USB", "Kit luces delantera + trasera", "accesorios-varios", "Genérica", "24900", "", "", "", "", "", "", "12", "no", "publicado", "", ""],
+    ["MTB29-21", "MTB rodado 29 · 21 vel. · aluminio", "bicicletas-nuevas", "Venzo", "489900", "", "29", "M", "Negro/amarillo", "1,65 – 1,75 m", "", "3", "no", "publicado", "Cuadro de aluminio, 21 velocidades.", "", "", "Rodado: 29; Transmisión: Shimano 21 vel.; Frenos: Disco mecánico"],
+    ["MTB29-21", "", "", "", "", "", "", "L", "Negro/amarillo", "1,75 – 1,85 m", "", "2", "", "", "", "", "509900", ""],
+    ["LUCES-USB", "Kit luces delantera + trasera", "accesorios-varios", "Genérica", "24900", "", "", "", "", "", "", "12", "no", "publicado", "", "", "", ""],
   ];
   return toCsv(rows, ";");
 }
@@ -88,6 +92,9 @@ const HEADER_ALIASES: Record<string, Column> = {
   descripcion: "descripcion",
   imagenes: "fotos",
   foto: "fotos",
+  precio_variante: "precio_talle",
+  ficha_tecnica: "specs",
+  especificaciones: "specs",
 };
 
 /** Filas crudas del archivo (CSV o XLSX por firma de bytes). */
@@ -105,6 +112,26 @@ function parseMoney(v: string): number | null | "invalid" {
   const cleaned = t.replace(/[$\s]/g, "").replace(/,00$/, "").replace(/\./g, "").replace(/,/g, "");
   if (!/^\d+$/.test(cleaned)) return "invalid";
   return Number(cleaned);
+}
+
+/**
+ * Ficha técnica en una celda: "Label: valor; Label: valor" (también una por
+ * línea). Parte en el PRIMER ":"; sin etiqueta o sin valor se ignora.
+ * null = celda vacía ("no tocar").
+ */
+function parseSpecCell(v: string): Spec[] | null | "invalid" {
+  const t = v.trim();
+  if (!t) return null;
+  const specs = t
+    .split(/[;\n]+/)
+    .map((part) => {
+      const i = part.indexOf(":");
+      return i > 0 ? { label: part.slice(0, i).trim(), value: part.slice(i + 1).trim() } : null;
+    })
+    .filter((x): x is Spec => !!x && !!x.label && !!x.value);
+  if (!specs.length || specs.length > 60 || specs.some((x) => x.label.length > 60 || x.value.length > 200))
+    return "invalid";
+  return specs;
 }
 
 function parseBool(v: string): boolean | null | "invalid" {
@@ -160,6 +187,10 @@ interface ParsedRow {
   status: ProductStatus | null;
   description: string;
   photos: string[];
+  /** Precio del talle; null = no tocar (o heredar, si es nueva). */
+  variantPrice: number | null;
+  /** Ficha técnica; null = no tocar. */
+  specs: Spec[] | null;
 }
 
 export interface ImportVariantPlan {
@@ -240,6 +271,9 @@ function findCategory(ctx: Context, value: string): string | null {
   );
 }
 
+/** Ficha técnica del producto: la de la primera fila que la trae. */
+const specsOf = (rows: ParsedRow[]): Spec[] | null => rows.find((r) => r.specs)?.specs ?? null;
+
 /** Parsea y valida; no escribe nada. */
 function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; parsed: ParsedRow[] } {
   const errors: ImportIssue[] = [];
@@ -297,6 +331,8 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
     const b = base.success ? base.data : null;
     const price = parseMoney(get("precio"));
     const oldPrice = parseMoney(get("precio_lista"));
+    const variantPrice = parseMoney(get("precio_talle"));
+    const specs = parseSpecCell(get("specs"));
     const stockRaw = get("stock").trim();
     const stock = stockRaw === "" ? null : /^\d{1,5}$/.test(stockRaw) ? Number(stockRaw) : NaN;
     // "se_puede_probar" (planillas viejas) se ignora: ya no hay pruebas de bici.
@@ -318,6 +354,8 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
     };
     if (price === "invalid") err("precio", "Precio inválido: usá solo números (ej. 489900).");
     if (oldPrice === "invalid") err("precio_lista", "Precio de lista inválido.");
+    if (variantPrice === "invalid") err("precio_talle", "Precio del talle inválido: usá solo números.");
+    if (specs === "invalid") err("specs", 'Ficha técnica inválida: usá "Etiqueta: valor; Etiqueta: valor".');
     if (Number.isNaN(stock)) err("stock", "Stock inválido: un número entero de 0 a 99999.");
     if (hideWhenOut === "invalid") err("ocultar_sin_stock", "Usá si o no.");
     if (status === "invalid") err("estado", "Usá publicado o borrador.");
@@ -342,6 +380,8 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
       status: status as ProductStatus | null,
       description: b.descripcion.trim(),
       photos,
+      variantPrice: variantPrice as number | null,
+      specs: specs as Spec[] | null,
     });
   });
 
@@ -397,6 +437,7 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
       const changed =
         !!match &&
         ((r.height && r.height !== (match.heightRange ?? "")) ||
+          (r.variantPrice != null && r.variantPrice !== match.price) ||
           (r.variantSku && r.variantSku !== match.sku) ||
           !match.active);
       const action: ImportVariantPlan["action"] = !match ? "crear" : changed ? "actualizar" : "sin_cambios";
@@ -430,7 +471,8 @@ function analyze(sheet: string[][], ctx: Context): { preview: ImportPreview; par
         (first.description && first.description !== existing.description) ||
         (first.hideWhenOut !== null && first.hideWhenOut !== existing.hideWhenOut) ||
         (first.status !== null && first.status !== existing.status) ||
-        (first.photos.length > 0 && JSON.stringify(first.photos) !== JSON.stringify(existing.images));
+        (first.photos.length > 0 && JSON.stringify(first.photos) !== JSON.stringify(existing.images)) ||
+        (!!specsOf(rows) && JSON.stringify(specsOf(rows)) !== JSON.stringify(existing.specs));
       action = differs ? "actualizar" : "sin_cambios";
     }
     if (action === "crear") summary.productsNew++;
@@ -626,6 +668,7 @@ function planImport(
         hideWhenOut: first.hideWhenOut ?? false,
         status: first.status ?? "publicado",
         images: first.photos,
+        specs: specsOf(rows) ?? [],
         custom: true,
         createdAt: new Date().toISOString().slice(0, 10),
       });
@@ -646,6 +689,8 @@ function planImport(
       if (first.hideWhenOut !== null && first.hideWhenOut !== p.hideWhenOut) set.hideWhenOut = first.hideWhenOut;
       if (first.status !== null && first.status !== p.status) set.status = first.status;
       if (first.photos.length && JSON.stringify(first.photos) !== JSON.stringify(p.images)) set.images = first.photos;
+      const specs = specsOf(rows);
+      if (specs && JSON.stringify(specs) !== JSON.stringify(p.specs)) set.specs = specs;
       if (Object.keys(set).length) writes.productUpdates.push({ id: p.id, set });
     }
 
@@ -660,6 +705,7 @@ function planImport(
         size: SINGLE_SIZE,
         color: "",
         heightRange: null,
+        price: null,
         sku: uniqueSku(defaultVariantSku(slug, sku)),
         order: 0,
         active: true,
@@ -689,6 +735,7 @@ function planImport(
           size,
           color,
           heightRange: r.height.trim() || null,
+          price: r.variantPrice,
           sku: vsku,
           order: i,
           active: true,
@@ -702,6 +749,10 @@ function planImport(
         let changed = false;
         if (r.height && r.height !== (match.heightRange ?? "")) {
           v.heightRange = r.height.trim() || null;
+          changed = true;
+        }
+        if (r.variantPrice != null && r.variantPrice !== match.price) {
+          v.price = r.variantPrice;
           changed = true;
         }
         if (r.variantSku && r.variantSku !== match.sku) {
@@ -749,6 +800,7 @@ function planImport(
     const after = live.get(id)!;
     const set: Partial<typeof schema.productVariants.$inferInsert> = {};
     if (after.heightRange !== before.heightRange) set.heightRange = after.heightRange;
+    if (after.price !== before.price) set.price = after.price;
     if (after.sku !== before.sku) set.sku = after.sku;
     if (after.active !== before.active) set.active = after.active;
     if (Object.keys(set).length) writes.variantUpdates.push({ id, set });

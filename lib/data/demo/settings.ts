@@ -55,7 +55,8 @@ export const WEEKLY_SCHEDULE: DaySchedule[] = [
 }));
 
 export const APPOINTMENT_SETTINGS = {
-  slotMinutes: 30,
+  /** Turnos cada una hora, sin duración fija (pedido del local). */
+  slotMinutes: 60,
   /** "Por horario: 1 turno". */
   slotCapacity: 1,
   /** "Anticipación: 2 horas". */
@@ -70,9 +71,9 @@ export const SERVICES: DemoService[] = [
     name: "Reparación / service",
     adminName: "Reparación / service",
     description: "Traés la bici, la revisamos y te pasamos el presupuesto por WhatsApp.",
-    durationMin: 15,
+    durationMin: 60,
     active: true,
-    note: "15 min para dejarla · presupuesto por WhatsApp",
+    note: "Dejás la bici · presupuesto por WhatsApp",
     priceNote: "Presupuesto por WhatsApp",
   },
   {
@@ -80,9 +81,9 @@ export const SERVICES: DemoService[] = [
     name: "Asesoramiento",
     adminName: "Asesoramiento de compra",
     description: "Te ayudamos con talle, rodado, uso y presupuesto.",
-    durationMin: 30,
+    durationMin: 60,
     active: true,
-    note: "30 min · se paga en el local",
+    note: "Te asesoramos en el local · se paga en el local",
     priceNote: "Se paga en el local",
   },
 ];
@@ -106,6 +107,8 @@ export const PAYMENT_SETTINGS = {
   bank: "[Banco a confirmar]",
   /** "Efectivo al retirar" prendido. */
   cashEnabled: true,
+  /** Link de pago (manual, por WhatsApp) prendido. */
+  paymentLinkEnabled: true,
   /** Reserva en efectivo: el prototipo no dice que venza (null = no vence). */
   cashReservationHours: null as number | null,
   /** Siempre retiro en el local, sin envío ni seña. */

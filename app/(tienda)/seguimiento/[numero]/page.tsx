@@ -36,7 +36,9 @@ const GATEWAY: Record<string, string> = { mercadopago: "Mercado Pago", payway: "
 function pillStatus(order: OrderRow): OrderPillStatus {
   switch (order.status) {
     case "PENDIENTE_PAGO":
-      return order.paymentMethod === "efectivo" ? "paga_local" : "transf_pendiente";
+      if (order.paymentMethod === "efectivo") return "paga_local";
+      if (order.paymentMethod === "link") return "link_pendiente";
+      return "transf_pendiente";
     case "EN_PREPARACION":
       return "armando";
     case "LISTO_RETIRO":
@@ -80,6 +82,7 @@ export default async function TrackingPage({
   const online = isOnlinePayment(method);
   const isCash = method === "efectivo";
   const isTransfer = method === "transferencia";
+  const isLink = method === "link";
   const closed = order.status === "CANCELADO" || order.status === "VENCIDO";
   const paid = timeline[1]?.state === "done";
   const gateway = GATEWAY[method] ?? (B.paymentLabels[method] ?? method);
@@ -98,7 +101,9 @@ export default async function TrackingPage({
             title: B.transfer.step,
             description: order.transferReceiptUrl ? B.transfer.stepReceived : fillTemplate(B.transfer.stepWaiting, { vence }),
           }
-        : { title: B.online.step, description: gateway };
+        : isLink
+          ? { title: B.link.step, description: fillTemplate(B.link.stepWaiting, { vence }) }
+          : { title: B.online.step, description: gateway };
   const steps = [
     first,
     { title: prep.title, description: prep.text },
@@ -134,6 +139,11 @@ export default async function TrackingPage({
           {closed && (
             <p className="m-0 max-w-[560px] text-[17px] leading-[1.5] text-text-2 md:text-[19px]">
               {order.status === "VENCIDO" ? B.closed.expired : B.closed.cancelled}
+            </p>
+          )}
+          {isLink && !paid && !closed && (
+            <p className="m-0 max-w-[560px] text-[17px] leading-[1.5] text-text-2">
+              {fillTemplate(B.link.text, { monto: formatMoney(order.total), vence: expires ? fillTemplate(B.until, { fecha: expires }) : "" })}
             </p>
           )}
           {online && !paid && !closed && (

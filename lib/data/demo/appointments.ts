@@ -45,9 +45,9 @@ export const AGENDA_WEEK = [
   { label: "Sáb", day: 10, date: "2026-10-10" },
 ] as const;
 
-/** Horarios de la grilla (cada 30 min): mañana y tarde. */
-export const SLOTS_AM = ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30"] as const;
-export const SLOTS_PM = ["16:00", "16:30", "17:00", "17:30", "18:00", "18:30"] as const;
+/** Horarios de la grilla (cada una hora): mañana y tarde. */
+export const SLOTS_AM = ["10:00", "11:00", "12:00"] as const;
+export const SLOTS_PM = ["16:00", "17:00", "18:00"] as const;
 
 export const SERVICE_LABEL: Record<ServiceKey, string> = {
   reparacion: "Reparación / service",
@@ -80,18 +80,18 @@ type Row = [
 const WEEK: Row[] = [
   ["a1", 0, "10:00", "Ana Torres", "asesoramiento", "Primera bici urbana", "confirmado", null, null],
   ["a2", 0, "17:00", "Ramiro Luna", "reparacion", "Frenos que no frenan · MTB R29", "confirmado", null, null],
-  ["a3", 1, "11:30", "Gustavo Peralta", "reparacion", "Cambios que saltan · MTB R27.5 de su hijo", "confirmado", null, null],
-  ["a4", 1, "16:30", "Marta Ríos", "asesoramiento", "Bici para su hijo de 7 años", "confirmado", null, null],
-  ["a5", 2, "10:30", "Nicolás Vera", "reparacion", "Ajuste de cambios · gravel", "confirmado", null, null],
+  ["a3", 1, "11:00", "Gustavo Peralta", "reparacion", "Cambios que saltan · MTB R27.5 de su hijo", "confirmado", null, null],
+  ["a4", 1, "16:00", "Marta Ríos", "asesoramiento", "Bici para su hijo de 7 años", "confirmado", null, null],
+  ["a5", 2, "10:00", "Nicolás Vera", "reparacion", "Ajuste de cambios · gravel", "confirmado", null, null],
   ["a6", 2, "18:00", "Laura Paz", "asesoramiento", "Ruta, presupuesto $800k", "pendiente", null, null],
   ["a7", 3, "11:00", "Tomás Gil", "reparacion", "Pinchadura trasera", "confirmado", null, null],
   ["a8", 3, "16:00", "Sofía Díaz", "asesoramiento", "Casco para su hija", "confirmado", null, null],
-  ["a9", 3, "17:30", "Juan Pérez", "reparacion", "Rueda descentrada · MTB R29", "confirmado", null, null],
+  ["a9", 3, "17:00", "Juan Pérez", "reparacion", "Rueda descentrada · MTB R29", "confirmado", null, null],
   ["a10", 3, "18:00", "Valentina Ortiz", "asesoramiento", "Urbana para ir al trabajo", "confirmado", null, null],
   ["a11", 4, "10:00", "Federico Paz", "reparacion", "Cambio de cadena y piñón · ruta", "confirmado", null, null],
   ["a12", 4, "17:00", "Camila Rey", "asesoramiento", "Consulta por bici plegable", "pendiente", null, null],
-  ["a13", 5, "10:30", "Hernán Costa", "reparacion", "Service completo · MTB doble suspensión", "confirmado", null, null],
-  ["a14", 5, "11:30", "Julia Sanz", "reparacion", "Service completo · urbana", "confirmado", null, null],
+  ["a13", 5, "10:00", "Hernán Costa", "reparacion", "Service completo · MTB doble suspensión", "confirmado", null, null],
+  ["a14", 5, "11:00", "Julia Sanz", "reparacion", "Service completo · urbana", "confirmado", null, null],
 ];
 
 /** Teléfono: el de 3e si la persona es cliente; si no, el inventado del
@@ -108,11 +108,11 @@ function who(name: string): DemoCustomerRef {
  *  tienen turno en la semana: usan el mismo teléfono (`phoneFor`). */
 const TODAY_ROWS: [string, string, string, ServiceKey, string, DemoAppointmentStatus, string | null, Talle | null][] = [
   ["t1", "10:00", "Ana Torres", "asesoramiento", "Primera bici urbana", "asistio", null, null],
-  ["t2", "11:30", "Juan Pérez", "reparacion", "Frenos que no frenan · MTB R29", "asistio", null, null],
+  ["t2", "11:00", "Juan Pérez", "reparacion", "Frenos que no frenan · MTB R29", "asistio", null, null],
   ["t3", "16:00", "Nicolás Vera", "reparacion", "Ajuste de cambios · gravel", "confirmado", null, null],
-  ["t4", "16:30", "Marta Ríos", "asesoramiento", "Bici para su hijo, 7 años", "confirmado", null, null],
-  ["t5", "17:30", "Tomás Gil", "reparacion", "Pinchadura trasera", "confirmado", null, null],
-  ["t6", "18:30", "Laura Paz", "asesoramiento", "Ruta, presupuesto $800k", "pendiente", null, null],
+  ["t4", "17:00", "Marta Ríos", "asesoramiento", "Bici para su hijo, 7 años", "confirmado", null, null],
+  ["t5", "18:00", "Tomás Gil", "reparacion", "Pinchadura trasera", "confirmado", null, null],
+  ["t6", "12:00", "Laura Paz", "asesoramiento", "Ruta, presupuesto $800k", "pendiente", null, null],
 ];
 
 /** Turnos anteriores de Juan (2g · "Turnos anteriores"). */

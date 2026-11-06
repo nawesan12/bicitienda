@@ -463,7 +463,7 @@ export default function BtKitPage() {
               <Toggle label="Publicado en la tienda" defaultChecked />
               <Toggle label="Destacado en el home" defaultChecked />
               <Toggle label="Ocultar si no hay stock" />
-              <Toggle label="Reparación / service" description="30 min · presupuesto por WhatsApp" defaultChecked />
+              <Toggle label="Reparación / service" description="Presupuesto por WhatsApp" defaultChecked />
               <div className="flex items-center gap-3">
                 <Toggle aria-label="Activo" defaultChecked />
                 <Toggle aria-label="Inactivo" />

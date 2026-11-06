@@ -52,7 +52,7 @@ export interface HeaderProps {
 
 /**
  * Header desktop de la tienda (Header.dc.html), 2 filas ≈ 135 px.
- * Fila 1 (16×56, gap 28): logo 52 + wordmark 30 → buscador 360 → cuenta →
+ * Fila 1 (16×56, gap 28): logo 72 + wordmark 40 → buscador 360 → cuenta →
  * "Carrito · N" amarillo. Fila 2: nav 700 15 @85 % uppercase .06em, gap 36,
  * borde superior #2b2824; activo amarillo con borde inferior 2 px;
  * "Sacar turno" siempre amarillo; "Taller" (sin diseño en el handoff) va
@@ -78,7 +78,7 @@ export function Header({
       )}
     >
       <div className="flex items-center gap-7 px-14 py-4">
-        <BrandLockup href={hrefs.home} logoSize={52} wordmarkSize="header" gap="gap-3" className="flex-none" />
+        <BrandLockup href={hrefs.home} logoSize={72} wordmarkSize="header-lg" gap="gap-3" className="flex-none" />
         <div className="flex-1" />
         <SearchInput
           action={hrefs.search}

@@ -108,14 +108,41 @@ export const COPY = {
     sizeHelpMobile: "¿Cuál es mi talle?",
     colorLabel: "Color · {color}",
     addToCart: "Agregar al carrito",
+    chooseSize: "Elegí tu talle",
     repairLink: "¿Ya tenés bici? Service en nuestro taller →",
     pickupTitle: "Retiro en el local",
     pickupText: "Armada y ajustada a tu altura",
     stockTitle: "Stock en el local",
     stockText: "Quedan {n} en talle {talle}",
-    forWhoTitle: "Para quién es",
+    /** Bloque de la ficha: specs y debajo la descripción (antes "Para quién es"). */
+    forWhoTitle: "Detalles de la bici",
+    /** El mismo bloque para lo que no es bici. */
+    detailsTitleOther: "Detalles del producto",
     specsTitle: "Especificaciones",
+    descriptionTitle: "Descripción",
     relatedTitle: "Sumale a tu bici",
+    relatedTitleOther: "También te puede servir",
+    /** Panel que se abre al agregar al carrito. */
+    added: {
+      title: "Agregado al carrito ✓",
+      subtitle: "Sumale a tu bici",
+      subtitleOther: "Completalo con",
+      keepShopping: "Seguir comprando",
+      goToCart: "Ir al carrito",
+    },
+    /** Fila de garantías bajo la compra. */
+    perks: {
+      pickup: "Retiro en el local",
+      workshop: "Taller propio",
+      workshopText: "Service y reparaciones en el local",
+      payments: "Medios de pago",
+    },
+    gallery: {
+      open: "Ampliar foto",
+      close: "Cerrar galería",
+      prev: "Foto anterior",
+      next: "Foto siguiente",
+    },
   },
 
   cart: {
@@ -147,6 +174,12 @@ export const COPY = {
         desc: "Reservás online y pagás cuando la retirás.",
         note: "Pagás al retirar",
         cta: "Reservar y pagar en el local",
+      },
+      link: {
+        name: "Link de pago",
+        desc: "Te mandamos el link por WhatsApp para pagar con tarjeta o Mercado Pago.",
+        note: "Te escribimos por WhatsApp",
+        cta: "Confirmar y recibir el link",
       },
     },
     pickup: {
@@ -189,7 +222,6 @@ export const COPY = {
     eyebrowMobile: "No pagás nada online",
     title: "Reservá tu turno",
     step1: "1 · ¿Qué necesitás?",
-    durationBadge: "{min} MIN",
     noteRepair: { label: "¿Qué le pasa a tu bici?", placeholder: "Frenos, cambios, pinchadura, service general…" },
     noteAdvice: { label: "¿Qué estás buscando?", placeholder: "Una MTB para empezar, una bici para la ciudad, talle…" },
     step2: "2 · Elegí el día",
@@ -201,8 +233,7 @@ export const COPY = {
     afternoon: "Tarde",
     step4: "4 · Tus datos",
     summaryTitle: "Tu turno",
-    summary: { day: "Día", time: "Horario", duration: "Duración", where: "Dónde" },
-    durationValue: "{min} minutos",
+    summary: { day: "Día", time: "Horario", where: "Dónde" },
     pickTime: "Elegí un horario",
     cta: "Confirmar turno",
     /** Sin "y un recordatorio": no hay recordatorios automáticos. */
@@ -352,6 +383,15 @@ export const COPY = {
         variants: "Variantes y stock",
         addVariant: "+ Agregar variante",
         heightRange: "Altura sugerida",
+        variantPrice: "Precio",
+        variantPriceHint: "Vacío = usa el precio de lista. Cargalo solo si el talle cuesta distinto.",
+        oldPrice: "Precio anterior",
+        oldPriceHint: "Se muestra tachado si es mayor al de lista",
+        specs: "Ficha técnica",
+        specsHint: "Se muestra en la ficha, arriba de la descripción.",
+        addSpec: "+ Agregar fila",
+        specLabel: "Dato",
+        specValue: "Valor",
         sku: "SKU",
         visibility: "Visibilidad",
         toggles: {
@@ -393,6 +433,7 @@ export const COPY = {
         installments: "Tope de cuotas en Mercado Pago",
         alias: "Alias / CBU",
         cash: "Efectivo al retirar",
+        link: "Link de pago por WhatsApp",
       },
       templates: {
         title: "Mensajes de WhatsApp",

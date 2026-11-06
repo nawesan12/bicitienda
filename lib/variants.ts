@@ -69,3 +69,32 @@ export function resolveVariant<V extends Pick<ProductVariant, "id" | "active">>(
   if (variantId) return active.find((v) => v.id === variantId) ?? null;
   return active.length === 1 ? active[0] : null;
 }
+
+/* ── Precio por talle ─────────────────────────────────────── */
+
+/** Precio de la variante: el propio del talle o, si no tiene, el del producto. */
+export function variantPrice(
+  productPrice: number | null,
+  v: Pick<ProductVariant, "price"> | null | undefined,
+): number | null {
+  return v?.price ?? productPrice;
+}
+
+/**
+ * Rango de precios de las variantes activas (cada una con su precio o el
+ * del producto). `varies` = hay talles con precios distintos ("Desde $min").
+ * null si el producto no tiene precio en ninguna variante.
+ */
+export function priceRange(
+  productPrice: number | null,
+  variants: Pick<ProductVariant, "price" | "active">[],
+): { min: number; max: number; varies: boolean } | null {
+  const prices = variants
+    .filter((v) => v.active)
+    .map((v) => variantPrice(productPrice, v))
+    .filter((n): n is number => n != null);
+  if (!prices.length) return productPrice == null ? null : { min: productPrice, max: productPrice, varies: false };
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  return { min, max, varies: min !== max };
+}

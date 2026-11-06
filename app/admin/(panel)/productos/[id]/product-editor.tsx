@@ -9,6 +9,7 @@ import { sendPhoto } from "@/components/admin/upload";
 import { COPY } from "@/lib/data/demo/copy";
 import { img } from "@/lib/images";
 import { paths } from "@/lib/paths";
+import { SPEC_KEYS, SPEC_PLACEHOLDERS } from "@/lib/specs";
 import { deleteProduct, patchProduct, type ProductPatch } from "@/lib/server/actions/products";
 import { addProductPhoto, saveProductEditor } from "@/lib/server/screens/admin-d2-actions";
 import type { ProductEditorData } from "@/lib/server/screens/admin-d2";
@@ -33,8 +34,17 @@ interface Row {
   size: string;
   color: string;
   heightRange: string;
+  /** Precio del talle formateado ("$ 509.900"); "" = hereda el de lista. */
+  price: string;
   sku: string;
   stock: number;
+}
+
+/** Fila de la ficha técnica. */
+interface SpecRow {
+  key: string;
+  label: string;
+  value: string;
 }
 
 const digits = (s: string) => s.replace(/\D/g, "");
@@ -58,11 +68,13 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
       tag: initialTag,
       description: data.description,
       price: moneyInput(data.price),
+      oldPrice: moneyInput(data.oldPrice),
+      specs: data.specs.map((x, i) => ({ key: `spec-${i}`, ...x })) as SpecRow[],
       published: data.status === "publicado",
       featured: data.featured,
       hideWhenOut: data.hideWhenOut,
       photos: data.images.map((u) => ({ key: u, src: thumb(u) })) as SortablePhoto[],
-      rows: data.variants.map((v) => ({ key: v.id, ...v })) as Row[],
+      rows: data.variants.map((v) => ({ key: v.id, ...v, price: moneyInput(v.price) })) as Row[],
   }));
   const [f, setF] = useState(initial);
   const [removed, setRemoved] = useState<string[]>([]);
@@ -82,6 +94,11 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
   }, [dirty]);
 
   const price = parsePrice(f.price);
+  const oldPrice = parsePrice(f.oldPrice);
+  // Vista previa: con precios por talle distintos la card dice "Desde $min".
+  const rowPrices = f.rows.map((r) => parsePrice(r.price) ?? price).filter((n): n is number => n != null);
+  const previewPrice = rowPrices.length ? Math.min(...rowPrices) : price;
+  const previewFrom = new Set(rowPrices).size > 1;
   const cat = data.categories.find((c) => c.slug === f.category);
   const coverSrc = f.photos[0]?.key;
 
@@ -93,6 +110,9 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
     if (f.tag !== initial.tag) p.tag = f.tag || null;
     if (f.description !== initial.description) p.description = f.description;
     if (price !== data.price) p.price = price;
+    if (oldPrice !== data.oldPrice) p.oldPrice = oldPrice;
+    const specs = cleanSpecs(f.specs);
+    if (JSON.stringify(specs) !== JSON.stringify(cleanSpecs(initial.specs))) p.specs = specs;
     if (f.published !== initial.published) p.status = f.published ? "publicado" : "borrador";
     if (f.featured !== initial.featured) p.featured = f.featured;
     if (f.hideWhenOut !== initial.hideWhenOut) p.hideWhenOut = f.hideWhenOut;
@@ -113,6 +133,7 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
           size: r.size.trim(),
           color: r.color.trim(),
           heightRange: r.heightRange.trim(),
+          price: parsePrice(r.price),
           sku: r.sku.trim(),
           stock: r.stock,
         })),
@@ -289,10 +310,29 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
             </Field>
           </Panel>
 
+          {/* Ficha técnica */}
+          <Panel surface="surface" padding="lg">
+            <PanelTitle
+              action={
+                <button
+                  type="button"
+                  className="rounded-[2px] text-[13px] font-extrabold uppercase tracking-[.06em] text-yellow hover:text-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow"
+                  onClick={() => set("specs", [...f.specs, { key: `spec-new-${newKey.current++}`, label: "", value: "" }])}
+                >
+                  {T.addSpec}
+                </button>
+              }
+            >
+              {T.specs}
+            </PanelTitle>
+            <SpecsEditor rows={f.specs} onChange={(rows) => set("specs", rows)} />
+            <p className="m-0 text-[13px] leading-[1.5] text-text-3">{T.specsHint}</p>
+          </Panel>
+
           {/* Precio */}
           <Panel surface="surface" padding="lg">
             <PanelTitle>Precio</PanelTitle>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-3">
               <Field label={T.listPrice} hint={price == null ? "Vacío = precio a consultar" : undefined}>
                 <Input
                   inputMode="numeric"
@@ -307,6 +347,14 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
                   {price == null ? "—" : `${formatMoney(transferPrice(price, data.transferDiscount))} · −${data.transferDiscount}%`}
                 </ComputedField>
               </Field>
+              <Field label={T.oldPrice} hint={T.oldPriceHint}>
+                <Input
+                  inputMode="numeric"
+                  value={f.oldPrice}
+                  placeholder="Sin promo"
+                  onChange={(e) => set("oldPrice", digits(e.target.value) ? formatMoney(Number(digits(e.target.value))) : "")}
+                />
+              </Field>
             </div>
           </Panel>
 
@@ -320,7 +368,7 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
                   onClick={() =>
                     set("rows", [
                       ...f.rows,
-                      { key: `new-${newKey.current++}`, size: "", color: "", heightRange: "", sku: "", stock: 0 },
+                      { key: `new-${newKey.current++}`, size: "", color: "", heightRange: "", price: "", sku: "", stock: 0 },
                     ])
                   }
                 >
@@ -331,6 +379,7 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
               {T.variants}
             </PanelTitle>
             <VariantsTable
+              basePrice={price}
               rows={f.rows}
               onRow={setRow}
               onRemove={(r) => {
@@ -340,7 +389,7 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
               }}
             />
             <p className="m-0 text-[13px] leading-[1.5] text-text-3">
-              Una fila por talle × color. Sin talles, dejá “Único”. El SKU vacío se arma solo. El stock es el del local.
+              Una fila por talle × color. Sin talles, dejá “Único”. El SKU vacío se arma solo. El stock es el del local. {T.variantPriceHint}
             </p>
           </Panel>
         </div>
@@ -367,7 +416,8 @@ export function ProductEditor({ data }: { data: ProductEditorData }) {
               category={cat?.label ?? data.categoryLabel}
               brand={f.brand.trim() || "Marca"}
               image={{ src: coverSrc ? img(coverSrc, { w: 720 }) : NO_PHOTO }}
-              price={price ?? 0}
+              price={previewPrice ?? 0}
+              priceFrom={previewFrom}
               tag={f.tag ? { label: f.tag } : undefined}
               transferDiscountPct={data.transferDiscount}
             />
@@ -397,10 +447,13 @@ const CELL_INPUT =
   "block w-full min-w-0 rounded-tag border border-transparent bg-transparent px-[6px] py-1 text-paper outline-none placeholder:text-text-4 hover:border-line-strong focus:border-yellow focus:bg-ink transition-colors duration-150";
 
 function VariantsTable({
+  basePrice,
   rows,
   onRow,
   onRemove,
 }: {
+  /** Precio de lista: placeholder de la columna Precio (vacío = hereda). */
+  basePrice: number | null;
   rows: Row[];
   onRow: (key: string, patch: Partial<Row>) => void;
   onRemove: (r: Row) => void;
@@ -409,7 +462,8 @@ function VariantsTable({
     const h = SIZE_HEIGHTS[r.size.trim().toUpperCase()];
     if (h && !r.heightRange.trim()) onRow(r.key, { heightRange: h });
   };
-  const grid = "md:grid md:grid-cols-[52px_minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,1.35fr)_112px_28px] md:items-center md:gap-3";
+  const grid =
+    "md:grid md:grid-cols-[52px_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_112px_28px] md:items-center md:gap-3";
   return (
     <div role="table" aria-label="Variantes y stock" className="overflow-hidden rounded-box border border-line">
       <div
@@ -419,6 +473,7 @@ function VariantsTable({
         <span role="columnheader">Talle</span>
         <span role="columnheader">Color</span>
         <span role="columnheader">{T.heightRange}</span>
+        <span role="columnheader">{T.variantPrice}</span>
         <span role="columnheader">{T.sku}</span>
         <span role="columnheader">Stock</span>
         <span role="columnheader" className="sr-only">
@@ -471,6 +526,19 @@ function VariantsTable({
             />
           </label>
           <label role="cell" className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-[.08em] text-text-3 md:sr-only">{T.variantPrice}</span>
+            <input
+              className={cx(CELL_INPUT, "text-[14px] font-bold")}
+              inputMode="numeric"
+              value={r.price}
+              placeholder={basePrice == null ? "—" : formatMoney(basePrice)}
+              aria-label={`${T.variantPrice} ${r.size || "variante"}`}
+              onChange={(e) =>
+                onRow(r.key, { price: digits(e.target.value) ? formatMoney(Number(digits(e.target.value))) : "" })
+              }
+            />
+          </label>
+          <label role="cell" className="flex flex-col gap-1">
             <span className="text-[11px] font-bold uppercase tracking-[.08em] text-text-3 md:sr-only">{T.sku}</span>
             <input
               className={cx(CELL_INPUT, "font-mono text-[12px] font-semibold text-text-3 uppercase")}
@@ -506,5 +574,110 @@ function VariantsTable({
         </div>
       ))}
     </div>
+  );
+}
+
+/* ── Ficha técnica ────────────────────────────────────────── */
+
+/** Specs para guardar: sin filas vacías y con los textos recortados. */
+function cleanSpecs(rows: SpecRow[]): { label: string; value: string }[] {
+  return rows
+    .map((r) => ({ label: r.label.trim(), value: r.value.trim() }))
+    .filter((r) => r.label && r.value);
+}
+
+const SPEC_DATALIST = "spec-keys";
+
+const iconBtn =
+  "flex size-11 items-center justify-center rounded-tag text-[14px] font-extrabold text-text-3 transition-colors duration-150 hover:text-paper focus-visible:outline-2 focus-visible:outline-yellow disabled:opacity-30 disabled:hover:text-text-3 md:size-8";
+
+/**
+ * Editor de la ficha técnica: filas dato / valor con sugerencias de los
+ * campos fijos (`SPEC_KEYS`, datalist) y su ejemplo como placeholder
+ * (`SPEC_PLACEHOLDERS`). Reordenar con ↑ / ↓; ✕ quita la fila.
+ */
+function SpecsEditor({ rows, onChange }: { rows: SpecRow[]; onChange: (rows: SpecRow[]) => void }) {
+  const used = new Set(rows.map((r) => r.label.trim()));
+  const patch = (key: string, p: Partial<SpecRow>) => onChange(rows.map((r) => (r.key === key ? { ...r, ...p } : r)));
+  const move = (i: number, d: -1 | 1) => {
+    const j = i + d;
+    if (j < 0 || j >= rows.length) return;
+    const next = [...rows];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+  return (
+    <>
+      <datalist id={SPEC_DATALIST}>
+        {SPEC_KEYS.filter((k) => !used.has(k)).map((k) => (
+          <option key={k} value={k} />
+        ))}
+      </datalist>
+      {rows.length === 0 ? (
+        <p className="m-0 rounded-box border border-dashed border-line-strong px-4 py-5 text-center text-[14px] text-text-3">
+          Sin datos todavía. Sumá rodado, cuadro, frenos, transmisión…
+        </p>
+      ) : (
+        <div role="table" aria-label={T.specs} className="overflow-hidden rounded-box border border-line">
+          {rows.map((r, i) => {
+            const ph = (SPEC_PLACEHOLDERS as Record<string, string>)[r.label.trim()] ?? "";
+            return (
+              <div
+                key={r.key}
+                role="row"
+                className={cx(
+                  "grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-1 px-3 py-2 md:grid-cols-[minmax(0,.8fr)_minmax(0,1.4fr)_auto] md:items-center md:gap-3 md:px-[18px]",
+                  i > 0 && "border-t border-line",
+                )}
+              >
+                <label role="cell" className="flex min-w-0 flex-col gap-1">
+                  <span className="sr-only">{T.specLabel}</span>
+                  <input
+                    className={cx(CELL_INPUT, "font-mono text-[12px] font-semibold uppercase text-text-2")}
+                    list={SPEC_DATALIST}
+                    value={r.label}
+                    placeholder={T.specLabel}
+                    maxLength={60}
+                    onChange={(e) => patch(r.key, { label: e.target.value })}
+                  />
+                </label>
+                <label role="cell" className="col-start-1 flex min-w-0 flex-col gap-1 md:col-start-auto">
+                  <span className="sr-only">{T.specValue}</span>
+                  <input
+                    className={cx(CELL_INPUT, "text-[14px]")}
+                    value={r.value}
+                    placeholder={ph || T.specValue}
+                    maxLength={200}
+                    onChange={(e) => patch(r.key, { value: e.target.value })}
+                  />
+                </label>
+                <div role="cell" className="col-start-2 row-span-2 row-start-1 flex items-center md:col-start-auto md:row-span-1 md:row-start-auto">
+                  <button type="button" className={iconBtn} disabled={i === 0} aria-label={`Subir ${r.label || "fila"}`} onClick={() => move(i, -1)}>
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className={iconBtn}
+                    disabled={i === rows.length - 1}
+                    aria-label={`Bajar ${r.label || "fila"}`}
+                    onClick={() => move(i, 1)}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className={cx(iconBtn, "hover:text-red-light")}
+                    aria-label={`Quitar ${r.label || "fila"}`}
+                    onClick={() => onChange(rows.filter((x) => x.key !== r.key))}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }

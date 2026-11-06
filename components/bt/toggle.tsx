@@ -24,7 +24,7 @@ const SWITCH = cx(
 
 export interface ToggleProps extends InputProps {
   label?: ReactNode;
-  /** Bajada bajo el label ("30 min · se paga en el local"). */
+  /** Bajada bajo el label ("Se paga en el local"). */
   description?: ReactNode;
   /** Sin label visible, para tablas: hace falta un aria-label. */
   "aria-label"?: string;

@@ -38,7 +38,7 @@ const checkoutSchema = z.object({
   deliveryMethod: z.enum(["retiro", "envio-mdq", "envio-coordinar"]),
   deliveryAddress: z.string().trim().max(300).optional(),
   deliveryNotes: z.string().trim().max(500).optional(),
-  paymentMethod: z.enum(["payway", "mercadopago", "transferencia", "efectivo"]),
+  paymentMethod: z.enum(["payway", "mercadopago", "transferencia", "efectivo", "link"]),
   pickupLocationId: z.string().trim().max(60).optional(),
   paymentMode: z.enum(["total", "sena"]).optional(),
   installments: z.union([z.literal(1), z.literal(3), z.literal(6)]).optional(),

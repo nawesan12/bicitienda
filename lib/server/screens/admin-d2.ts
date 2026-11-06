@@ -132,6 +132,8 @@ export interface EditorVariant {
   size: string;
   color: string;
   heightRange: string;
+  /** Precio propio del talle; null = hereda el del producto. */
+  price: number | null;
   sku: string;
   stock: number;
 }
@@ -147,6 +149,10 @@ export interface ProductEditorData {
   tag: string;
   description: string;
   price: number | null;
+  /** Precio anterior (tachado en la ficha); null = sin promo. */
+  oldPrice: number | null;
+  /** Ficha técnica en el orden cargado. */
+  specs: { label: string; value: string }[];
   images: string[];
   status: "publicado" | "borrador";
   featured: boolean;
@@ -198,6 +204,8 @@ export async function getProductEditor(id: string): Promise<ProductEditorData | 
     tag: p.tag ?? "",
     description: p.description ?? "",
     price: p.price,
+    oldPrice: p.oldPrice ?? null,
+    specs: (p.specs ?? []).map((x) => ({ label: x.label, value: x.value })),
     images: p.images,
     status: p.status === "borrador" ? "borrador" : "publicado",
     featured: p.featured,
@@ -210,6 +218,7 @@ export async function getProductEditor(id: string): Promise<ProductEditorData | 
         size: v.size,
         color: v.color,
         heightRange: v.heightRange ?? "",
+        price: v.price ?? null,
         sku: v.sku,
         stock: v.stock,
       })),
@@ -367,6 +376,7 @@ export interface SettingsScreen {
     transferBank: string;
     reservationHours: number;
     cashEnabled: boolean;
+    paymentLinkEnabled: boolean;
     cashReservationHours: number | null;
     cashFeature: boolean;
   };
@@ -415,7 +425,8 @@ export async function getSettingsScreen(): Promise<SettingsScreen> {
     services: services.filter((x) => x.id !== "prueba").map((x) => ({
       id: x.id,
       name: x.name,
-      note: [`${x.durationMin} min`, x.priceNote.toLowerCase()].filter(Boolean).join(" · "),
+      // Sin duración: los turnos no tienen una duración fija (slots de 1 hora).
+      note: x.priceNote,
       active: x.active,
     })),
     payments: {
@@ -428,6 +439,7 @@ export async function getSettingsScreen(): Promise<SettingsScreen> {
       transferBank: s.transferBank,
       reservationHours: s.reservationHours,
       cashEnabled: s.cashEnabled,
+      paymentLinkEnabled: s.paymentLinkEnabled,
       cashReservationHours: s.cashReservationHours,
       cashFeature: features.cashPayment,
     },

@@ -87,6 +87,7 @@ const PAYMENT: Record<DemoOrder["payment"], PaymentMethodId> = {
   mp: "mercadopago",
   transfer: "transferencia",
   cash: "efectivo",
+  link: "link",
 };
 
 const QUOTE_KIND: Record<string, QuoteKind> = {
@@ -239,7 +240,9 @@ async function seedOrders(db: Db, c: Clock, locationId: string) {
           ? "Pago acreditado con Mercado Pago"
           : method === "transferencia"
             ? "Transferencia acreditada"
-            : "Pago en efectivo registrado";
+            : method === "link"
+              ? "Pago por link registrado"
+              : "Pago en efectivo registrado";
       timeline.push(event("PAGO", label, at(method === "mercadopago" ? 0.05 : 3), c));
     }
     if (["EN_PREPARACION", "LISTO_RETIRO", "RETIRADO"].includes(status))
@@ -250,7 +253,7 @@ async function seedOrders(db: Db, c: Clock, locationId: string) {
     if (status === "CANCELADO") timeline.push(event("CONFIRMADO", "Pedido cancelado", at(26), c));
 
     const expiresAt =
-      status === "PENDIENTE_PAGO" && method === "transferencia"
+      status === "PENDIENTE_PAGO" && (method === "transferencia" || method === "link")
         ? new Date(createdAt.getTime() + store.reservationHours * 3600_000)
         : null;
     const digits = o.number.replace(/\D/g, "");
@@ -414,7 +417,7 @@ async function seedAppointments(db: Db, c: Clock, slotCapacity: number) {
       productSlug: a.productSlug,
       variantId: a.size && hit ? hit.variant.id : null,
       startsAt,
-      durationMin: 30,
+      durationMin: 60,
       status: at.status,
       source: "web",
       note: a.detail,

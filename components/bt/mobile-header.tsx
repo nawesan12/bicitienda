@@ -36,8 +36,8 @@ export interface MobileHeaderProps {
 }
 
 /**
- * Header mobile (MobileHeader.dc.html). Fila 12×16 gap 10: logo 36 +
- * wordmark 19 @68 % → "Carrito · N" amarillo (44 alto, 800 12 px .04em)
+ * Header mobile (MobileHeader.dc.html). Fila 12×16 gap 10: logo 44 +
+ * wordmark fluido 16–24 @68 % → "Carrito · N" amarillo (44 alto, 800 12 px .04em)
  * → hamburguesa 44×44 con borde #3a362f. Abierto: el botón pasa a ✕
  * sobre paper, se oculta la búsqueda y aparece <MobileMenu> (5c) debajo,
  * ocupando el resto de la pantalla.
@@ -91,8 +91,8 @@ export function MobileHeader({
       <div className="flex items-center gap-[10px] px-4 py-3">
         <BrandLockup
           href={hrefs.home}
-          logoSize={36}
-          wordmarkSize="mobile"
+          logoSize={44}
+          wordmarkSize="mobile-lg"
           gap="gap-2"
           className="min-w-0 flex-1"
         />

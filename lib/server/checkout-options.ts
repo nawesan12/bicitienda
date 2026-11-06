@@ -7,7 +7,7 @@ import type { DeliveryMethod, PaymentMethod } from "@/lib/types";
  * Medios de pago y de entrega que ofrece el checkout, con los textos
  * armados desde los AJUSTES vigentes (no desde lib/config.ts): % de
  * transferencia, horas de reserva, cuotas, costo de envío. Filtra lo que
- * no está disponible ahora: efectivo apagado en Ajustes o una pasarela sin
+ * no está disponible ahora: efectivo o link de pago apagados en Ajustes o una pasarela sin
  * credenciales en producción.
  */
 
@@ -23,6 +23,7 @@ function hoursLabel(h: number): string {
 export function paymentOptions(runtime: RuntimeStore): CheckoutOption[] {
   return paymentMethods
     .filter((p) => (p.id === "efectivo" ? runtime.cashEnabled : true))
+    .filter((p) => (p.id === "link" ? runtime.paymentLinkEnabled : true))
     .filter((p) => !isOnlinePayment(p.id) || isOnlinePaymentAvailable(p.id))
     .map((p) => {
       switch (p.id) {
@@ -50,6 +51,12 @@ export function paymentOptions(runtime: RuntimeStore): CheckoutOption[] {
                 ? "Reservás online y pagás cuando la retirás."
                 : `Reservás online y pagás cuando la retirás (te la guardamos ${hoursLabel(runtime.cashReservationHours)}).`,
             note: "Pagás al retirar",
+          };
+        case "link":
+          return {
+            ...p,
+            detail: "Te mandamos el link por WhatsApp para pagar con tarjeta o Mercado Pago.",
+            note: "Te escribimos por WhatsApp",
           };
         default:
           return { ...p, note: "" };

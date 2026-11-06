@@ -6,6 +6,8 @@ import { FONT, MONO } from "./styles";
 /* ── Display ──────────────────────────────────────────────────
    Archivo 900 uppercase condensada. Tamaños del handoff:
    hero 120/.86 @66 (mobile 76) · page H1 96/.86 @66 (mobile 56)
+   hero-split fluido 32–44 / 40–58 desktop (.88 @66; H1 del hero partido,
+   "Salí a rodar por La Feliz." = 10.7 em: entra en una línea en la columna)
    section 64/.9 @66 (mobile 40) · h2 48/.9 @66 (mobile 40)
    confirm 112/.85 @66 (mobile 64) · admin H1 44/1 @66
    panel 26/1 @70 · card 30/1 @70 · detail 36/.95 @70 (mobile 40)
@@ -13,6 +15,7 @@ import { FONT, MONO } from "./styles";
 
 export type DisplaySize =
   | "hero"
+  | "hero-split"
   | "confirm"
   | "page"
   | "section"
@@ -24,6 +27,8 @@ export type DisplaySize =
 
 const DISPLAY_SIZE: Record<DisplaySize, string> = {
   hero: "text-[76px] lg:text-[120px] leading-[.86] stretch-66 lg:tracking-[-.01em]",
+  "hero-split":
+    "text-[length:clamp(32px,9vw,44px)] lg:text-[length:clamp(40px,4vw,58px)] leading-[.88] stretch-66",
   confirm: "text-[64px] lg:text-[112px] leading-[.85] stretch-66",
   page: "text-[56px] md:text-[96px] leading-[.88] md:leading-[.86] stretch-66",
   section: "text-[40px] md:text-[64px] leading-[.9] stretch-66",
@@ -36,6 +41,7 @@ const DISPLAY_SIZE: Record<DisplaySize, string> = {
 
 const DISPLAY_TAG: Record<DisplaySize, "h1" | "h2" | "h3"> = {
   hero: "h1",
+  "hero-split": "h1",
   confirm: "h1",
   page: "h1",
   section: "h2",

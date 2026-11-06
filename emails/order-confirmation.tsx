@@ -28,6 +28,7 @@ import {
  *  - transferencia: monto con descuento, alias/CBU, vencimiento de la
  *    reserva y aviso de subir el comprobante;
  *  - efectivo: código de retiro + total a pagar en el local + reserva;
+ *  - link de pago: el local manda el link por WhatsApp (manual) + reserva;
  *  - seña (core, apagada en BiciTienda): seña pagada y saldo.
  *
  * La firma la usa lib/server/mail.ts: los campos nuevos son opcionales.
@@ -83,6 +84,7 @@ export function OrderConfirmationEmail(data: OrderEmailData) {
   const isCard = data.paymentMethod === "payway" || data.paymentMethod === "mercadopago";
   const isTransfer = data.paymentMethod === "transferencia" && !data.paid && !data.señado;
   const isCash = data.paymentMethod === "efectivo" && !data.paid && !data.señado;
+  const isLink = data.paymentMethod === "link" && !data.paid && !data.señado;
   const isPickup = /^retiro/i.test(data.deliveryLabel);
   const pickupText = data.deliveryLabel.replace(/^Retiro en\s+/i, "");
   const waMsg = `Hola! Hice el pedido ${data.number}`;
@@ -153,6 +155,14 @@ export function OrderConfirmationEmail(data: OrderEmailData) {
               pill: <Pill tone="outline">Paga en el local</Pill>,
               body: "Pagás en efectivo cuando pasás a retirarlo. Te avisamos cuando esté listo.",
             }
+          : isLink
+            ? {
+                eyebrow: "Falta el pago",
+                title: <>{first}, te reservamos</>,
+                accent: <>el pedido <Nb>{data.number}</Nb>.</>,
+                pill: <Pill tone="red">Link pendiente</Pill>,
+                body: "Te guardamos las unidades. Te escribimos por WhatsApp con el link para pagar con tarjeta o Mercado Pago: apenas se acredita, lo empezamos a preparar.",
+              }
           : {
               eyebrow: "Pedido recibido",
               title: <>¡Gracias, {first}!</>,
@@ -168,12 +178,14 @@ export function OrderConfirmationEmail(data: OrderEmailData) {
           ? `Transferí ${money(data.total)} al alias ${data.transferAlias} y subí el comprobante.`
           : isCash
             ? `Tu código de retiro es ${data.pickupCode ?? data.number}. Pagás en el local.`
-            : `Pedido ${data.number} confirmado en ${data.brandName}.`
+            : isLink
+              ? `Te escribimos por WhatsApp con el link para pagar ${money(data.total)}.`
+              : `Pedido ${data.number} confirmado en ${data.brandName}.`
       }
       footer={data.footer}
       whatsapp={data.whatsapp}
     >
-      <Eyebrow tone={isTransfer ? "red" : "yellow"}>{head.eyebrow}</Eyebrow>
+      <Eyebrow tone={isTransfer || isLink ? "red" : "yellow"}>{head.eyebrow}</Eyebrow>
       <Title accent={head.accent}>{head.title}</Title>
       {head.pill}
       <P>{head.body}</P>
@@ -247,6 +259,36 @@ export function OrderConfirmationEmail(data: OrderEmailData) {
               { title: "Lo preparamos", body: "Lo armamos y lo revisamos en el taller." },
               { title: "Te avisamos cuando esté listo", body: "Por mail y WhatsApp." },
               { title: "Pasás, pagás y te lo llevás", body: "Mostrá el código de retiro en el mostrador." },
+            ]}
+          />
+        </>
+      )}
+
+      {isLink && (
+        <>
+          {data.expiresLabel && (
+            <Notice>
+              Reserva hasta el {data.expiresLabel}. Si no se acredita, las unidades se liberan.
+            </Notice>
+          )}
+          <Panel label="Link de pago" accent="yellow">
+            <DataRows
+              rows={[
+                { label: "Total a pagar", value: money(data.total), big: true, tone: "yellow" },
+                { label: "Referencia", value: data.number, mono: true },
+              ]}
+            />
+          </Panel>
+          <Actions>
+            <Button href={waLink(data.whatsapp, `Hola! Hice el pedido ${data.number} y quiero recibir el link de pago`)}>
+              Escribinos por WhatsApp
+            </Button>
+          </Actions>
+          <Steps
+            steps={[
+              { title: "Te mandamos el link", body: "Por WhatsApp, al número que dejaste en el pedido." },
+              { title: `Pagás ${money(data.total)}`, body: "Con tarjeta de crédito, débito o Mercado Pago." },
+              { title: "Lo preparamos", body: "Te avisamos por mail y WhatsApp cuando esté listo para retirar." },
             ]}
           />
         </>

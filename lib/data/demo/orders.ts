@@ -81,6 +81,7 @@ export const ORDER_TIMELINE_DONE: Record<DemoOrderStatus, number> = {
 export function paymentLabel(payment: PaymentMethod, installments: number | null): string {
   if (payment === "transfer") return "Transferencia · 10% off";
   if (payment === "cash") return "Efectivo en el local";
+  if (payment === "link") return "Link de pago";
   return "Mercado Pago · " + (installments && installments > 1 ? `${installments} cuotas` : "1 pago");
 }
 

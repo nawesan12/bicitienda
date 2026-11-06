@@ -209,7 +209,7 @@ export async function reserveAtLocation(
 
 /**
  * Vencimiento de la reserva según el medio de pago (null = no vence): la
- * transferencia, sus horas; el efectivo, las suyas (o nunca); un pago
+ * transferencia y el link de pago, sus horas; el efectivo, las suyas (o nunca); un pago
  * online pendiente, sus minutos (pedidos abandonados en la pasarela no
  * retienen stock para siempre).
  */
@@ -223,7 +223,8 @@ export function reservationExpiry(
 ): Date | null {
   if (isOnlinePayment(method))
     return new Date(Date.now() + runtime.onlineReservationMinutes * 60_000);
-  if (method === "transferencia")
+  // Link de pago: manual como la transferencia, con sus mismas horas.
+  if (method === "transferencia" || method === "link")
     return new Date(Date.now() + runtime.reservationHours * 3600_000);
   if (method === "efectivo")
     return runtime.cashReservationHours == null
@@ -265,6 +266,8 @@ export async function createOrder(
     return { ok: false, error: "El pago online no está disponible ahora: elegí transferencia o efectivo." };
   if (input.paymentMethod === "efectivo" && !runtime.cashEnabled)
     return { ok: false, error: "El pago en efectivo no está disponible." };
+  if (input.paymentMethod === "link" && !runtime.paymentLinkEnabled)
+    return { ok: false, error: "El pago con link no está disponible." };
   if (payment.pickupOnly && !delivery.isPickup)
     return { ok: false, error: "El pago en efectivo es solo con retiro." };
   if (!delivery.isPickup && input.deliveryMethod === "envio-mdq" && !input.deliveryAddress?.trim())
@@ -297,14 +300,16 @@ export async function createOrder(
           ? `El talle elegido de ${product.name} ya no está disponible.`
           : `Elegí el talle de ${product.name}.`,
       };
+    // Precio por talle: el de la variante o, si no tiene, el del producto.
+    const unitPrice = variant.price ?? product.price;
     lines.push({
       productSlug: product.slug,
       variantId: variant.id,
       quantity: qty,
       product,
       variant,
-      unitPrice: product.price,
-      lineTotal: product.price * qty,
+      unitPrice,
+      lineTotal: unitPrice * qty,
       available: variant.stock,
     });
   }
@@ -431,8 +436,8 @@ export async function createOrder(
 
     const confirmUrl = `/checkout/confirmacion/${number}?e=${encodeURIComponent(contactParam(email, phone))}`;
     if (!online) {
-      // Transferencia y efectivo: el pedido nace como reserva y el email
-      // sale ya, con las instrucciones de pago.
+      // Transferencia, efectivo y link de pago: el pedido nace como reserva
+      // y el email sale ya, con las instrucciones de pago.
       await sendOrderEmail(order.id, "confirmacion");
       return { ok: true, number, redirect: confirmUrl };
     }
@@ -485,7 +490,7 @@ export async function createManualOrder(input: {
   /** Nombre a guardar en el pedido (el del presupuesto); default: el de la ficha. */
   customerName?: string | null;
   accountId?: string | null;
-  paymentMethod: "transferencia" | "efectivo";
+  paymentMethod: "transferencia" | "efectivo" | "link";
   lines: ManualOrderLine[];
   quoteId?: string | null;
   note?: string;
@@ -635,7 +640,10 @@ export async function advanceOrder(
   }
 
   if (t.to === "PAGADO") {
-    await appendEvent(orderId, makeEvent("PAGO", "Transferencia acreditada"));
+    await appendEvent(
+      orderId,
+      makeEvent("PAGO", order.paymentMethod === "link" ? "Pago por link registrado" : "Transferencia acreditada"),
+    );
     await sendOrderEmail(orderId, "confirmacion");
   } else if (t.to === "EN_PREPARACION") {
     await appendEvent(orderId, makeEvent("PAGO", "Armado y ajuste"));

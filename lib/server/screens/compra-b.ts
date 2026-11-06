@@ -28,6 +28,8 @@ export interface CartVariantView {
   id: string;
   /** "Talle M · Negro" ("" en la variante única). */
   label: string;
+  /** Precio del talle (el propio o el del producto). */
+  price: number;
   stock: number;
 }
 
@@ -79,6 +81,7 @@ export async function getCartCatalog(): Promise<CartCatalogItem[]> {
       variants: p.variants.map((v) => ({
         id: v.id,
         label: isSingleVariant(v) ? "" : variantLabel(v),
+        price: v.price ?? (p.price as number),
         stock: v.stock,
       })),
     }));

@@ -11,6 +11,7 @@ import {
   getVisibleProducts,
 } from "@/lib/server/queries";
 import { SINGLE_SIZE, type Brand, type CategoryWithCount, type Product } from "@/lib/types";
+import { priceRange } from "@/lib/variants";
 
 /**
  * Lecturas de solo lectura de las pantallas de la tienda (agente A: home,
@@ -40,7 +41,12 @@ export interface CatalogItem {
   /** null para la marca placeholder "sin-marca": la card no la muestra. */
   brand: string | null;
   image: { src: string; alt: string };
+  /** Hasta CARD_MAX_PHOTOS fotos para el carrusel de la card (la primera = `image`). */
+  images: { src: string; alt: string }[];
+  /** Precio de la card: con precios por talle, el menor ("Desde"). */
   price: number;
+  /** Los talles tienen precios distintos: la card dice "Desde $min". */
+  priceFrom: boolean;
   tag: string | null;
   rodado: string | null;
   /** Talles reales (sin "Único") con su stock. */
@@ -60,6 +66,8 @@ export interface Pricing {
 /* ── Helpers ───────────────────────────────────────────────── */
 
 const CARD_IMG_W = 800;
+/** Fotos que muestra el carrusel de la card (CardPhotos). */
+const CARD_MAX_PHOTOS = 5;
 
 export function brandName(brands: Brand[], id: string): string | null {
   if (id === PLACEHOLDER_BRAND_ID) return null;
@@ -115,6 +123,7 @@ export function toCatalogItem(
   const cat = categories.find((c) => c.slug === p.category);
   const single = p.variants.length === 1 ? p.variants[0] : null;
   const out = isOutOfStock(p);
+  const range = priceRange(p.price, p.variants);
   return {
     slug: p.slug,
     href: hrefFor(p.slug),
@@ -126,7 +135,12 @@ export function toCatalogItem(
       src: p.images[0] ? img(resolveImage(p.images[0]), { w: CARD_IMG_W }) : "/brand/logo-bicitiendamdq-320.webp",
       alt: p.name,
     },
-    price: p.price ?? 0,
+    images: p.images.slice(0, CARD_MAX_PHOTOS).map((x, i) => ({
+      src: img(resolveImage(x), { w: CARD_IMG_W }),
+      alt: i === 0 ? p.name : `${p.name}, foto ${i + 1}`,
+    })),
+    price: range?.min ?? 0,
+    priceFrom: !!range?.varies,
     tag: p.tag,
     rodado: p.rodado,
     sizes: sizesOfProduct(p),

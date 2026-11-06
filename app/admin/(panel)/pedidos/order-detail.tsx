@@ -103,6 +103,7 @@ export function OrderDetailPanel({ order, variant }: { order: OrderDetail; varia
         orderId={order.id}
         number={order.number}
         next={order.next}
+        byLink={order.pill === "link_pendiente"}
         canCancel={order.canCancel}
         whatsappUrl={order.whatsappUrl}
         whatsappIsTemplate={order.whatsappIsTemplate}

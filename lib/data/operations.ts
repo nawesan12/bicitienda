@@ -50,6 +50,7 @@ export const operationSettings = {
   /** null = la reserva en efectivo no vence. */
   cashReservationHours: PAYMENT_SETTINGS.cashReservationHours,
   cashEnabled: PAYMENT_SETTINGS.cashEnabled,
+  paymentLinkEnabled: PAYMENT_SETTINGS.paymentLinkEnabled,
   /** Cuenta para transferir: "[… a confirmar]" hasta que el local la pase. */
   transferCbu: PAYMENT_SETTINGS.cbu,
   transferHolder: PAYMENT_SETTINGS.holder,

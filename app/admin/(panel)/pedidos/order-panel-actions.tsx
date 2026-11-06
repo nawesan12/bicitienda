@@ -24,6 +24,7 @@ export function OrderPanelActions({
   orderId,
   number,
   next,
+  byLink = false,
   canCancel,
   whatsappUrl,
   whatsappIsTemplate,
@@ -32,6 +33,8 @@ export function OrderPanelActions({
   orderId: string;
   number: string;
   next: { label: string; from: OrderStatus; to: OrderStatus } | null;
+  /** Pedido con link de pago pendiente: el cobro se registra a mano. */
+  byLink?: boolean;
   canCancel: boolean;
   whatsappUrl: string;
   whatsappIsTemplate: boolean;
@@ -54,7 +57,7 @@ export function OrderPanelActions({
       }
       setAsk(null);
       // advanceOrder invalida el panel: Next re-renderiza en la misma respuesta.
-      toast(DONE_TOAST[res.status] ?? "Pedido actualizado");
+      toast(byLink && res.status === "PAGADO" ? "Pago por link registrado · pedido pagado" : (DONE_TOAST[res.status] ?? "Pedido actualizado"));
     });
   }
 
@@ -151,7 +154,9 @@ export function OrderPanelActions({
         <p className="m-0 text-[15px] leading-[1.5] text-text-2">
           {next?.to === "RETIRADO"
             ? `Registra el pago en efectivo del pedido #${number} y lo marca como retirado.`
-            : `Confirmá que la transferencia del pedido #${number} ya está acreditada. El pedido pasa a Pagado y le llega el mail de confirmación.`}
+            : byLink
+              ? `Confirmá que el pago por link del pedido #${number} ya está acreditado. El pedido pasa a Pagado y le llega el mail de confirmación.`
+              : `Confirmá que la transferencia del pedido #${number} ya está acreditada. El pedido pasa a Pagado y le llega el mail de confirmación.`}
         </p>
         <FormError>{error}</FormError>
       </Modal>

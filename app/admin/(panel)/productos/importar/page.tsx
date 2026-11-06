@@ -19,6 +19,8 @@ const HELP: Partial<Record<(typeof IMPORT_COLUMNS)[number], string>> = {
   ocultar_sin_stock: "si / no",
   estado: "publicado / borrador",
   fotos: "URLs separadas por espacio o coma.",
+  precio_talle: "Precio propio de ese talle (509900). Vacío = usa el precio del producto.",
+  specs: "Ficha técnica: Rodado: 29; Frenos: Disco. Vacío = no se toca.",
 };
 
 /**

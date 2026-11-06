@@ -90,6 +90,7 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
     if (P.transferBank !== BP.transferBank) patch.transferBank = P.transferBank;
     if (P.reservationHours !== BP.reservationHours) patch.reservationHours = P.reservationHours;
     if (P.cashEnabled !== BP.cashEnabled) patch.cashEnabled = P.cashEnabled;
+    if (P.paymentLinkEnabled !== BP.paymentLinkEnabled) patch.paymentLinkEnabled = P.paymentLinkEnabled;
     if (P.cashReservationHours !== BP.cashReservationHours) patch.cashReservationHours = P.cashReservationHours;
     if (Object.keys(patch).length) input.settings = patch;
     // 2) Horario semanal.
@@ -273,7 +274,7 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
                   </Field>
                 </div>
                 <p className="m-0 text-[13px] leading-[1.5] text-text-3">
-                  Turnos cada {s.agenda.slotMinutes} min. Cerrado = dejá el horario vacío. Feriados y bloqueos puntuales: desde Turnos → Bloquear horario.
+                  Turnos cada {s.agenda.slotMinutes === 60 ? "1 hora" : `${s.agenda.slotMinutes} min`}. Cerrado = dejá el horario vacío. Feriados y bloqueos puntuales: desde Turnos → Bloquear horario.
                 </p>
               </Panel>
               </div>
@@ -383,6 +384,12 @@ export function SettingsEditor({ data }: { data: SettingsScreen }) {
                     )}
                   </>
                 )}
+                <Toggle
+                  label={T.payments.link}
+                  description="Te llega el pedido, le mandás el link por WhatsApp y lo marcás pagado."
+                  checked={s.payments.paymentLinkEnabled}
+                  onChange={(e) => setPay("paymentLinkEnabled", e.target.checked)}
+                />
               </Panel>
               </div>
             </div>

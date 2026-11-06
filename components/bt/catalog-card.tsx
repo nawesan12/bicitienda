@@ -23,7 +23,9 @@ export function CatalogCard({
       category={item.category}
       brand={item.brand ?? undefined}
       image={item.image}
+      images={item.images}
       price={item.price}
+      priceFrom={item.priceFrom}
       tag={item.tag ? { label: item.tag } : undefined}
       transferDiscountPct={pricing.transferDiscountPct}
       layout="responsive"

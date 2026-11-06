@@ -33,7 +33,7 @@ export default async function AdminResumenPage({ searchParams }: { searchParams:
     { label: "Pedidos hoy", value: k.ordersToday, tone: "paper" as const },
     { label: "Para retirar", value: k.readyForPickup, tone: "paper" as const },
     { label: "Taller hoy", value: k.repairsToday, tone: "yellow" as const },
-    { label: "Transf. a validar", value: k.transfersToValidate, tone: "red" as const },
+    { label: "Pagos a validar", value: k.transfersToValidate, tone: "red" as const },
   ];
 
   // El taller va primero y destacado; abajo, el resto de los turnos de hoy.

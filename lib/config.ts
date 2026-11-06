@@ -211,6 +211,16 @@ const allPaymentMethods: PaymentMethod[] = [
     pickupOnly: true,
     allowsDeposit: false,
   },
+  {
+    // Manual: el local manda el link por WhatsApp y lo marca pagado en el admin.
+    id: "link",
+    name: "Link de pago",
+    detail: "Te mandamos el link por WhatsApp para pagar con tarjeta o Mercado Pago.",
+    transferDiscount: false,
+    allowsInstallments: false,
+    pickupOnly: false,
+    allowsDeposit: false,
+  },
 ];
 
 export const paymentMethods: PaymentMethod[] = allPaymentMethods.filter(

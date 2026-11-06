@@ -112,6 +112,12 @@ async function main() {
       el: OrderConfirmationEmail({ ...base, paymentMethod: "efectivo" }),
     },
     {
+      id: "pedido-link",
+      title: "Pedido con link de pago por WhatsApp (reserva)",
+      subject: `Pedido BT-10483 confirmado — ${brandName}`,
+      el: OrderConfirmationEmail({ ...base, paymentMethod: "link" }),
+    },
+    {
       id: "pedido-listo",
       title: "Pedido listo para retirar",
       subject: `Pedido BT-10483 listo para retirar — ${brandName}`,

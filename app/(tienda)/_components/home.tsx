@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo, Wordmark } from "@/components/bt/brand";
 import { Button } from "@/components/bt/button";
 import { Chip, ChipScroller } from "@/components/bt/chip";
 import { cx } from "@/components/bt/cx";
@@ -13,9 +14,14 @@ import { Display, Highlight } from "@/components/bt/typography";
  */
 
 /* ── HomeHero ─────────────────────────────────────────────────
-   2a: caja radio 10 de 580 px (el height del prototipo es content-box) dentro de padding 24/56, padding 44, gap 20,
-   degradé .1 → .93, H1 120. 4a: a sangre 540 px (500 + padding), padding 20/16, gap 14,
-   degradé .05 → .94, H1 76, CTA a todo el ancho y sin la subline.
+   Partido (pedido del cliente: marca grande y hero más bajo).
+   Desktop: 2 columnas 1.15fr / 1fr de 440 px. Izquierda: logo
+   min(17vw,240) + wordmark apilado min(6.6vw,93) (3 líneas ≈ alto del
+   logo), y debajo Tag + H1 hero-split + CTA con la subline. Derecha:
+   la foto, radio 10. Mobile: logo 38vw + wordmark 14.7vw en fila (≈ el
+   ancho a 360), la foto 16:10 con Tag + H1 encima sobre degradé y el
+   CTA a todo el ancho. Grilla con celdas explícitas para no duplicar
+   el H1 entre los dos órdenes.
    ──────────────────────────────────────────────────────────── */
 
 export function HomeHero({
@@ -36,31 +42,43 @@ export function HomeHero({
   subline?: string;
 }) {
   return (
-    <section className="lg:px-14 lg:py-6">
+    <section className="px-4 py-4 lg:px-14 lg:py-6">
       <div
         className={cx(
-          "relative flex h-[540px] flex-col justify-end gap-[14px] overflow-hidden bg-surface px-4 py-5",
-          "lg:h-[580px] lg:gap-5 lg:rounded-card lg:p-11",
+          "grid grid-cols-1 gap-3",
+          "lg:h-[440px] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)_auto_auto] lg:gap-x-10 lg:gap-y-5",
         )}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary/Pexels ya transformadas */}
-        <img
-          src={photo}
-          alt={photoAlt}
-          fetchPriority="high"
-          className="absolute inset-0 block h-full w-full object-cover"
-        />
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,17,16,.05)_20%,rgba(18,17,16,.94))] lg:bg-[linear-gradient(180deg,rgba(18,17,16,.1)_25%,rgba(18,17,16,.93))]"
-        />
-        <Tag tone="red" size="hero" className="relative self-start">
-          {tag}
-        </Tag>
-        <Display size="hero" className="relative max-w-[760px]">
-          {titleLead} <Highlight>{titleHighlight}</Highlight>
-        </Display>
-        <div className="relative flex items-center gap-3">
+        <div className="row-start-1 flex items-center gap-4 lg:col-start-1 lg:gap-5">
+          <Logo size="fluid" decorative className="size-[min(38vw,220px)] lg:size-[min(17vw,240px)]" />
+          <Wordmark size="hero" stacked />
+        </div>
+
+        <div className="relative row-start-2 aspect-[16/10] overflow-hidden rounded-card bg-surface lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:aspect-auto">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary/Pexels ya transformadas */}
+          <img
+            src={photo}
+            alt={photoAlt}
+            fetchPriority="high"
+            className="absolute inset-0 block h-full w-full object-cover"
+          />
+          {/* Degradé solo en mobile, donde el título va encima de la foto. */}
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,17,16,0)_25%,rgba(18,17,16,.9))] lg:hidden"
+          />
+        </div>
+
+        <div className="relative z-10 row-start-2 flex flex-col items-start gap-[10px] self-end p-4 lg:col-start-1 lg:row-start-2 lg:gap-3 lg:p-0">
+          <Tag tone="red" size="hero">
+            {tag}
+          </Tag>
+          <Display size="hero-split">
+            {titleLead} <Highlight>{titleHighlight}</Highlight>
+          </Display>
+        </div>
+
+        <div className="row-start-3 flex items-center gap-3 lg:col-start-1">
           <Button href={cta.href} variant="primary" size="lg" className="max-lg:w-full">
             {cta.label}
           </Button>

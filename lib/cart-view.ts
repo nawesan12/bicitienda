@@ -1,4 +1,5 @@
 import type { Product } from "@/lib/types";
+import { variantPrice } from "@/lib/variants";
 
 /**
  * La vista mínima de un producto comprable que necesita el carrito.
@@ -8,7 +9,10 @@ import type { Product } from "@/lib/types";
 export interface CartProduct {
   slug: string;
   name: string;
+  /** Precio base del producto (el de los talles sin precio propio). */
   price: number;
+  /** Precio efectivo por variante (talle con precio propio o el base). */
+  variantPrices: Record<string, number>;
   image: string | null;
   /** Stock total agregado (tope del carrito). */
   stock: number;
@@ -28,6 +32,9 @@ export function toCartProduct(
     slug: p.slug,
     name: p.name,
     price: p.price,
+    variantPrices: Object.fromEntries(
+      p.variants.map((v) => [v.id, variantPrice(p.price, v) ?? (p.price as number)]),
+    ),
     image: p.images[0] ?? null,
     stock: p.stock,
     ...(stockByLocation ? { stockByLocation } : {}),

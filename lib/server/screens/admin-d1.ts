@@ -103,6 +103,8 @@ export function orderPillStatus(o: { status: OrderStatus; paymentMethod: Payment
       return "transf_pendiente";
     case "paga_en_local":
       return "paga_local";
+    case "link_pendiente":
+      return "link_pendiente";
     case "pago_pendiente":
       return "transf_pendiente";
     case "señado":
@@ -121,7 +123,7 @@ export function orderPillStatus(o: { status: OrderStatus; paymentMethod: Payment
   }
 }
 
-/** "Transferencia · 10% off" · "Mercado Pago · 6 cuotas" · "Efectivo en el local". */
+/** "Transferencia · 10% off" · "Mercado Pago · 6 cuotas" · "Efectivo en el local" · "Link de pago". */
 export function paymentText(o: {
   paymentMethod: PaymentMethodId;
   installments: number;
@@ -135,6 +137,8 @@ export function paymentText(o: {
       return o.discount > 0 ? `Transferencia · ${store.transferDiscount}% off` : "Transferencia";
     case "efectivo":
       return "Efectivo en el local";
+    case "link":
+      return "Link de pago";
     case "mercadopago":
       return `Mercado Pago · ${n > 1 ? `${n} cuotas` : "1 pago"}`;
     case "payway":
@@ -410,7 +414,8 @@ export async function getResumen() {
   const dayEnd = localToUtc(addDays(date, 1), "00:00", TZ);
   const isToday = and(gte(O.createdAt, dayStart), lt(O.createdAt, dayEnd));
   const isReady = eq(O.status, "LISTO_RETIRO");
-  const isTransfer = and(eq(O.status, "PENDIENTE_PAGO"), eq(O.paymentMethod, "transferencia"));
+  // Cobros manuales por confirmar: transferencias y links de pago.
+  const isTransfer = and(eq(O.status, "PENDIENTE_PAGO"), inArray(O.paymentMethod, ["transferencia", "link"]));
   const [[k], appts, orders] = await Promise.all([
     // Los tres KPIs de pedidos en una query (índices de estado y fecha).
     db

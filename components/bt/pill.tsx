@@ -71,6 +71,7 @@ export function Pill({
    Claves de UI (no del core): B2/B3 mapean OrderStatus + medio de pago:
    PENDIENTE_PAGO + transferencia → transf_pendiente
    PENDIENTE_PAGO + efectivo      → paga_local
+   PENDIENTE_PAGO + link          → link_pendiente
    PAGADO → pagado · EN_PREPARACION → armando · LISTO_RETIRO → listo
    RETIRADO → retirado · CANCELADO / VENCIDO → cancelado
    ──────────────────────────────────────────────────────────── */
@@ -78,6 +79,7 @@ export function Pill({
 export type OrderPillStatus =
   | "transf_pendiente"
   | "paga_local"
+  | "link_pendiente"
   | "pagado"
   | "armando"
   | "listo"
@@ -87,6 +89,7 @@ export type OrderPillStatus =
 export const ORDER_PILL: Record<OrderPillStatus, { label: string; tone: PillTone }> = {
   transf_pendiente: { label: "Transf. pendiente", tone: "red" },
   paga_local: { label: "Paga en local", tone: "yellow-outline" },
+  link_pendiente: { label: "Link pendiente", tone: "red" },
   pagado: { label: "Pagado", tone: "yellow" },
   armando: { label: "Armando", tone: "dark" },
   listo: { label: "Listo para retirar", tone: "paper" },

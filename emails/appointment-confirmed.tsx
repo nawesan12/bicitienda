@@ -37,8 +37,6 @@ export interface AppointmentConfirmedData {
   manageUrl: string;
   whatsapp: string;
   footer: string;
-  /** Duración del servicio (default 30). */
-  durationMin?: number;
   /** Turno reprogramado: día y hora anteriores ("martes 6 de octubre 10:30"). */
   rescheduledFrom?: string | null;
   mapsUrl?: string | null;
@@ -47,7 +45,6 @@ export interface AppointmentConfirmedData {
 export function AppointmentConfirmedEmail(data: AppointmentConfirmedData) {
   const first = firstName(data.customerName);
   const moved = Boolean(data.rescheduledFrom);
-  const duration = data.durationMin ?? 30;
   return (
     <EmailShell
       preview={`${moved ? "Turno reprogramado" : "Turno confirmado"}: ${data.dayLabel} a las ${data.time} hs · ${data.serviceName}`}
@@ -74,7 +71,8 @@ export function AppointmentConfirmedEmail(data: AppointmentConfirmedData) {
               value: `${data.time} hs`,
               big: true,
               tone: "yellow",
-              sub: `${data.dayLabel.charAt(0).toUpperCase()}${data.dayLabel.slice(1)} · ${duration} min`,
+              // Sin duración: los turnos no tienen una duración fija.
+              sub: `${data.dayLabel.charAt(0).toUpperCase()}${data.dayLabel.slice(1)}`,
             },
             {
               label: "Dónde",
@@ -98,7 +96,7 @@ export function AppointmentConfirmedEmail(data: AppointmentConfirmedData) {
       <Steps
         title="Para tu turno"
         steps={[
-          { title: "Llegá 5 minutos antes", body: `Así aprovechás los ${duration} minutos completos.` },
+          { title: "Llegá unos minutos antes", body: "Así te atendemos sin apuro." },
           ...(data.repair
             ? [
                 {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { CardPhotos } from "./card-photos";
 import { cx } from "./cx";
 import { formatMoney, transferLabel, transferPrice } from "./format";
 import { FONT, MONO } from "./styles";
@@ -10,13 +11,18 @@ import { Tag, type TagTone } from "./tag";
  * foto tiene aspecto fijo, el nombre ocupa siempre 2 líneas (min-h 2.4em
  * + line-clamp) y el bloque de precio va al fondo (margin-top auto).
  *
- * Desktop (≥ md, o layout="desktop"): radio 10, foto 4/3 sobre #e8e1d3,
+ * Foto: 4/3 en todos los layouts, `object-contain` con padding sobre
+ * #e8e1d3 (bg-card-photo), así la bici entra entera sin importar la
+ * relación de aspecto de la foto. Con `images` (> 1) es un carrusel
+ * (CardPhotos) con todas las fotos.
+ *
+ * Desktop (≥ md, o layout="desktop"): radio 10,
  * tag 12 px, cuerpo paper padding 18 gap 6, mono 12 px #6f675a
  * "CATEGORÍA / MARCA", nombre 700 18/1.2, divisor dashed #c9c0ae
  * (padding-top 12), precio 900 30 @75 %, transferencia 700 13 #b81d16,
  * botón "+" 40×40 tinta/amarillo.
  *
- * Mobile (< md, o layout="mobile"): radio 8, foto 1:1, tag 10 px, padding
+ * Mobile (< md, o layout="mobile"): radio 8, tag 10 px, padding
  * 10/10/12 gap 4, mono 10 px, nombre 700 14/1.2, precio 900 22 @75 %,
  * transferencia 700 11 px; sin "+" (como 4a/4b).
  *
@@ -34,12 +40,16 @@ export interface ProductCardProps {
   category: string;
   brand?: string;
   image: { src: string; alt?: string };
+  /** Todas las fotos (la primera = `image`); con más de una, carrusel. */
+  images?: { src: string; alt?: string }[];
   price: number;
+  /** Precios distintos por talle: el precio es el menor y va "Desde". */
+  priceFrom?: boolean;
   tag?: { label: string; tone?: TagTone };
   transferDiscountPct?: number;
   /** "responsive" cambia de mobile a desktop en md. */
   layout?: "responsive" | "desktop" | "mobile";
-  /** Aspecto de la foto; por defecto 1:1 mobile y 4/3 desktop. */
+  /** Aspecto de la foto; por defecto 4/3 en todos los layouts. */
   imageAspect?: "auto" | "square" | "4/3";
   /** Botón "+" real (ej. agregar al carrito). Si falta se dibuja decorativo. */
   addAction?: ReactNode;
@@ -61,7 +71,9 @@ export function ProductCard({
   category,
   brand,
   image,
+  images,
   price,
+  priceFrom,
   tag,
   transferDiscountPct = 10,
   layout = "responsive",
@@ -76,7 +88,9 @@ export function ProductCard({
       ? "aspect-square"
       : imageAspect === "4/3"
         ? "aspect-[4/3]"
-        : pick(layout, "aspect-square", "aspect-[4/3]", "aspect-square md:aspect-[4/3]");
+        : "aspect-[4/3]";
+  // Aire alrededor de la foto contenida (la bici no toca el borde).
+  const photoPad = pick(layout, "p-2", "p-3", "p-2 md:p-3");
   const showDesktopExtras = layout !== "mobile";
   const extrasCls = layout === "responsive" ? "max-md:hidden" : "";
 
@@ -91,15 +105,19 @@ export function ProductCard({
       )}
     >
       <div className={cx("relative overflow-hidden bg-card-photo", aspect)}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- URLs de Cloudinary ya transformadas */}
-        <img
-          src={image.src}
-          alt={image.alt ?? name}
-          loading="lazy"
-          className="absolute inset-0 block h-full w-full object-cover"
-        />
+        {images && images.length > 1 ? (
+          <CardPhotos href={href} images={images} imgClassName={photoPad} />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element -- URLs de Cloudinary ya transformadas
+          <img
+            src={image.src}
+            alt={image.alt ?? name}
+            loading="lazy"
+            className={cx("absolute inset-0 block h-full w-full object-contain", photoPad)}
+          />
+        )}
         {tag && (
-          <span className="absolute top-0 left-0">
+          <span className="pointer-events-none absolute top-0 left-0 z-20">
             <Tag flush tone={tag.tone} size={layout === "mobile" ? "xs" : layout === "desktop" ? "md" : "card"}>
               {tag.label}
             </Tag>
@@ -146,6 +164,7 @@ export function ProductCard({
                 pick(layout, "text-[22px]", "text-[30px]", "text-[22px] md:text-[30px]"),
               )}
             >
+              {priceFrom && <PriceFrom />}
               {formatMoney(price)}
             </span>
             {transferDiscountPct > 0 && (
@@ -183,7 +202,7 @@ export const PRODUCT_CARD_ADD_CLASSES =
   "flex size-10 items-center justify-center rounded-btn bg-ink text-[22px] font-extrabold text-yellow hover:bg-surface-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink transition-colors duration-150";
 
 /**
- * Card chica de relacionados ("Sumale a tu bici", 2c): foto 4/3, padding
+ * Card chica de relacionados ("Sumale a tu bici", 2c): foto 4/3 contenida, padding
  * 16, nombre 700 16/1.2, precio 900 26 @75 %.
  */
 export function RelatedProductCard({
@@ -191,32 +210,54 @@ export function RelatedProductCard({
   name,
   image,
   price,
+  priceFrom,
+  addAction,
   className,
 }: {
   href: string;
   name: string;
   image: { src: string; alt?: string };
   price: number;
+  /** Precios distintos por talle: "Desde $min". */
+  priceFrom?: boolean;
+  /** Botón "+" real (CardAddButton): queda por encima del link. */
+  addAction?: ReactNode;
   className?: string;
 }) {
+  // Stretched link (como ProductCard): toda la card navega y el "+" va arriba (z-10).
   return (
-    <Link
-      href={href}
+    <article
       className={cx(
-        "flex min-w-0 flex-col overflow-hidden rounded-card bg-paper text-ink",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow",
+        "relative flex min-w-0 flex-col overflow-hidden rounded-card bg-paper text-ink",
+        "has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-yellow",
         FONT,
         className,
       )}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- URLs de Cloudinary ya transformadas */}
-      <img src={image.src} alt={image.alt ?? name} loading="lazy" className="block aspect-[4/3] w-full bg-card-photo object-cover" />
-      <span className="flex flex-col gap-1 p-4">
-        <span className="line-clamp-2 text-[16px] font-bold leading-[1.2]">{name}</span>
-        <span className="mt-[6px] text-[26px] font-black leading-none stretch-75">{formatMoney(price)}</span>
+      <img src={image.src} alt={image.alt ?? name} loading="lazy" className="block aspect-[4/3] w-full bg-card-photo object-contain p-3" />
+      <span className="flex flex-1 flex-col gap-1 p-4">
+        <Link
+          href={href}
+          className="line-clamp-2 text-[16px] font-bold leading-[1.2] outline-none after:absolute after:inset-0 after:content-['']"
+        >
+          {name}
+        </Link>
+        <span className="mt-auto flex items-end justify-between gap-2 pt-[6px]">
+          <span className="text-[26px] font-black leading-none stretch-75">
+            {priceFrom && <PriceFrom />}
+            {formatMoney(price)}
+          </span>
+          {addAction && <span className="relative z-10 flex-none">{addAction}</span>}
+        </span>
       </span>
-    </Link>
+    </article>
   );
+}
+
+/** Prefijo "Desde" del precio cuando los talles tienen precios distintos. */
+function PriceFrom() {
+  return <span className="mr-[0.3em] align-baseline text-[0.5em] font-extrabold uppercase stretch-100">Desde</span>;
 }
 
 /**
@@ -226,13 +267,20 @@ export function RelatedProductCard({
  */
 export function PriceBox({
   price,
+  oldPrice,
+  priceFrom,
   transferDiscountPct = 10,
   className,
 }: {
   price: number;
+  /** Precio anterior: se muestra tachado solo si es mayor. */
+  oldPrice?: number | null;
+  /** Antes de elegir talle, con precios distintos: "Desde $min". */
+  priceFrom?: boolean;
   transferDiscountPct?: number;
   className?: string;
 }) {
+  const showOld = !priceFrom && oldPrice != null && oldPrice > price;
   return (
     <div
       className={cx(
@@ -241,7 +289,16 @@ export function PriceBox({
         className,
       )}
     >
-      <span className="text-[44px] font-black leading-none stretch-72 md:text-[56px]">{formatMoney(price)}</span>
+      {showOld && (
+        <span className="text-[16px] font-bold text-text-3 line-through md:text-[18px]">
+          <span className="sr-only">Antes </span>
+          {formatMoney(oldPrice)}
+        </span>
+      )}
+      <span className="text-[44px] font-black leading-none stretch-72 md:text-[56px]" aria-live="polite">
+        {priceFrom && <PriceFrom />}
+        {formatMoney(price)}
+      </span>
       {transferDiscountPct > 0 && (
         <span className="text-[14px] font-bold text-red-light md:text-[16px]">
           {formatMoney(transferPrice(price, transferDiscountPct))}

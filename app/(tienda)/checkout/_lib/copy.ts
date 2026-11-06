@@ -92,6 +92,20 @@ export const BUY = {
       noExpiry: "Sin vencimiento",
     },
 
+    /** Link de pago: el local lo manda por WhatsApp y lo marca pagado a mano. */
+    link: {
+      title: "¡Reservado, {nombre}!",
+      subtitle: "Falta pagar.",
+      text: "Te guardamos el pedido{vence}. Te escribimos por WhatsApp con el link para pagar {monto} con tarjeta o Mercado Pago.",
+      step: "Link de pago",
+      stepWaiting: "Te lo mandamos por WhatsApp{vence}",
+      payTitle: "Te escribimos por WhatsApp con el link de pago",
+      payText: "Pagás con tarjeta o Mercado Pago desde el link. Apenas se acredita, arrancamos con tu pedido.",
+      payAmount: "Total a pagar",
+      waCta: "Escribinos por WhatsApp",
+      waMsg: "Hola! Hice el pedido {número} y quiero recibir el link de pago.",
+    },
+
     online: {
       pendingTitle: "¡Casi, {nombre}!",
       pendingSubtitle: "Falta el pago.",
@@ -129,6 +143,7 @@ export const BUY = {
       payway: "Tarjeta (Payway)",
       transferencia: "Transferencia",
       efectivo: "Efectivo en el local",
+      link: "Link de pago",
     } as Record<string, string>,
   },
 

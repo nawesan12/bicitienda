@@ -354,6 +354,7 @@ export async function duplicateProduct(
         size: v.size,
         color: v.color,
         heightRange: v.heightRange,
+        price: v.price,
         order: v.order,
       });
   } else {
@@ -644,6 +645,8 @@ const variantSchema = z.object({
   size: z.string().trim().min(1).max(20),
   color: z.string().trim().max(40).optional(),
   heightRange: z.string().trim().max(40).nullable().optional(),
+  /** Precio del talle; null = hereda el del producto. */
+  price: priceSchema.optional(),
   sku: z.string().trim().max(60).nullable().optional(),
   order: z.number().int().min(0).max(999).optional(),
   active: z.boolean().optional(),

@@ -24,6 +24,7 @@ const PAY_COPY = {
   payway: COPY.cart.payments.mp,
   transferencia: COPY.cart.payments.transfer,
   efectivo: COPY.cart.payments.cash,
+  link: COPY.cart.payments.link,
 } as const;
 
 /**

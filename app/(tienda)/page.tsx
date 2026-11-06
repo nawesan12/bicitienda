@@ -69,7 +69,7 @@ export default async function HomePage() {
       />
 
       <HomeHero
-        photo={img(resolveImage(manifestKey(hero.photo)), { w: 2000 })}
+        photo={img(resolveImage(manifestKey(hero.photo)), { w: 1400 })}
         photoAlt={hero.photoAlt}
         tag={hero.tag}
         titleLead={hero.titleLead}

@@ -106,7 +106,11 @@ export function CheckoutClient({
   });
   const blocked = lines.some((l) => l.warning);
 
-  const subtotal = lines.reduce((sum, l) => sum + (l.product ? l.product.price * l.item.quantity : 0), 0);
+  // Precio por talle: el de la variante (ya resuelto con el del producto).
+  const subtotal = lines.reduce(
+    (sum, l) => sum + (l.product ? (l.variant?.price ?? l.product.price) * l.item.quantity : 0),
+    0,
+  );
   const selected = payments.find((p) => p.id === payment);
   const discount = selected?.transferDiscount
     ? subtotal - Math.round(subtotal * (1 - transferDiscountPct / 100))
@@ -228,7 +232,7 @@ export function CheckoutClient({
                 variant={variant?.label || undefined}
                 quantity={item.quantity}
                 max={Math.max(1, available)}
-                price={product ? product.price * item.quantity : null}
+                price={product ? (variant?.price ?? product.price) * item.quantity : null}
                 warning={warning}
                 removeLabel={C.remove}
                 onQuantityChange={(q) => setQty(item.productSlug, q, Math.max(1, available), item.variantId)}

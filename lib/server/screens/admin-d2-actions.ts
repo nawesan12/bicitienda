@@ -83,6 +83,8 @@ const variantInput = z.object({
   size: z.string().trim().min(1).max(20),
   color: z.string().trim().max(40),
   heightRange: z.string().trim().max(40),
+  /** Precio del talle; null = hereda el del producto. */
+  price: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
   sku: z.string().trim().max(60),
   stock: z.number().int().min(0).max(9999),
 });
@@ -146,6 +148,7 @@ export async function saveProductEditor(productId: unknown, input: unknown): Pro
         size: v.size,
         color: v.color,
         heightRange: v.heightRange || null,
+        price: v.price ?? null,
         ...(v.sku ? { sku: v.sku } : {}),
         order: order++,
       };

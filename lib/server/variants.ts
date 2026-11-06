@@ -94,6 +94,8 @@ export interface VariantInput {
   size: string;
   color?: string;
   heightRange?: string | null;
+  /** Precio propio del talle; null = hereda el del producto. */
+  price?: number | null;
   /** Sin SKU se arma uno: <SKU o SLUG>-<TALLE>[-<COLOR>]. */
   sku?: string | null;
   order?: number;
@@ -161,6 +163,7 @@ export async function createVariant(
       size,
       color,
       heightRange: input.heightRange?.trim() || null,
+      price: input.price ?? null,
       sku,
       order: input.order ?? (maxOrder?.n ?? -1) + 1,
       active: input.active ?? true,
@@ -182,7 +185,7 @@ async function retireEmptyDefault(db: Db, productSlug: string): Promise<void> {
     .where(eq(schema.productVariants.id, id));
 }
 
-/** Edición de talle, color, altura, SKU, orden o estado. */
+/** Edición de talle, color, altura, precio, SKU, orden o estado. */
 export async function updateVariant(
   db: Db,
   variantId: string,
@@ -197,6 +200,7 @@ export async function updateVariant(
   if (patch.size !== undefined) set.size = patch.size.trim() || SINGLE_SIZE;
   if (patch.color !== undefined) set.color = patch.color.trim();
   if (patch.heightRange !== undefined) set.heightRange = patch.heightRange?.trim() || null;
+  if (patch.price !== undefined) set.price = patch.price ?? null;
   if (patch.order !== undefined) set.order = patch.order;
   if (patch.active !== undefined) set.active = patch.active;
   if (patch.sku !== undefined && patch.sku?.trim()) {

@@ -122,6 +122,8 @@ export interface ProductVariant {
   color: string;
   /** Altura sugerida para el talle: "1,65 – 1,75 m". */
   heightRange: string | null;
+  /** Precio propio del talle. null = hereda el del producto (`variantPrice`). */
+  price: number | null;
   sku: string;
   order: number;
   active: boolean;
@@ -790,7 +792,9 @@ export type PaymentMethodId =
   | "payway"
   | "mercadopago"
   | "transferencia"
-  | "efectivo";
+  | "efectivo"
+  /** Link de pago manual: el local lo manda por WhatsApp y lo marca pagado. */
+  | "link";
 
 /** Pasarela que reporta un pago online. */
 export type PaymentProvider = "payway" | "mp";

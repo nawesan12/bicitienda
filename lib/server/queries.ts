@@ -336,6 +336,8 @@ export interface RuntimeStore extends StoreConfig {
   onlineReservationMinutes: number;
   /** Efectivo en el local habilitado desde Ajustes. */
   cashEnabled: boolean;
+  /** Link de pago (manual, por WhatsApp) habilitado desde Ajustes. */
+  paymentLinkEnabled: boolean;
   /** Tope de cuotas de Mercado Pago (Checkout Pro). */
   maxInstallments: number;
   /** Cuenta para transferir (además del alias): CBU/CVU, titular y banco. */
@@ -376,6 +378,8 @@ export async function getStore(): Promise<RuntimeStore> {
     cashReservationHours: s.cashReservationHours,
     onlineReservationMinutes: s.onlineReservationMinutes,
     cashEnabled: s.cashEnabled,
+    // `?? true`: una fila cacheada de antes de la columna no lo trae.
+    paymentLinkEnabled: s.paymentLinkEnabled ?? true,
     maxInstallments: s.maxInstallments,
     localShippingCost: s.localShippingCost,
     showPrices: s.showPrices,

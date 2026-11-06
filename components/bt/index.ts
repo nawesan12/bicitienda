@@ -32,6 +32,7 @@ export * from "./calendar";
 export { CartLine } from "./cart-line";
 export { CopyButton } from "./copy-button";
 export { FormError, Modal } from "./modal";
+export { Lightbox, type LightboxPhoto } from "./lightbox";
 export { SortablePhotoGrid, type SortablePhoto } from "./sortable-photo-grid";
 export * from "./accordion";
 export * from "./navigation";

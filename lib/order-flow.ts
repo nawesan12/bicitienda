@@ -8,6 +8,7 @@ import type { OrderStatus, PaymentMethodId } from "@/lib/types";
  *   Armando →(Marcar lista para retirar)→ Listo para retirar
  *   Listo para retirar →(Marcar como retirada)→ Retirado
  *   Paga en local →(Registrar pago y retiro)→ Retirado
+ *   Link pendiente →(Registrar pago por link)→ Pagado
  *
  * más CANCELADO (devuelve el stock) desde cualquier estado abierto, y
  * VENCIDO (reserva sin pago que pasó su plazo). Un pago con Mercado Pago
@@ -26,6 +27,7 @@ export interface OrderLike {
 export type OrderStage =
   | "transf_pendiente"
   | "paga_en_local"
+  | "link_pendiente"
   | "pago_pendiente"
   | "señado"
   | "pagado"
@@ -42,6 +44,7 @@ export function orderStage(o: OrderLike): OrderStage {
     case "PENDIENTE_PAGO":
       if (o.paymentMethod === "transferencia") return "transf_pendiente";
       if (o.paymentMethod === "efectivo") return "paga_en_local";
+      if (o.paymentMethod === "link") return "link_pendiente";
       return "pago_pendiente";
     case "SEÑADO":
       return "señado";
@@ -68,6 +71,7 @@ export function orderStage(o: OrderLike): OrderStage {
 export const STAGE_LABELS: Record<OrderStage, string> = {
   transf_pendiente: "Transf. pendiente",
   paga_en_local: "Paga en local",
+  link_pendiente: "Link pendiente",
   pago_pendiente: "Pago pendiente",
   señado: "Señado",
   pagado: "Pagado",
@@ -89,7 +93,7 @@ export interface OrderTransition {
   label: string;
   from: OrderStatus;
   to: OrderStatus;
-  /** Registra el cobro manual (transferencia validada o efectivo). */
+  /** Registra el cobro manual (transferencia validada, efectivo o link de pago). */
   registersPayment: boolean;
 }
 
@@ -101,6 +105,8 @@ export function nextTransition(o: OrderLike): OrderTransition | null {
         return { label: "Validar transferencia", from: o.status, to: "PAGADO", registersPayment: true };
       if (o.paymentMethod === "efectivo")
         return { label: "Registrar pago y retiro", from: o.status, to: "RETIRADO", registersPayment: true };
+      if (o.paymentMethod === "link")
+        return { label: "Registrar pago por link", from: o.status, to: "PAGADO", registersPayment: true };
       return null;
     case "PAGADO":
       return { label: "Pasar a armado", from: o.status, to: "EN_PREPARACION", registersPayment: false };
@@ -141,6 +147,7 @@ export function progressDone(o: OrderLike): number {
   switch (orderStage(o)) {
     case "transf_pendiente":
     case "paga_en_local":
+    case "link_pendiente":
     case "pago_pendiente":
       return 1;
     case "señado":

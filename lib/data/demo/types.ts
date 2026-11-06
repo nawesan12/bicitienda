@@ -90,7 +90,7 @@ export interface DemoColor {
 
 /* ── Pedidos ────────────────────────────────────────────── */
 
-export type PaymentMethod = "mp" | "transfer" | "cash";
+export type PaymentMethod = "mp" | "transfer" | "cash" | "link";
 
 /**
  * Estados del pedido del prototipo. `transf_pendiente` y `paga_en_local`

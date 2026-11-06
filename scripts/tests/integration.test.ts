@@ -327,6 +327,25 @@ async function main() {
     await orders.cancelOrder(o2.id);
   });
 
+  test("link de pago: Link pendiente → Registrar pago por link → Pagado; reserva como transferencia", async () => {
+    const r = await checkout({ paymentMethod: "link" });
+    assert.ok(r.ok);
+    let o = await orderByNumber(r.number);
+    assert.equal(o.status, "PENDIENTE_PAGO");
+    assert.equal(o.discount, 0, "sin el off de transferencia");
+    const hours = (o.expiresAt!.getTime() - Date.now()) / 3600_000;
+    assert.ok(hours > 23.9 && hours <= 24, `vence en ${hours} h`);
+    assert.equal(flow.orderStageLabel(o), "Link pendiente");
+    assert.equal(flow.nextTransition(o)!.label, "Registrar pago por link");
+    assert.ok(readdirSync(path.join(TMP, ".data/outbox")).includes(`${o.number}-confirmacion.html`), "mail al crear");
+    assert.ok((await orders.advanceOrder(o.id)).ok);
+    o = await order(o.id);
+    assert.equal(o.status, "PAGADO");
+    assert.equal(o.paidAmount, o.total);
+    assert.ok(o.timeline.some((e) => e.label === "Pago por link registrado"));
+    await orders.cancelOrder(o.id);
+  });
+
   test("Mercado Pago: sandbox, cuotas reales del pago, webhook idempotente", async () => {
     const r = await checkout({ paymentMethod: "mercadopago" });
     assert.ok(r.ok);
@@ -458,21 +477,19 @@ async function main() {
     const sun = nextWeekday(0);
     const { days } = await appts.getAvailability({ from: today, days: 31 });
     const day = (d: string) => days.find((x) => x.date === d)!;
-    assert.deepEqual(day(mon).slots.map((s) => s.time), [
-      "10:00", "10:30", "11:00", "11:30", "12:00", "12:30",
-      "16:00", "16:30", "17:00", "17:30", "18:00", "18:30",
-    ]);
-    assert.deepEqual(day(sat).slots.map((s) => s.time), ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30"]);
+    // Turnos cada una hora (slotMinutes = 60).
+    assert.deepEqual(day(mon).slots.map((s) => s.time), ["10:00", "11:00", "12:00", "16:00", "17:00", "18:00"]);
+    assert.deepEqual(day(sat).slots.map((s) => s.time), ["10:00", "11:00", "12:00"]);
     assert.equal(day(sun).open, false);
     await appts.blockSchedule({ date: mon, from: "16:00", to: "17:00", reason: "Trámite" });
     const after = (await appts.getAvailability({ from: mon, days: 1 })).days[0];
-    assert.deepEqual(after.slots.filter((s) => s.state === "bloqueado").map((s) => s.time), ["16:00", "16:30"]);
-    // Anticipación: con "ahora" = el lunes 11:15, 12:30 todavía no (120 min) y 13:30… no hay; 16:00 bloqueado.
+    assert.deepEqual(after.slots.filter((s) => s.state === "bloqueado").map((s) => s.time), ["16:00"]);
+    // Anticipación: con "ahora" = el lunes 11:15, 12:00 todavía no (120 min); 16:00 bloqueado.
     const now = zoned.localToUtc(mon, "11:15", TZ);
     const withNow = (await appts.getAvailability({ from: mon, days: 1, now })).days[0];
     const state = (t: string) => withNow.slots.find((s) => s.time === t)!.state;
     assert.equal(state("11:00"), "pasado");
-    assert.equal(state("12:30"), "anticipacion");
+    assert.equal(state("12:00"), "anticipacion");
     assert.equal(state("17:00"), "libre");
     // Horizonte: más de 30 días → fuera de rango.
     const far = (await appts.getAvailability({ from: zoned.addDays(today, 31), days: 7 })).days;
@@ -482,12 +499,12 @@ async function main() {
   test("dos reservas simultáneas al mismo slot: una falla", async () => {
     const tue = nextWeekday(2);
     const book = (name: string, ph: string) =>
-      appts.createAppointment({ serviceId: "reparacion", date: tue, time: "10:30", name, phone: ph, source: "web", note: "Frenos que no frenan · MTB R29" });
+      appts.createAppointment({ serviceId: "reparacion", date: tue, time: "11:00", name, phone: ph, source: "web", note: "Frenos que no frenan · MTB R29" });
     const res = await Promise.allSettled([book("Ana Torres", "2235550107"), book("Ramiro Luna", "2235550114")]);
     assert.equal(res.filter((r) => r.status === "fulfilled").length, 1);
     const rejected = res.find((r) => r.status === "rejected") as PromiseRejectedResult;
     assert.equal(rejected.reason.code, "SLOT");
-    const slot = (await appts.getAvailability({ from: tue, days: 1 })).days[0].slots.find((s) => s.time === "10:30")!;
+    const slot = (await appts.getAvailability({ from: tue, days: 1 })).days[0].slots.find((s) => s.time === "11:00")!;
     assert.equal(slot.state, "ocupado");
     // Con capacidad 2 entra el segundo.
     await db.update(schema.settings).set({ slotCapacity: 2 });
@@ -669,6 +686,8 @@ async function main() {
       assert.equal((await settingsActions.patchSettings({ maxInstallments: 0 })).ok, false, "cuotas ≥ 1");
       assert.equal((await settingsActions.patchSettings({ cashEnabled: "no" })).ok, false);
       assert.deepEqual(await settingsActions.patchSettings({ cashEnabled: false }), { ok: true });
+      assert.equal((await settingsActions.patchSettings({ paymentLinkEnabled: "no" })).ok, false);
+      assert.deepEqual(await settingsActions.patchSettings({ paymentLinkEnabled: false }), { ok: true });
     });
     rt = await getStore();
     assert.equal(rt.transferCbu, "0000003100012345678901", "sin espacios ni guiones");
@@ -676,12 +695,18 @@ async function main() {
     assert.equal(rt.transferBank, "Banco Nación");
     assert.equal(rt.maxInstallments, 3);
     assert.equal(rt.cashEnabled, false);
+    assert.equal(rt.paymentLinkEnabled, false);
     const opts = paymentOptions(rt);
     assert.ok(!opts.some((o) => o.id === "efectivo"), "efectivo apagado no se ofrece");
+    assert.ok(!opts.some((o) => o.id === "link"), "link de pago apagado no se ofrece");
     assert.match(opts.find((o) => o.id === "mercadopago")!.note, /Hasta 3 cuotas/);
     assert.equal((await checkout({ paymentMethod: "efectivo" })).ok, false, "efectivo apagado no se acepta");
-    await asAdmin(() => settingsActions.patchSettings({ cashEnabled: true, maxInstallments: 6 }));
-    assert.equal((await getStore()).cashEnabled, true);
+    assert.equal((await checkout({ paymentMethod: "link" })).ok, false, "link de pago apagado no se acepta");
+    await asAdmin(() => settingsActions.patchSettings({ cashEnabled: true, paymentLinkEnabled: true, maxInstallments: 6 }));
+    const back = await getStore();
+    assert.equal(back.cashEnabled, true);
+    assert.equal(back.paymentLinkEnabled, true);
+    assert.ok(paymentOptions(back).some((o) => o.id === "link"), "link de pago prendido se ofrece");
   });
 
   test("mails: transferencia con datos bancarios y texto plano, cancelado, vencido", async () => {
@@ -747,7 +772,7 @@ async function main() {
   test("mails: turno reprogramado y cancelado por el local; presupuesto recibido y cotizado", async () => {
     const thu = nextWeekday(4);
     const a = await appts.createAppointment({ serviceId: "asesoramiento", date: thu, time: "10:00", name: "Pía Ruiz", phone: "2235550174", email: "pia@example.com", source: "web" });
-    const moved = await appts.rescheduleAppointment(a.id, { date: thu, time: "11:30" }, "admin");
+    const moved = await appts.rescheduleAppointment(a.id, { date: thu, time: "11:00" }, "admin");
     const mv = outboxFile(`turno-${moved.number}.html`);
     assert.match(mv, /Turno reprogramado/);
     assert.match(mv, /10:00/, "muestra el horario anterior");

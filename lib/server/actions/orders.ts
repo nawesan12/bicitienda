@@ -30,7 +30,7 @@ const statusSchema = z.enum([
   "VENCIDO",
 ]);
 const balanceSchema = z.object({
-  method: z.enum(["transferencia", "efectivo"]),
+  method: z.enum(["transferencia", "efectivo", "link"]),
   amount: z.number().int().min(1).max(1_000_000_000),
 });
 
@@ -83,12 +83,12 @@ export async function confirmManualPayment(orderId: string) {
 }
 
 /**
- * Registra el saldo de un pedido señado (transferencia o efectivo en el
+ * Registra el saldo de un pedido señado (transferencia, link de pago o efectivo en el
  * local). Al completarse el total, el pedido pasa a PAGADO.
  */
 export async function registerBalancePayment(
   orderId: string,
-  method: "transferencia" | "efectivo",
+  method: "transferencia" | "efectivo" | "link",
   amount: number,
 ) {
   await requireAdmin();

@@ -158,7 +158,7 @@ export async function adminAdvanceQuote(id: unknown, opts?: unknown): Promise<Ad
   const o = z
     .object({
       expectedFrom: z.enum(["nuevo", "cotizado", "aceptado", "pedido_creado", "rechazado"]).optional(),
-      paymentMethod: z.enum(["transferencia", "efectivo"]).optional(),
+      paymentMethod: z.enum(["transferencia", "efectivo", "link"]).optional(),
     })
     .optional()
     .safeParse(opts);

@@ -66,6 +66,8 @@ const settingsPatchSchema = z
     transferBank: z.string().trim().max(80),
     /** Efectivo en el local habilitado en el checkout. */
     cashEnabled: z.boolean(),
+    /** Link de pago (manual, por WhatsApp) habilitado en el checkout. */
+    paymentLinkEnabled: z.boolean(),
     /** Tope de cuotas de Mercado Pago (1 = sin cuotas). */
     maxInstallments: z.number().int().min(1).max(24),
     /** Horas que se guarda una reserva en efectivo. null = no vence. */
@@ -110,6 +112,7 @@ export async function patchSettings(patch: unknown): Promise<Result> {
   if (p.transferHolder !== undefined) set.transferHolder = p.transferHolder;
   if (p.transferBank !== undefined) set.transferBank = p.transferBank;
   if (p.cashEnabled !== undefined) set.cashEnabled = p.cashEnabled;
+  if (p.paymentLinkEnabled !== undefined) set.paymentLinkEnabled = p.paymentLinkEnabled;
   if (p.maxInstallments !== undefined) set.maxInstallments = p.maxInstallments;
   if (p.cashReservationHours !== undefined) set.cashReservationHours = p.cashReservationHours;
   if (p.onlineReservationMinutes !== undefined) set.onlineReservationMinutes = p.onlineReservationMinutes;

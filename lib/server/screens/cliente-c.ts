@@ -136,9 +136,8 @@ export interface AppointmentCardView {
   time: string;
   /** "Jueves 8 de octubre". */
   dayLabel: string;
-  /** "MTB rodado 29 · Talle M · 30 min" (desktop). */
+  /** "MTB rodado 29 · Talle M" (sin duración: los turnos no la tienen). */
   detail: string;
-  /** "MTB rodado 29 · Talle M · 30 min" sin modelo largo (mobile = igual, se corta por CSS). */
   durationMin: number;
   address: string;
   /** El cliente puede reprogramar/cancelar online (anticipación). */
@@ -151,7 +150,8 @@ async function toCardView(v: AppointmentView, address: string, whatsapp: string)
   const wd = weekdayOf(v.date);
   const [, m, d] = v.date.split("-").map(Number);
   const dayLabel = cap(v.dayLabel);
-  const detail = [v.productLabel, `${v.appointment.durationMin} min`].filter(Boolean).join(" · ");
+  // Sin duración: los turnos no tienen una duración fija.
+  const detail = v.productLabel ?? "";
   const msg = `¡Hola! Tengo el turno #${v.appointment.number} (${v.service.name}, ${dayLabel} a las ${v.time}) y necesito cambiarlo.`;
   return {
     id: v.appointment.id,
@@ -200,6 +200,7 @@ export function orderPillStatus(order: Pick<OrderRow, "status" | "paymentMethod"
     case "PENDIENTE_PAGO":
       if (order.paymentMethod === "transferencia") return "transf_pendiente";
       if (order.paymentMethod === "efectivo") return "paga_local";
+      if (order.paymentMethod === "link") return "link_pendiente";
       return null; // pago online en curso: sin pill en bt
     case "SEÑADO":
     case "PAGADO":

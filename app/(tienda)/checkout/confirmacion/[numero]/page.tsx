@@ -76,6 +76,7 @@ export default async function ConfirmationPage({
   const online = isOnlinePayment(method);
   const isTransfer = method === "transferencia";
   const isCash = method === "efectivo";
+  const isLink = method === "link";
   const closed = order.status === "CANCELADO" || order.status === "VENCIDO";
   const paid = timeline[1]?.state === "done";
   const waitingOnline = online && !paid && !closed;
@@ -166,6 +167,15 @@ export default async function ConfirmationPage({
     text = fillTemplate(B.cash.text, vars);
     steps[0] = { title: B.cash.step1.title, description: relativeStamp(order.createdAt) };
     steps[3] = { title: B.cash.step4.title, description: B.cash.step4.text };
+  } else if (isLink && !paid) {
+    mark = <SuccessMark tone="waiting" symbol="$" />;
+    title = fillTemplate(B.link.title, vars);
+    subtitle = B.link.subtitle;
+    text = fillTemplate(B.link.text, vars);
+    steps[0] = {
+      title: B.link.step,
+      description: fillTemplate(B.link.stepWaiting, { vence: expires ? fillTemplate(B.untilShort, { fecha: expires }) : "" }),
+    };
   }
   const done = stepsDone(timeline, isCash);
 
@@ -199,6 +209,25 @@ export default async function ConfirmationPage({
             </div>
             <KeyValueList layout="stacked" items={[{ label: B.cash.payUntil, value: expires ?? B.cash.noExpiry }]} />
           </Panel>
+    ) : isLink ? (
+      <Panel as="section" surface="surface" padding="md" gap="md">
+        <Eyebrow tone="yellow" size="md" as="h2">
+          {B.link.payTitle}
+        </Eyebrow>
+        <p className="m-0 text-[15px] leading-[1.5] text-text-2">{B.link.payText}</p>
+        <div className="flex items-end justify-between gap-4">
+          <Eyebrow size="sm">{B.link.payAmount}</Eyebrow>
+          <Price amount={order.total} size="panel" tone="yellow" />
+        </div>
+        <Button
+          href={waUrl(runtime.whatsapp, fillTemplate(B.link.waMsg, { número: order.number }))}
+          external
+          variant="secondary"
+          className="w-full"
+        >
+          {B.link.waCta}
+        </Button>
+      </Panel>
     ) : null;
 
   return (

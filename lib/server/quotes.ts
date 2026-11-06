@@ -157,7 +157,7 @@ export type AdvanceQuoteResult =
  */
 export async function advanceQuote(
   id: string,
-  opts: { expectedFrom?: QuoteStatus; paymentMethod?: "transferencia" | "efectivo" } = {},
+  opts: { expectedFrom?: QuoteStatus; paymentMethod?: "transferencia" | "efectivo" | "link" } = {},
 ): Promise<AdvanceQuoteResult> {
   const db = await getDb();
   const full = await getQuote(id);

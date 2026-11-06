@@ -125,6 +125,8 @@ export const productVariants = pgTable(
     size: text("size").notNull().default("Único"),
     color: text("color").notNull().default(""),
     heightRange: text("height_range"),
+    /** Precio propio del talle (ARS). null = hereda `products.price`. */
+    price: integer("price"),
     sku: text("sku").notNull().unique(),
     order: integer("order").notNull().default(0),
     active: boolean("active").notNull().default(true),
@@ -280,10 +282,12 @@ export const settings = pgTable("settings", {
   cashReservationHours: integer("cash_reservation_hours"),
   /** Efectivo en el local habilitado en el checkout. */
   cashEnabled: boolean("cash_enabled").notNull().default(true),
+  /** Link de pago (manual, por WhatsApp) habilitado en el checkout. */
+  paymentLinkEnabled: boolean("payment_link_enabled").notNull().default(true),
   /** Tope de cuotas que se ofrecen en Mercado Pago. */
   maxInstallments: integer("max_installments").notNull().default(6),
   /** Turnos: duración de cada slot, turnos por slot, anticipación y horizonte. */
-  slotMinutes: integer("slot_minutes").notNull().default(30),
+  slotMinutes: integer("slot_minutes").notNull().default(60),
   slotCapacity: integer("slot_capacity").notNull().default(1),
   minNoticeMin: integer("min_notice_min").notNull().default(120),
   maxDaysAhead: integer("max_days_ahead").notNull().default(30),
@@ -527,7 +531,8 @@ export const appointmentServices = pgTable("appointment_services", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
-  durationMin: integer("duration_min").notNull().default(30),
+  /** Sin uso visible: los turnos no tienen duración fija (slots de 1 hora). */
+  durationMin: integer("duration_min").notNull().default(60),
   /** "Se paga en el local", "Sin cargo"… */
   priceNote: text("price_note").notNull().default(""),
   /** La prueba lleva producto (y variante) a probar. */

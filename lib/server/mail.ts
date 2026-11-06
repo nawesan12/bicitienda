@@ -377,7 +377,6 @@ export async function sendAppointmentConfirmedEmail(appointmentId: string): Prom
         manageUrl: appointmentManageUrl(view.appointment.number, view.appointment.manageToken),
         whatsapp: runtime.whatsapp,
         footer: footerOf(runtime, local),
-        durationMin: view.appointment.durationMin,
         rescheduledFrom,
         mapsUrl: known(runtime.mapsUrl),
       }),

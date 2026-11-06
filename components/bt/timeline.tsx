@@ -18,6 +18,7 @@ export const ORDER_STEPS = [
 export const ORDER_STEPS_DONE = {
   transf_pendiente: 1,
   paga_local: 1,
+  link_pendiente: 1,
   pagado: 2,
   armando: 2,
   listo: 4,

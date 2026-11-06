@@ -29,10 +29,6 @@ function cap(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function fill(tpl: string, min: number) {
-  return tpl.replace("{min}", String(min));
-}
-
 /** Servicio preseleccionado: el taller, si está activo. */
 const DEFAULT_SERVICE = "reparacion";
 
@@ -152,7 +148,6 @@ export function BookingClient({ data }: { data: BookingData }) {
                 onChange={() => setServiceId(s.id)}
                 title={s.name}
                 description={s.description}
-                meta={fill(T.durationBadge, s.durationMin)}
                 selectedStyle="fill"
                 titleStyle="display-lg"
                 surface="surface"
@@ -270,7 +265,7 @@ export function BookingClient({ data }: { data: BookingData }) {
           {dayText} · {timeText}
         </p>
         <p className="m-0 text-[14px] md:hidden">
-          {fill(T.durationValue, service?.durationMin ?? 30)} · {data.address}
+          {data.address}
         </p>
         <SummaryRows
           tone="yellow"
@@ -278,7 +273,6 @@ export function BookingClient({ data }: { data: BookingData }) {
           rows={[
             { label: T.summary.day, value: dayText },
             { label: T.summary.time, value: timeText },
-            { label: T.summary.duration, value: fill(T.durationValue, service?.durationMin ?? 30) },
             { label: T.summary.where, value: data.address },
           ]}
         />

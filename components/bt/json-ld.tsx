@@ -355,7 +355,8 @@ export function productLd(
   // Vigencia del precio: 30 días desde el render (la página se regenera
   // con cada cambio del admin).
   const validUntil = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-  const variants: Pick<ProductVariant, "id" | "size" | "color" | "sku" | "stock" | "active">[] =
+  const variants: (Pick<ProductVariant, "id" | "size" | "color" | "sku" | "stock" | "active"> &
+    Partial<Pick<ProductVariant, "price">>)[] =
     p.variants.filter((v) => v.active);
 
   const offer = (v: (typeof variants)[number] | null): LdNode => {
@@ -367,7 +368,8 @@ export function productLd(
       ...(v ? { sku: v.sku } : {}),
       ...(label ? { name: `${p.name} — ${label}` } : {}),
       priceCurrency: "ARS",
-      price: p.price,
+      // Precio por talle: el de la variante o el del producto.
+      price: v?.price ?? p.price,
       priceValidUntil: validUntil,
       itemCondition: "https://schema.org/NewCondition",
       availability: inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",

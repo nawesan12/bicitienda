@@ -5,10 +5,12 @@ import { useMemo, useState } from "react";
 import { Button, TextLink } from "@/components/bt/button";
 import { cx } from "@/components/bt/cx";
 import { TileGrid, Tile } from "@/components/bt/panel";
+import { PriceBox } from "@/components/bt/product-card";
 import { QtyStepper } from "@/components/bt/qty-stepper";
 import { FONT } from "@/components/bt/styles";
 import { ColorSelector, SizeSelector } from "@/components/bt/variant-selector";
 import { useCart } from "@/lib/cart-store";
+import { AddSheet, type AddSheetCopy, type AddSheetItem } from "./add-sheet";
 
 /**
  * Compra de la ficha (2c / 4c, isla cliente): talle (con altura
@@ -21,6 +23,13 @@ import { useCart } from "@/lib/cart-store";
  * alguna de sus variantes tiene stock; un color, si la variante del talle
  * elegido tiene stock. El stock que se muestra es el de la variante
  * elegida (talle × color).
+ *
+ * Precio por talle: el precio vive acá (no en el server) porque cambia al
+ * elegir talle. Si los talles tienen precios distintos no se preelige
+ * ninguno y la caja dice "Desde $min" hasta que el cliente elige.
+ *
+ * Al agregar: si hay accesorios relacionados abre el panel `AddSheet`
+ * ("Agregado al carrito ✓ · Sumale a tu bici"); si no, va al carrito.
  */
 
 export interface PurchaseVariant {
@@ -28,12 +37,23 @@ export interface PurchaseVariant {
   size: string;
   color: string;
   heightRange: string | null;
+  /** Precio efectivo del talle (el propio o el del producto). */
+  price: number | null;
   stock: number;
 }
 
 export interface ProductPurchaseProps {
   slug: string;
+  name: string;
+  /** Miniatura para el panel de agregado. */
+  image?: string;
   variants: PurchaseVariant[];
+  /** Precio base; null = no se muestra caja de precio (a consultar / vidriera). */
+  price: number | null;
+  oldPrice?: number | null;
+  transferDiscountPct: number;
+  /** Accesorios para el panel de agregado (vacío = va directo al carrito). */
+  related: AddSheetItem[];
   /** Stock forzado a 0 desde el admin ("sin_stock"). */
   forcedOut?: boolean;
   swatches: Record<string, string | undefined>;
@@ -54,6 +74,8 @@ export interface ProductPurchaseProps {
     stockTitle: string;
     stockTitleMobile: string;
     stockText: string;
+    chooseSize: string;
+    added: AddSheetCopy;
   };
 }
 
@@ -66,7 +88,13 @@ const uniq = (xs: string[]) => [...new Set(xs)];
 
 export function ProductPurchase({
   slug,
+  name,
+  image,
   variants,
+  price: basePrice,
+  oldPrice,
+  transferDiscountPct,
+  related,
   forcedOut,
   swatches,
   repairHref,
@@ -89,15 +117,28 @@ export function ProductPurchase({
   const firstColorFor = (s: string | null) =>
     colors.find((c) => stockOf(find(s, c)) > 0) ?? colors[0] ?? null;
 
+  // Precios por talle: con precios distintos se muestra "Desde" hasta elegir.
+  const prices = variants.map((v) => v.price).filter((n): n is number => n != null);
+  const minPrice = prices.length ? Math.min(...prices) : basePrice;
+  const pricesVary = prices.length > 1 && prices.some((n) => n !== prices[0]);
+
   const [size, setSize] = useState<string | null>(() =>
-    sizes.length ? sizes.reduce((best, s) => (sizeTotal(s) > sizeTotal(best) ? s : best), sizes[0]) : null,
+    sizes.length && !pricesVary
+      ? sizes.reduce((best, s) => (sizeTotal(s) > sizeTotal(best) ? s : best), sizes[0])
+      : null,
   );
   const [color, setColor] = useState<string | null>(() => firstColorFor(size));
   const [qty, setQty] = useState(1);
   const [adding, setAdding] = useState(false);
+  const [sheet, setSheet] = useState(false);
 
   const variant = find(size, color) ?? (sizes.length || colors.length ? undefined : variants[0]);
   const stock = stockOf(variant);
+  const needsSize = sizes.length > 0 && !size;
+  // Precio mostrado: el del talle elegido; sin elegir, el menor ("Desde" si varían).
+  const shownPrice =
+    variant?.price ?? (size ? variants.find((v) => v.size === size)?.price : null) ?? minPrice;
+  const showFrom = pricesVary && !variant && !size;
 
   const chooseSize = (s: string) => {
     setSize(s);
@@ -105,8 +146,9 @@ export function ProductPurchase({
     setQty(1);
   };
 
-  const stockLine =
-    stock > 0
+  const stockLine = needsSize
+    ? copy.chooseSize
+    : stock > 0
       ? size
         ? copy.stockText.replace("{n}", String(stock)).replace("{talle}", size) +
           (colors.length > 1 && color ? ` · ${color}` : "")
@@ -119,16 +161,32 @@ export function ProductPurchase({
     const existing = items.find((i) => i.productSlug === slug && (i.variantId ?? "") === variant.id)?.quantity ?? 0;
     add(slug, stock, variant.id);
     if (qty > 1) setQtyInCart(slug, existing + qty, stock, variant.id);
-    router.push(cartHref);
+    if (!related.length) {
+      router.push(cartHref);
+      return;
+    }
+    setAdding(false);
+    setSheet(true);
   };
+
+  const addedDetail = [size, colors.length > 1 ? color : null].filter(Boolean).join(" · ");
 
   return (
     <div className={cx("flex flex-col gap-[18px] lg:gap-6", FONT)}>
+      {basePrice != null && shownPrice != null && (
+        <PriceBox
+          price={shownPrice}
+          oldPrice={oldPrice}
+          priceFrom={showFrom}
+          transferDiscountPct={transferDiscountPct}
+        />
+      )}
+
       {sizes.length > 0 && (
         <SizeSelector
           name="talle"
           label={copy.sizeLabel}
-          value={size ?? undefined}
+          value={size ?? ""}
           onChange={chooseSize}
           help={{
             href: sizeHelpHref,
@@ -159,7 +217,10 @@ export function ProductPurchase({
           value: c,
           label: c,
           swatch: swatches[c],
-          available: stockOf(find(size, c)) > 0,
+          // Sin talle elegido: el color está si algún talle lo tiene en stock.
+          available: size || !sizes.length
+            ? stockOf(find(size, c)) > 0
+            : variants.some((v) => v.color === c && stockOf(v) > 0),
         }))}
       />
 
@@ -174,8 +235,8 @@ export function ProductPurchase({
             disabled={stock <= 0}
             className="max-lg:hidden"
           />
-          <Button variant="primary" size="full-lg" onClick={onAdd} disabled={stock <= 0 || adding}>
-            {stock > 0 ? copy.addToCart : "Sin stock"}
+          <Button variant="primary" size="full-lg" onClick={onAdd} disabled={needsSize || stock <= 0 || adding}>
+            {needsSize ? copy.chooseSize : stock > 0 ? copy.addToCart : "Sin stock"}
           </Button>
         </div>
         <TextLink href={repairHref} tone="muted" underline className="self-start lg:mt-1">
@@ -190,7 +251,7 @@ export function ProductPurchase({
         </Tile>
         <Tile className="px-[18px] py-4">
           <span className="text-[15px] font-extrabold">{copy.stockTitle}</span>
-          <span className={cx("text-[14px]", stock > 0 ? "text-text-2" : "text-red-light")} aria-live="polite">
+          <span className={cx("text-[14px]", stock > 0 || needsSize ? "text-text-2" : "text-red-light")} aria-live="polite">
             {stockLine}
           </span>
         </Tile>
@@ -202,9 +263,20 @@ export function ProductPurchase({
         </div>
         <div className="flex flex-col gap-[2px] rounded-box bg-surface p-3">
           <span className="text-[14px] font-extrabold">{copy.stockTitleMobile}</span>
-          <span className={cx("text-[13px]", stock > 0 ? "text-text-2" : "text-red-light")}>{stockLine}</span>
+          <span className={cx("text-[13px]", stock > 0 || needsSize ? "text-text-2" : "text-red-light")}>{stockLine}</span>
         </div>
       </div>
+
+      {related.length > 0 && (
+        <AddSheet
+          open={sheet}
+          onClose={() => setSheet(false)}
+          added={{ name, detail: addedDetail || undefined, image }}
+          items={related}
+          cartHref={cartHref}
+          copy={copy.added}
+        />
+      )}
     </div>
   );
 }
